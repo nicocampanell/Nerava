@@ -179,6 +179,36 @@
 
 ---
 
+## Models Without Corresponding Public Endpoints
+
+These SQLAlchemy models exist in `backend/app/models/` but have no obvious public API surface:
+
+| Model | File | Purpose |
+|-------|------|---------|
+| `CarPin` | `extra.py` | Car PIN for in-vehicle sessions |
+| `BillingEvent` | `extra.py` | Payment event tracking |
+| `MerchantNotificationConfig` | `extra.py` | Merchant notification preferences |
+| `MerchantSubscription` | `extra.py` | Subscription tiers for merchants |
+| `ChargeIntent` | `extra.py` | Captured charging intent |
+| `QueuedOrder` | `extra.py` | Queued food/beverage orders for EV arrival flow |
+| `UtilityEvent` | `extra.py` | Utility provider demand response events (e.g. "austin_energy") |
+| `CommunityPeriod` | `extra.py` | Monthly community pool periods (gross/distributed cents) |
+| `FollowerShare` | `extra.py` | Automatic reward splits among followers |
+| `DualZoneSession` | `extra.py` | Two-radius geofence verification (charger R1 + merchant R2) |
+| `FeatureFlag` | `extra.py` | Env-specific feature flag toggles (prod/staging/dev) |
+
+## Implemented Backend Features Not in Main Inventory
+
+| Feature | Location | Description | Status |
+|---------|----------|-------------|--------|
+| Receipt OCR (Taggun) | `merchant_reward_service.py`, `merchant_rewards.py` | Drivers upload receipt photos; Taggun OCR extracts merchant name, total, timestamp with confidence scores; 2-hour claim window; S3 storage; manual review workflow | Built |
+| Community Pool / Follower Shares | `pool.py`, `pool2.py`, `pool_api.py` | Reward events auto-distribute "community cents" to followers; per-city pool summaries; dual ledger | Built |
+| Spend Verification (Fidel CLO detail) | `spend_verification_service.py`, `clo.py` | 3-hour transaction window matching between charging sessions and card-linked purchases; $5 minimum spend threshold; card brand detection | Built |
+| Verified Visit Codes | `verified_visit.py`, `exclusive.py` | Incremental codes like `ATX-ASADAS-023` for manual merchant-driver linkage without POS | Built |
+| Off-Peak Incentive Cycling | `incentives.py` | 5-min ON / 5-min OFF cycling windows; credits 100 cents during ON (one per user per 30 min); Nova conversion | Built |
+| Merchant Join Request Pipeline | `merchant_reward_service.py` | Request statuses: pending -> contacted -> joined -> declined; top-requested merchants admin view | Built |
+| Utility Demand Response | `extra.py` model | `UtilityEvent` model for grid demand response signals from providers like Austin Energy | Model only |
+
 ## Uncategorized / Unexpected
 
 | Feature | Location | Description | Status |
@@ -225,5 +255,6 @@
 | **Live in production** | ~65 features |
 | **Built but not exposed / no frontend** | ~30 features |
 | **Built, behind feature flag** | 3 (virtual key, dual zone, Smartcar) |
+| **Built, models only (no router)** | ~11 models in `extra.py` with no public endpoints |
 | **Built, minimal stub (< 50 lines)** | 5 (affiliate, discover, reservations, insights, dual zone) |
 | **Infrastructure built, not deployed** | 1 (Fleet Telemetry) |
