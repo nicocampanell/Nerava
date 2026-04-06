@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { DriverSessionProvider } from './contexts/DriverSessionContext'
 import { FavoritesProvider } from './contexts/FavoritesContext'
 import { DriverHome } from './components/DriverHome/DriverHome'
@@ -8,6 +8,7 @@ import { OfflineBanner } from './components/shared/OfflineBanner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { SessionExpiredModal } from './components/SessionExpiredModal'
 import { useViewportHeight } from './hooks/useViewportHeight'
+import { useAutoRedeemReferral } from './hooks/useAutoRedeemReferral'
 
 // Lazy-loaded route components for code splitting
 const TeslaCallbackScreen = lazy(() => import('./components/TeslaLogin/TeslaCallbackScreen').then(m => ({ default: m.TeslaCallbackScreen })))
@@ -22,6 +23,7 @@ const EarningsScreen = lazy(() => import('./components/Earnings/EarningsScreen')
 const MerchantArrivalScreen = lazy(() => import('./components/EVArrival/MerchantArrivalScreen').then(m => ({ default: m.MerchantArrivalScreen })))
 const PreChargingScreen = lazy(() => import('./components/PreCharging/PreChargingScreen').then(m => ({ default: m.PreChargingScreen })))
 const ClaimDetailsScreen = lazy(() => import('./components/ClaimDetails/ClaimDetailsScreen').then(m => ({ default: m.ClaimDetailsScreen })))
+const JoinPage = lazy(() => import('./pages/JoinPage'))
 
 function NotFoundScreen() {
   const navigate = useNavigate()
@@ -44,21 +46,10 @@ function NotFoundScreen() {
   )
 }
 
-function JoinReferral() {
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  useEffect(() => {
-    const ref = searchParams.get('ref')
-    if (ref) {
-      sessionStorage.setItem('nerava_referral_code', ref)
-    }
-    navigate('/', { replace: true })
-  }, [searchParams, navigate])
-  return null
-}
 
 function App() {
   useViewportHeight()
+  useAutoRedeemReferral()
 
   // Set basename for React Router - Vite provides BASE_URL from base config
   // BASE_URL is '/app/' when built with VITE_PUBLIC_BASE=/app/, '/' in dev
@@ -97,7 +88,7 @@ function App() {
             {/* Merchant details route */}
             <Route path="/merchant/:merchantId" element={<MerchantDetailsScreen />} />
             {/* Referral join route */}
-            <Route path="/join" element={<JoinReferral />} />
+            <Route path="/join" element={<JoinPage />} />
             {/* 404 catch-all */}
             <Route path="*" element={<NotFoundScreen />} />
           </Routes>

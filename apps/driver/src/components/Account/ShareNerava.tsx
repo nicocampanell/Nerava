@@ -1,14 +1,22 @@
 import { useState } from 'react'
-import { ArrowLeft, Copy, Share2, Gift, Check } from 'lucide-react'
+import { ArrowLeft, Copy, Share2, Gift, Check, Users, Zap } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { usePublicStats } from '../../services/api'
 
 interface ShareNeravaProps {
   onClose: () => void
   referralCode: string
 }
 
+function formatCompact(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
+  return n.toLocaleString()
+}
+
 export function ShareNerava({ onClose, referralCode }: ShareNeravaProps) {
   const [copied, setCopied] = useState(false)
+  const { data: stats } = usePublicStats()
   const referralLink = `https://app.nerava.network/join?ref=${referralCode}`
 
   const handleCopyLink = async () => {
@@ -95,6 +103,36 @@ export function ShareNerava({ onClose, referralCode }: ShareNeravaProps) {
             <li>• Merchant referral: Free month premium</li>
           </ul>
         </div>
+
+        {/* Network Stats (social proof) */}
+        {stats && stats.total_drivers > 0 && (
+          <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+            <p className="text-xs text-[#65676B] uppercase tracking-wide font-medium mb-3">Nerava Network</p>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Users className="w-3.5 h-3.5 text-[#1877F2]" />
+                </div>
+                <p className="text-lg font-bold text-gray-900">{formatCompact(stats.total_drivers)}</p>
+                <p className="text-xs text-[#65676B]">Drivers</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                </div>
+                <p className="text-lg font-bold text-gray-900">{formatCompact(stats.total_sessions)}</p>
+                <p className="text-xs text-[#65676B]">Sessions</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Gift className="w-3.5 h-3.5 text-green-500" />
+                </div>
+                <p className="text-lg font-bold text-gray-900">${formatCompact(stats.total_earned_cents / 100)}</p>
+                <p className="text-xs text-[#65676B]">Earned</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="space-y-3">

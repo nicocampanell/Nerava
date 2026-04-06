@@ -898,6 +898,10 @@ app.include_router(notifications.router)
 app.include_router(account.router)
 from .routers import referrals as referrals_router
 app.include_router(referrals_router.router)  # /v1/referrals/*
+from .routers import leaderboard as leaderboard_router
+app.include_router(leaderboard_router.router)  # /v1/leaderboard
+from .routers import public_stats as public_stats_router
+app.include_router(public_stats_router.router)  # /v1/stats/public
 from .routers.plaid import router as plaid_router, wallet_router as plaid_wallet_router
 app.include_router(plaid_router)  # /v1/wallet/plaid/*
 app.include_router(plaid_wallet_router)  # /v1/wallet/funding-sources

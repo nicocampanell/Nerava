@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, TrendingUp, TrendingDown, Clock, Loader2, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react'
+import { X, TrendingUp, TrendingDown, Clock, Loader2, ExternalLink, CheckCircle, AlertCircle, Gift } from 'lucide-react'
 import {
   createStripeAccount,
   createStripeAccountLink,
   requestWithdrawal,
   checkStripeStatus,
   useActiveExclusive,
+  useReferralStats,
 } from '../../services/api'
 import { BankLinkFlow } from './BankLinkFlow'
 import { ClaimActiveCard } from './ClaimActiveCard'
@@ -97,6 +98,9 @@ export function WalletModal({
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [isOpen, onBalanceChanged])
+
+  // Referral stats
+  const { data: referralStats } = useReferralStats()
 
   // Active claim data
   const { data: activeExclusiveData } = useActiveExclusive()
@@ -396,6 +400,30 @@ export function WalletModal({
           {/* Active Claim Card */}
           {activeClaim && claimRemaining > 0 && (
             <ClaimActiveCard session={activeClaim} remainingSeconds={claimRemaining} onTap={onClose} />
+          )}
+
+          {/* Referral Stats Card */}
+          {referralStats && referralStats.total_referrals > 0 && (
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-center gap-2 mb-3">
+                <Gift className="w-5 h-5 text-[#1877F2]" />
+                <span className="font-semibold text-[#1877F2]">Referral Rewards</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-xl font-bold text-gray-900">{referralStats.total_referrals}</p>
+                  <p className="text-xs text-[#65676B]">Friends joined</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(referralStats.total_earned_cents)}</p>
+                  <p className="text-xs text-[#65676B]">Earned</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-amber-500">{referralStats.pending_count}</p>
+                  <p className="text-xs text-[#65676B]">Pending</p>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Error banner (for connect bank failures) */}

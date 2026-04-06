@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { useWalletBalance, useWalletLedger } from '../../services/api'
+import { LeaderboardCard } from './LeaderboardCard'
 import type { WalletLedgerEntry } from '../../services/api'
 
 function formatCents(cents: number): string {
@@ -63,6 +64,9 @@ export function EarningsScreen() {
           </p>
         )}
       </div>
+
+      {/* Leaderboard */}
+      <LeaderboardCard />
 
       {/* Ledger list */}
       <div className="px-4 pb-8">

@@ -698,6 +698,15 @@ class SessionEventService:
                     except Exception as e:
                         logger.debug("Base reputation award failed (non-fatal): %s", e)
 
+            # Grant referral rewards on first completed session (idempotent)
+            if session and session.duration_minutes and session.duration_minutes > 0:
+                try:
+                    from app.services.referral_service import grant_referral_rewards
+                    if grant_referral_rewards(db, driver_id):
+                        logger.info("Referral rewards granted for driver %s on session %s", driver_id, session.id)
+                except Exception as e:
+                    logger.debug("Referral reward grant failed (non-fatal): %s", e)
+
             db.commit()
             _charging_cache.pop(cache_key, None)
 
@@ -821,6 +830,13 @@ class SessionEventService:
                         f"Granted {grant.amount_cents}c for stale-closed session "
                         f"{ended.id} ({ended.duration_minutes}min)"
                     )
+                # Grant referral rewards on first completed session (idempotent)
+                try:
+                    from app.services.referral_service import grant_referral_rewards
+                    if grant_referral_rewards(db, stale.driver_user_id):
+                        logger.info(f"Referral rewards granted for driver {stale.driver_user_id} on stale session {ended.id}")
+                except Exception as e:
+                    logger.debug(f"Referral reward grant failed (non-fatal): {e}")
 
         return stale_sessions[0]  # Most recent for backward compat
 
@@ -859,6 +875,13 @@ class SessionEventService:
                     f"Granted {grant.amount_cents}c for manually ended session "
                     f"{ended.id} ({ended.duration_minutes}min)"
                 )
+            # Grant referral rewards on first completed session (idempotent)
+            try:
+                from app.services.referral_service import grant_referral_rewards
+                if grant_referral_rewards(db, driver_id):
+                    logger.info(f"Referral rewards granted for driver {driver_id} on manual session {ended.id}")
+            except Exception as e:
+                logger.debug(f"Referral reward grant failed (non-fatal): {e}")
             db.commit()
 
         return ended

@@ -1343,6 +1343,54 @@ export function useReferralStats() {
   })
 }
 
+// ===================== Public Stats =====================
+
+export interface PublicStats {
+  total_drivers: number
+  total_earned_cents: number
+  total_sessions: number
+}
+
+export async function fetchPublicStats(): Promise<PublicStats> {
+  return fetchAPI<PublicStats>('/v1/stats/public')
+}
+
+export function usePublicStats() {
+  return useQuery({
+    queryKey: ['public-stats'],
+    queryFn: fetchPublicStats,
+    staleTime: 600000, // 10 minutes
+  })
+}
+
+// ===================== Leaderboard =====================
+
+export interface LeaderboardEntry {
+  rank: number
+  display_name: string
+  total_earned_cents: number
+  is_current_user: boolean
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[]
+  current_user_rank: number | null
+  current_user_earned_cents: number | null
+}
+
+export async function fetchLeaderboard(limit = 20): Promise<LeaderboardResponse> {
+  return fetchAPI<LeaderboardResponse>(`/v1/leaderboard?limit=${limit}`)
+}
+
+export function useLeaderboard(limit = 20) {
+  return useQuery({
+    queryKey: ['leaderboard', limit],
+    queryFn: () => fetchLeaderboard(limit),
+    enabled: !!localStorage.getItem('access_token'),
+    staleTime: 300000, // 5 minutes
+  })
+}
+
 // ===================== Charger Search (Geocoded) =====================
 
 export interface SearchChargerResult {
