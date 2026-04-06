@@ -62,10 +62,13 @@
 | Exclusives Management | Merchant portal | `Exclusives` + `CreateExclusive` — CRUD for exclusive offers shown to drivers | Live |
 | Merchant Visits | Merchant portal | `Visits` — view ExclusiveSession records (driver visits) with status | Live |
 | Customer Exclusive View | Merchant portal | `/exclusive/:exclusiveId` — staff-facing view to verify driver's active exclusive | Live |
-| Merchant Settings | Merchant portal | `Settings` — business profile configuration | Live |
-| Merchant Billing | Merchant portal + API | `Billing` + `merchant_billing.py` — budget management, Stripe checkout, promo codes | Live |
-| Nerava Ads | Merchant portal | `NeravaAds` — ad/promotion management page | Built |
-| Merchant Loyalty | Merchant portal + API | `Loyalty` + `loyalty.py` — punch-card loyalty programs (create/manage cards, track, claim rewards) | Built |
+| Merchant Settings | Merchant portal | `Settings` — business profile, EV reward config, Toast POS connect/disconnect | Live |
+| Merchant Billing | Merchant portal + API | `Billing` — payment methods, Pro subscription ($200/mo), invoice history with PDF, Stripe portal | Live |
+| Merchant Pro Tier | Merchant portal | Pro subscription gates: session-level analytics, customer visit frequency, unlimited exclusives, walk traffic reports | Live |
+| Magic Link Claim Verify | Merchant portal | `/claim/verify` — email-based magic link business claim verification | Live |
+| EV Arrivals | Merchant portal | `EVArrivals` — curbside arrival notifications, check-in code redemption, delivery confirmation, notification settings | Built, not routed |
+| Nerava Ads | Merchant portal | `NeravaAds` — ad placements with two tiers: Flat Rate ($99/mo) and CPM ($5/1K views), Stripe checkout, impression stats | Live |
+| Merchant Loyalty | Merchant portal + API | `Loyalty` + `loyalty.py` — punch-card loyalty programs (create/manage cards, track progress, claim rewards) | Live |
 | Toast POS Integration | Merchant portal + API | `ToastCallback` + `toast_pos.py` — connect Toast POS for AOV auto-calibration (mock default) | Built |
 | Merchant Preview | Merchant portal | `MerchantPreview` — HMAC-signed preview page for acquisition funnel | Live |
 | Merchant Analytics | API | `merchant_analytics.py` — merchant performance analytics | Live |
