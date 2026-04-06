@@ -194,8 +194,12 @@ These SQLAlchemy models exist in `backend/app/models/` but have no obvious publi
 | `UtilityEvent` | `extra.py` | Utility provider demand response events (e.g. "austin_energy") |
 | `CommunityPeriod` | `extra.py` | Monthly community pool periods (gross/distributed cents) |
 | `FollowerShare` | `extra.py` | Automatic reward splits among followers |
-| `DualZoneSession` | `extra.py` | Two-radius geofence verification (charger R1 + merchant R2) |
-| `FeatureFlag` | `extra.py` | Env-specific feature flag toggles (prod/staging/dev) |
+| `DualZoneSession` | `extra.py` | Two-radius geofence verification — **dead code** (router not registered) |
+| `FeatureFlag` | `extra.py` | DB-backed feature flags — **dead code** (superseded by env-based flags in `routers/flags.py`) |
+| `CreditLedger` | `extra.py` | Legacy cents-based ledger — **dead code** (superseded by `nova_transactions` + `wallet_ledger`) |
+| `IncentiveRule` | `extra.py` | Static incentive rules — **dead code** (superseded by Campaign targeting JSON) |
+| `ChargerAvailabilitySnapshot` | `charger_availability.py` | Real-time port availability from TomTom/Google/Tesla — model only, no ingestion pipeline |
+| `HubSpotOutbox` | `hubspot.py` | CRM sync event queue — never activated |
 
 ## Implemented Backend Features Not in Main Inventory
 
@@ -219,7 +223,7 @@ These SQLAlchemy models exist in `backend/app/models/` but have no obvious publi
 | Android WebView Shell | `mobile/nerava_android/` | Native Android app mirroring iOS: WebView + FCM + native bridge + geofencing | Live |
 | Charger Portal | `charger-portal/` | Next.js charger owner portal (savings dashboard, Nova budget, sessions, charts) — all data mocked | Built, not exposed |
 | EnergyHub | API | `energyhub.py` — charge start/stop events, charging windows (utility/grid integration, 180 lines) | Built, no frontend |
-| Dual Zone | API | `dual_zone.py` — experimental dual-zone session tracking (50 lines, feature-flagged) | Built, behind flag |
+| Dual Zone | API | `dual_zone.py` — dual-zone session tracking (50 lines); router NOT registered in `main_simple.py` | Dead code |
 | Reservations | API | `reservations.py` — soft-reserve charger slots (1 endpoint, 38 lines) | Built, minimal |
 | Pool API | API | `pool_api.py` — charging pool summary and ledger (160 lines) | Built |
 | Discover API | API | `discover_api.py` — discovery feed endpoint (33 lines) | Built, minimal |
@@ -254,7 +258,8 @@ These SQLAlchemy models exist in `backend/app/models/` but have no obvious publi
 |--------|-------|
 | **Live in production** | ~65 features |
 | **Built but not exposed / no frontend** | ~30 features |
-| **Built, behind feature flag** | 3 (virtual key, dual zone, Smartcar) |
+| **Built, behind feature flag** | 2 (virtual key, Smartcar) |
+| **Dead code (not registered / superseded)** | ~8 (dual zone, mock tesla, CreditLedger, IncentiveRule, FeatureFlag model, Flutter app, Figma prototypes, Helm charts) |
 | **Built, models only (no router)** | ~11 models in `extra.py` with no public endpoints |
 | **Built, minimal stub (< 50 lines)** | 5 (affiliate, discover, reservations, insights, dual zone) |
 | **Infrastructure built, not deployed** | 1 (Fleet Telemetry) |
