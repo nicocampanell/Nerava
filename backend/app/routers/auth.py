@@ -2,6 +2,7 @@
 Production Auth v1 Router
 Implements Google SSO, Apple SSO, Phone OTP, refresh token rotation, /me, logout
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -15,6 +16,8 @@ from ..core.security import create_access_token
 from ..core.config import settings
 from ..services.refresh_token_service import RefreshTokenService
 from ..services.analytics import get_analytics_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
