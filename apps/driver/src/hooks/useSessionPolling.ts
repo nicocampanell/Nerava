@@ -199,8 +199,15 @@ export function useSessionPolling() {
     durationMinutes = Math.floor((Date.now() - startMs) / 60000)
   }
 
-  // Debug mock charging: override isActive when toggled by test user
-  const mockCharging = typeof window !== 'undefined' && localStorage.getItem('debug_mock_charging') === 'true'
+  // Debug mock charging: override isActive (restricted to admin account)
+  const mockCharging = (() => {
+    if (typeof window === 'undefined') return false
+    if (localStorage.getItem('debug_mock_charging') !== 'true') return false
+    try {
+      const u = JSON.parse(localStorage.getItem('nerava_user') || '{}')
+      return u.public_id === 'd537cd5a-f13b-4a12-a757-04b1b35d0749'
+    } catch { return false }
+  })()
 
   const state: SessionPollingState = {
     isActive: mockCharging || (data?.active ?? false),

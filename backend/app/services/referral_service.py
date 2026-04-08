@@ -11,7 +11,7 @@ from app.models.referral import ReferralCode, ReferralRedemption
 
 logger = logging.getLogger(__name__)
 
-REFERRAL_REWARD_CENTS = 500  # $5.00
+REFERRAL_REWARD_CENTS = 250  # $2.50
 
 
 def _generate_code() -> str:

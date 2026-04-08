@@ -48,12 +48,12 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
   const [profileSaving, setProfileSaving] = useState(false)
   const navigate = useNavigate()
 
-  // Debug mock charging (only for test user 7133056318)
+  // Debug mock charging (restricted to admin account only)
   const [mockCharging, setMockCharging] = useState(() => localStorage.getItem('debug_mock_charging') === 'true')
   const isTestUser = (() => {
     try {
       const u = JSON.parse(localStorage.getItem('nerava_user') || '{}')
-      return u.phone?.endsWith('6318') || false
+      return u.public_id === 'd537cd5a-f13b-4a12-a757-04b1b35d0749'
     } catch { return false }
   })()
 

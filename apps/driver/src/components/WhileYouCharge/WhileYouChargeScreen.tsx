@@ -9,6 +9,7 @@ import { SecondaryMerchantCard } from './SecondaryMerchantCard'
 import { Carousel } from '../shared/Carousel'
 import { useMerchantsForCharger } from '../../services/api'
 import { MerchantCardSkeleton } from '../shared/Skeleton'
+import SponsorRewardCard from '../SponsorRewards/SponsorRewardCard'
 import type { MerchantSummary } from '../../types'
 
 // Carousel item type with id for keying
@@ -159,6 +160,11 @@ export function WhileYouChargeScreen() {
                 </button>
               </div>
             )}
+
+            {/* Sponsor Partner Rewards */}
+            <div className="mt-4 px-1 pb-4">
+              <SponsorRewardCard isCharging={true} />
+            </div>
           </div>
         </div>
       </main>

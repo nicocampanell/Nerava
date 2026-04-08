@@ -396,7 +396,7 @@ export function ChargerDetailSheet({
           ) : activeTab === 'overview' ? (
             <OverviewTab detail={detail} connectors={connectors} rewardCents={rewardCents} />
           ) : activeTab === 'rewards' ? (
-            <RewardsTab rewardCents={rewardCents} detail={detail} campaigns={campaigns} />
+            <RewardsTab rewardCents={rewardCents} detail={detail} campaigns={campaigns} isCharging={isCharging} />
           ) : (
             <NearbyTab
               merchants={detail?.nearby_merchants ?? []}
@@ -534,20 +534,10 @@ function OverviewTab({ detail, connectors, rewardCents }: { detail: ReturnType<t
 
 // ─── Rewards Tab ─────────────────────────────────────────────────────────────
 
-function RewardsTab({ rewardCents, detail, campaigns }: { rewardCents: number; detail: ReturnType<typeof useChargerDetail>['data']; campaigns: DriverCampaign[] }) {
+function RewardsTab({ rewardCents, detail, campaigns, isCharging }: { rewardCents: number; detail: ReturnType<typeof useChargerDetail>['data']; campaigns: DriverCampaign[]; isCharging: boolean }) {
   const hasCampaigns = campaigns.length > 0
 
-  if (!hasCampaigns && rewardCents === 0) {
-    return (
-      <div className="text-center py-8">
-        <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-          <DollarSign className="w-7 h-7 text-gray-400" />
-        </div>
-        <p className="text-sm font-medium text-[#050505]">No active rewards</p>
-        <p className="text-xs text-[#65676B] mt-1">Check back later — campaigns are added regularly</p>
-      </div>
-    )
-  }
+  // Removed early return — EVject partner offer should always show
 
   return (
     <div className="space-y-3">
@@ -603,6 +593,47 @@ function RewardsTab({ rewardCents, detail, campaigns }: { rewardCents: number; d
           )}
         </div>
       ))}
+
+      {/* EVject Partner Offer */}
+      <button
+        onClick={() => {
+          if (!isCharging) return
+          capture(DRIVER_EVENTS.MERCHANT_CLICKED, { sponsor: 'evject', type: 'partner_offer' })
+          openExternalUrl('https://evject.com/discount/nerava26')
+        }}
+        disabled={!isCharging}
+        className={`w-full rounded-2xl border p-4 text-left transition-all relative overflow-hidden ${
+          isCharging
+            ? 'border-emerald-200 bg-emerald-50 active:scale-[0.98] cursor-pointer'
+            : 'border-[#E4E6EB] bg-gray-50 opacity-60 cursor-not-allowed'
+        }`}
+      >
+        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
+        <div className="flex items-start justify-between ml-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 bg-emerald-600 rounded-full flex items-center justify-center">
+                <Zap className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="text-xs font-medium text-[#65676B]">EVject</span>
+              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                Partner Offer
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-[#050505]">10% Off EVject Chargers</p>
+            <p className="text-xs text-[#65676B] mt-0.5">
+              {isCharging
+                ? 'Tap to claim your discount on EVject charging equipment'
+                : 'Start charging to unlock this reward'}
+            </p>
+          </div>
+          <div className="flex-shrink-0 ml-3">
+            <div className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 rounded-xl">
+              <span className="text-sm font-bold text-white">10% off</span>
+            </div>
+          </div>
+        </div>
+      </button>
 
       {/* Fallback: show generic reward if campaigns didn't load but active_reward_cents exists */}
       {!hasCampaigns && rewardCents > 0 && (
