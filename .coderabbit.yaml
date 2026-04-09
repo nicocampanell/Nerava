@@ -4,31 +4,101 @@ reviews:
   profile: "assertive"
   request_changes_workflow: true
   high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
   poem: false
   review_status: true
   collapse_walkthrough: false
   auto_review:
     enabled: true
     drafts: false
+    base_branches:
+      - main
   path_instructions:
-    - path: "backend/**"
+    - path: "backend/app/**/*.py"
       instructions: |
-        Python 3.9 compatibility required (no PEP 604 union syntax).
-        Check for missing imports and undefined variables.
-        Verify all SQLAlchemy queries use proper session handling.
-        Flag any hardcoded secrets or credentials.
-    - path: "apps/driver/**"
-      instructions: |
-        React 19 + TypeScript + Tailwind 4.
-        Check for proper error boundaries.
-        Verify API calls use the api.ts service layer, not raw fetch.
-    - path: "apps/merchant/**"
-      instructions: |
-        React 18 + Radix UI.
-        Check localStorage usage for auth state.
+        CRITICAL: Python 3.9 compatibility required. Flag any use of `X | Y` union syntax — must use `Optional[X]` or `Union[X, Y]`. This has caused production outages.
+
+        Every file using `logger` must have `import logging` and `logger = logging.getLogger(__name__)` at the top. A missing logger import crashed all auth in production.
+
+        SQLAlchemy session handling:
+        - All DB writes must be in a try/except with rollback
+        - Budget/balance mutations MUST use `.with_for_update()` (SELECT FOR UPDATE)
+        - Check that `db.commit()` is called and not left dangling
+
+        Flag any hardcoded strings that look like API keys, passwords, JWT secrets, or database connection strings.
+
+        No `print()` — use `logger.info/error/warning`. Print doesn't show in CloudWatch.
+
+        Two merchant models exist: `merchants` (WYC table, driver-facing, string IDs like `osm_*` or `google_*`) and `domain_merchants` (portal table, UUID IDs). Flag any code that confuses these.
+
+        App Runner uses Python 3.9-slim. No f-string walrus operators, no match/case, no `except*`.
+
     - path: "backend/alembic/**"
       instructions: |
-        Verify migrations are reversible (have downgrade).
-        Check for data-destructive operations.
+        Every migration MUST have both `upgrade()` and `downgrade()` functions.
+        New columns on existing tables MUST be nullable or have a server_default.
+        Flag any DROP TABLE, DROP COLUMN, or data deletion without explicit confirmation.
+        Check that migration imports are correct (op, sa, etc).
+
+    - path: "apps/driver/**"
+      instructions: |
+        React 19 + TypeScript + Tailwind 4 (NOT Tailwind 3).
+        API calls must go through `src/services/api.ts` — flag any raw `fetch()`.
+        Check that `VITE_API_BASE_URL` is read from env, not hardcoded.
+        Mock/demo features must be gated behind admin account check (public_id), not just localStorage.
+        The native bridge uses `window.neravaNative` — check for proper null checks before calling bridge methods.
+        Check for proper error boundaries around async operations.
+
+    - path: "apps/merchant/**"
+      instructions: |
+        React 18 + Radix UI + Tailwind 3.
+        Auth uses localStorage (access_token, merchant_id, businessClaimed).
+        After merchant claim, code must use `window.location.href` (not React Router navigate) because App.tsx reads localStorage at render time.
+        API calls proxy through Vite in dev (`/v1` → localhost:8001). Production needs `VITE_API_BASE_URL=https://api.nerava.network`.
+
+    - path: "apps/admin/**"
+      instructions: |
+        React 18 + Radix UI + Recharts.
+        Uses email+password auth (not OTP). Endpoint: POST /v1/auth/admin/login.
+        Production needs `VITE_API_BASE_URL=https://api.nerava.network` — without it, defaults to localhost:8001 which breaks in production.
+
+    - path: "apps/console/**"
+      instructions: |
+        React 18 + Radix UI + React Router 6.
+        Sponsor/campaign management portal.
+        Uses email OTP auth via `/v1/console/auth/email-otp/start`.
+        Production needs `VITE_API_BASE_URL=https://api.nerava.network`.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Do not approve `continue-on-error: true` on test steps.
+        Do not approve `|| true` after pytest, vitest, or playwright commands.
+        All test steps must fail the pipeline on error.
+        Docker builds must use `--platform linux/amd64`.
+        Check that secrets are not hardcoded — use `${{ secrets.* }}`.
+
+    - path: "infra/**"
+      instructions: |
+        Production runs on App Runner (NOT ECS). The ECS configs in deploy-prod.yml are legacy.
+        App Runner service ARN: arn:aws:apprunner:us-east-1:566287346479:service/nerava-backend/88e85a3063c14ea9a1e39f8fdf3c35e3
+        Docker images must be linux/amd64 only.
+        Flag any changes to IAM roles or security groups — these affect production access.
+
+    - path: "backend/app/services/incentive_engine.py"
+      instructions: |
+        This is the hot path for campaign evaluation. Changes here affect all charging sessions.
+        Budget decrement MUST be atomic (SELECT FOR UPDATE via decrement_budget_atomic).
+        One session = one grant max per campaign type (highest priority wins).
+        Verify idempotency via session_event_id uniqueness constraint.
+        Partner session controls: check allow_partner_sessions, rule_partner_ids, rule_min_trust_tier.
+
+    - path: "backend/app/services/payout_service.py"
+      instructions: |
+        Financial operations — extra scrutiny required.
+        Withdrawal must validate: min amount, daily limit (3), weekly limit ($1000).
+        Balance deduction must use with_for_update() row lock.
+        Funds move: balance_cents → pending_balance_cents atomically.
+        Never create a Payout record without the corresponding WalletLedger entries.
+
 chat:
   auto_reply: true
