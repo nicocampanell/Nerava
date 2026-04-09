@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.security import create_access_token
 from ..db import get_db
-from ..dependencies.domain import get_current_user
+from ..dependencies.domain import get_current_user, get_current_user_optional
 from ..models import User, UserPreferences
 from ..services.analytics import get_analytics_client
 from ..services.refresh_token_service import RefreshTokenService
@@ -164,7 +164,7 @@ async def refresh_token(
 async def logout(
     payload: LogoutRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Logout: revoke refresh token(s).
@@ -280,9 +280,10 @@ async def auth_google(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Google auth error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google authentication failed: {str(e)}",
+            detail="Google authentication failed",
         )
 
 
@@ -374,9 +375,10 @@ async def auth_apple(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Apple auth error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Apple authentication failed: {str(e)}",
+            detail="Apple authentication failed",
         )
 
 

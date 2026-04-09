@@ -86,6 +86,13 @@ if (typeof document !== 'undefined' && !_tokenRefreshListenersBound) {
     proactiveTokenRefresh()
   })
   _tokenRefreshListenersBound = true
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      // listeners will be re-added on module re-evaluation
+      _tokenRefreshListenersBound = false
+    })
+  }
 }
 
 // Check if mock mode is enabled - default to backend mode unless explicitly set

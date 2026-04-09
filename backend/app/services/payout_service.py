@@ -630,7 +630,12 @@ class PayoutService:
         if payout.status == "paid":
             return {"status": "already_processed", "payout_id": payout.id}
 
-        wallet = db.query(DriverWallet).filter(DriverWallet.id == payout.wallet_id).first()
+        wallet = (
+            db.query(DriverWallet)
+            .filter(DriverWallet.id == payout.wallet_id)
+            .with_for_update()
+            .first()
+        )
 
         payout.status = "paid"
         payout.paid_at = datetime.utcnow()
@@ -667,7 +672,12 @@ class PayoutService:
         if payout.status == "failed":
             return {"status": "already_processed", "payout_id": payout.id}
 
-        wallet = db.query(DriverWallet).filter(DriverWallet.id == payout.wallet_id).first()
+        wallet = (
+            db.query(DriverWallet)
+            .filter(DriverWallet.id == payout.wallet_id)
+            .with_for_update()
+            .first()
+        )
 
         # Revert funds (amount + fee that was deducted on request)
         payout.status = "failed"
@@ -707,7 +717,7 @@ class PayoutService:
             return {"status": "success", "wallet_id": wallet.id, "action": "onboarding_complete"}
 
         wallet.stripe_account_status = (
-            account_data.get("charges_enabled") and "enabled" or "restricted"
+            "enabled" if account_data.get("charges_enabled") else "restricted"
         )
         wallet.updated_at = datetime.utcnow()
         db.commit()

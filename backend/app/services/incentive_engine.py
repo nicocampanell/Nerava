@@ -259,12 +259,14 @@ class IncentiveEngine:
             if driver and driver.auth_provider == "partner":
                 reward_dest = "partner_managed"
 
-        nova_tx = None
-        if reward_dest == "nerava_wallet":
-            # Create Nova transaction (atomic with grant) — only for Nerava wallet users
-            from app.services.nova_service import NovaService
+        # Wrap all post-decrement operations in try/except so we can
+        # restore the campaign budget if anything downstream fails.
+        try:
+            nova_tx = None
+            if reward_dest == "nerava_wallet":
+                # Create Nova transaction (atomic with grant) — only for Nerava wallet users
+                from app.services.nova_service import NovaService
 
-            try:
                 nova_tx = NovaService.grant_to_driver(
                     db,
                     driver_id=session.driver_user_id,
@@ -281,29 +283,25 @@ class IncentiveEngine:
                     idempotency_key=idempotency_key,
                     auto_commit=False,
                 )
-            except Exception as e:
-                logger.error(f"Failed to grant Nova for campaign {campaign.id}: {e}")
-                return None
 
-        # Create incentive grant record
-        grant = IncentiveGrant(
-            id=str(uuid.uuid4()),
-            session_event_id=session.id,
-            campaign_id=campaign.id,
-            driver_user_id=session.driver_user_id,
-            amount_cents=amount,
-            status="granted",
-            reward_destination=reward_dest,
-            nova_transaction_id=nova_tx.id if nova_tx else None,
-            idempotency_key=idempotency_key,
-            granted_at=datetime.utcnow(),
-        )
-        db.add(grant)
-        db.flush()
+            # Create incentive grant record
+            grant = IncentiveGrant(
+                id=str(uuid.uuid4()),
+                session_event_id=session.id,
+                campaign_id=campaign.id,
+                driver_user_id=session.driver_user_id,
+                amount_cents=amount,
+                status="granted",
+                reward_destination=reward_dest,
+                nova_transaction_id=nova_tx.id if nova_tx else None,
+                idempotency_key=idempotency_key,
+                granted_at=datetime.utcnow(),
+            )
+            db.add(grant)
+            db.flush()
 
-        # Credit real USD to driver wallet — only for Nerava wallet users
-        if reward_dest == "nerava_wallet":
-            try:
+            # Credit real USD to driver wallet — only for Nerava wallet users
+            if reward_dest == "nerava_wallet":
                 from app.models.driver_wallet import DriverWallet, WalletLedger
 
                 wallet = (
@@ -339,8 +337,23 @@ class IncentiveEngine:
                 )
                 db.add(ledger_entry)
                 db.flush()
-            except Exception as e:
-                logger.error(f"Failed to credit wallet for grant {grant.id}: {e}")
+
+        except Exception as e:
+            # Rollback the entire unit of work (grant + wallet + nova)
+            # and restore the campaign budget that was already decremented.
+            logger.error(
+                f"Grant creation failed for campaign {campaign.id}, "
+                f"session {session.id}, restoring budget: {e}"
+            )
+            db.rollback()
+            # Restore budget: re-fetch campaign inside a new flush context
+            cam = db.query(Campaign).filter(Campaign.id == campaign.id).with_for_update().first()
+            if cam:
+                cam.spent_cents = max(0, cam.spent_cents - amount)
+                cam.sessions_granted = max(0, cam.sessions_granted - 1)
+                cam.updated_at = datetime.utcnow()
+                db.flush()
+            return None
 
         logger.info(
             f"Granted {amount}c from campaign '{campaign.name}' to driver {session.driver_user_id} "

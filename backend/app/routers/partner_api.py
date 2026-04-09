@@ -6,6 +6,7 @@ Supports candidate/pending sessions, webhook delivery, and reward breakdowns.
 """
 
 import logging
+import math
 from typing import Optional, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -24,6 +25,17 @@ from app.services.partner_session_service import PartnerSessionService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/partners", tags=["partner-api"])
+
+
+def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Calculate distance in meters between two lat/lng points."""
+    R = 6371000  # Earth radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 async def _fire_session_webhook(partner, session_data):
@@ -154,8 +166,8 @@ def update_session(
 
     is_new = result.pop("_is_new", None)
 
-    # Fire webhook when session transitions to completed
-    if result.get("status") == "completed" and partner.webhook_enabled:
+    # Fire webhook only on the first completion transition (not on replay)
+    if is_new and result.get("status") == "completed" and partner.webhook_enabled:
         background_tasks.add_task(_fire_session_webhook, partner, result)
 
     return result
@@ -211,6 +223,17 @@ def list_available_campaigns(
                 continue
         if connector_type and c.rule_connector_types:
             if connector_type not in c.rule_connector_types:
+                continue
+        # Geo filtering: skip campaigns whose geo radius doesn't contain the caller
+        if (
+            lat is not None
+            and lng is not None
+            and c.rule_geo_center_lat is not None
+            and c.rule_geo_center_lng is not None
+            and c.rule_geo_radius_m is not None
+        ):
+            dist = _haversine_m(lat, lng, c.rule_geo_center_lat, c.rule_geo_center_lng)
+            if dist > c.rule_geo_radius_m:
                 continue
 
         results.append(

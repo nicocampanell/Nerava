@@ -71,6 +71,7 @@ export function useSessionPolling() {
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
+              if (cancelled) { inFlightRef.current = false; return }
               try {
                 const speed = pos.coords.speed
                 if (speed !== null && speed > 5) {
@@ -83,22 +84,25 @@ export function useSessionPolling() {
                 queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
                 adjustInterval(result)
               } catch {
-                updateInterval(300000)
+                // Use shorter retry (30s) on transient errors instead of 5min backoff
+                schedulePoll(30000)
               } finally {
                 inFlightRef.current = false
-                schedulePoll(pollIntervalRef.current)
+                if (!cancelled) schedulePoll(pollIntervalRef.current)
               }
             },
             async () => {
+              if (cancelled) { inFlightRef.current = false; return }
               try {
                 const result = await pollChargingSession()
                 queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
                 adjustInterval(result)
               } catch {
-                updateInterval(300000)
+                // Use shorter retry (30s) on transient errors instead of 5min backoff
+                schedulePoll(30000)
               } finally {
                 inFlightRef.current = false
-                schedulePoll(pollIntervalRef.current)
+                if (!cancelled) schedulePoll(pollIntervalRef.current)
               }
             },
             { timeout: 5000, maximumAge: 30000 }
@@ -111,8 +115,8 @@ export function useSessionPolling() {
           adjustInterval(result)
         }
       } catch {
-        // On error, back off to 5 min
-        updateInterval(300000)
+        // On transient error, retry after 30s instead of 5min full backoff
+        schedulePoll(30000)
       }
       inFlightRef.current = false
       schedulePoll(pollIntervalRef.current)

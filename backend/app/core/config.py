@@ -1,9 +1,12 @@
+import logging
 import os
 from datetime import timedelta
 from typing import Dict
 
 from app.core.secrets import get_secret
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseModel):
@@ -401,9 +404,6 @@ def is_demo() -> bool:
 
 def validate_config():
     """Validate configuration at startup. Raises ValueError if invalid."""
-    import logging
-
-    logger = logging.getLogger(__name__)
 
     # Validate Apple Wallet configuration if signing is enabled
     if settings.APPLE_WALLET_SIGNING_ENABLED:

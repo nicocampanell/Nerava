@@ -1241,15 +1241,26 @@ async def get_merchant_visits(
     merchant_id: str,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    driver: User = Depends(get_current_driver),
+    user: User = Depends(get_current_driver),
     db: Session = Depends(get_db),
 ):
     """
     Get all verified visits for a merchant.
 
     This endpoint allows merchants to look up all visits and their verification codes.
-    Requires authentication.
+    Requires merchant or merchant_admin role.
     """
+    # Require merchant role — drivers should not see other merchants' visits
+    user_roles = (user.role_flags or "").split(",")
+    if (
+        "merchant" not in user_roles
+        and "merchant_admin" not in user_roles
+        and "admin" not in user_roles
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Merchant role required to view visits",
+        )
     # Get the merchant
     merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
     if not merchant:
@@ -1309,15 +1320,25 @@ class VisitLookupResponse(BaseModel):
 @router.get("/visits/lookup/{verification_code}", response_model=VisitLookupResponse)
 async def lookup_visit(
     verification_code: str,
-    driver: User = Depends(get_current_driver),
+    user: User = Depends(get_current_driver),
     db: Session = Depends(get_db),
 ):
     """
     Look up a specific visit by verification code.
 
     Merchants use this to verify a driver's visit code.
-    Requires authentication.
+    Requires merchant or merchant_admin role.
     """
+    user_roles = (user.role_flags or "").split(",")
+    if (
+        "merchant" not in user_roles
+        and "merchant_admin" not in user_roles
+        and "admin" not in user_roles
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Merchant role required to look up visits",
+        )
     visit = (
         db.query(VerifiedVisit)
         .filter(VerifiedVisit.verification_code == verification_code.upper())
@@ -1350,14 +1371,25 @@ class MarkRedeemedRequest(BaseModel):
 async def mark_visit_redeemed(
     verification_code: str,
     request: MarkRedeemedRequest,
-    driver: User = Depends(get_current_driver),
+    user: User = Depends(get_current_driver),
     db: Session = Depends(get_db),
 ):
     """
     Mark a visit as redeemed by the merchant.
 
     Merchants call this when they fulfill the customer's order.
+    Requires merchant or merchant_admin role.
     """
+    user_roles = (user.role_flags or "").split(",")
+    if (
+        "merchant" not in user_roles
+        and "merchant_admin" not in user_roles
+        and "admin" not in user_roles
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Merchant role required to redeem visits",
+        )
     visit = (
         db.query(VerifiedVisit)
         .filter(VerifiedVisit.verification_code == verification_code.upper())
