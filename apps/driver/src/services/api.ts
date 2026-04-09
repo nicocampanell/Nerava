@@ -114,16 +114,16 @@ export class ApiError extends Error {
 async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 = true): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   const token = localStorage.getItem('access_token')
-  
+
   const headers = new Headers(options?.headers)
   headers.set('Content-Type', 'application/json')
-  
+
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
-  
+
   console.log('[API] Fetching:', url, options)
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -152,7 +152,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
             }
             try { window.neravaNative?.setAuthToken(refreshData.access_token) } catch {}
             console.log('[API] Token refreshed, retrying original request')
-            
+
             // Retry original request with new token
             const newHeaders = new Headers(options?.headers)
             newHeaders.set('Content-Type', 'application/json')
@@ -489,7 +489,7 @@ export async function getActiveExclusive(): Promise<ActiveExclusiveResponse | nu
     // Return null for anonymous users (no active exclusive)
     return { exclusive_session: null }
   }
-  
+
   try {
     // Disable token refresh retry - if auth fails, user is not authenticated
     const data = await fetchAPI<unknown>('/v1/exclusive/active', undefined, false)
@@ -614,7 +614,7 @@ export async function apiGetMerchantsForCharger(
   if (options?.open_only) {
     params.append('open_only', 'true')
   }
-  
+
   const data = await fetchAPI<unknown>(`/v1/drivers/merchants/open?${params.toString()}`)
   return data as MerchantForCharger[]
 }
@@ -1495,3 +1495,4 @@ export function useLoyaltyProgress(merchantId: string | null) {
     staleTime: 30_000,
   })
 }
+

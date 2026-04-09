@@ -2,20 +2,21 @@
 Production Auth v1 Router
 Implements Google SSO, Apple SSO, Phone OTP, refresh token rotation, /me, logout
 """
+
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
-from typing import Optional
 from datetime import datetime
 
-from ..db import get_db
-from ..models import User, UserPreferences
-from ..dependencies.domain import get_current_user
-from ..core.security import create_access_token
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+
 from ..core.config import settings
-from ..services.refresh_token_service import RefreshTokenService
+from ..core.security import create_access_token
+from ..db import get_db
+from ..dependencies.domain import get_current_user
+from ..models import User, UserPreferences
 from ..services.analytics import get_analytics_client
+from ..services.refresh_token_service import RefreshTokenService
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ============================================
 # Request/Response Models
 # ============================================
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -44,7 +46,7 @@ class RefreshResponse(BaseModel):
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: Optional[str] = None
+    refresh_token: str | None = None
 
 
 class LogoutResponse(BaseModel):
@@ -84,11 +86,11 @@ class EmailOTPVerifyRequest(BaseModel):
 class UserMeResponse(BaseModel):
     public_id: str
     auth_provider: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    display_name: Optional[str] = None
+    email: str | None = None
+    phone: str | None = None
+    display_name: str | None = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -96,6 +98,7 @@ class UserMeResponse(BaseModel):
 # ============================================
 # Core Auth Endpoints
 # ============================================
+
 
 @router.get("/me", response_model=UserMeResponse)
 async def get_me(
@@ -108,7 +111,7 @@ async def get_me(
         email=current_user.email,
         phone=current_user.phone,
         display_name=current_user.display_name,
-        created_at=current_user.created_at
+        created_at=current_user.created_at,
     )
 
 
@@ -122,43 +125,37 @@ async def refresh_token(
     Implements token rotation: old token is revoked, new token is issued.
     """
     plain_refresh_token = payload.refresh_token
-    
+
     # Validate refresh token
     old_token = RefreshTokenService.validate_refresh_token(db, plain_refresh_token)
     if not old_token:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token"
         )
-    
+
     # Check if token was already revoked (reuse detection)
     if old_token.revoked:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token reuse detected",
-            headers={"X-Error-Code": "refresh_reuse_detected"}
+            headers={"X-Error-Code": "refresh_reuse_detected"},
         )
-    
+
     # Rotate token: revoke old, create new
     new_plain_token, new_refresh_token = RefreshTokenService.rotate_refresh_token(db, old_token)
-    
+
     # Get user
     user = db.query(User).filter(User.id == old_token.user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
     # Create new access token
     access_token = create_access_token(user.public_id, auth_provider=user.auth_provider)
-    
+
     db.commit()
-    
+
     return RefreshResponse(
-        access_token=access_token,
-        refresh_token=new_plain_token,
-        token_type="bearer"
+        access_token=access_token, refresh_token=new_plain_token, token_type="bearer"
     )
 
 
@@ -166,7 +163,7 @@ async def refresh_token(
 async def logout(
     payload: LogoutRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_user),
 ):
     """
     Logout: revoke refresh token(s).
@@ -183,13 +180,14 @@ async def logout(
         # Revoke all tokens for current user
         RefreshTokenService.revoke_all_user_tokens(db, current_user.id)
         db.commit()
-    
+
     return LogoutResponse(ok=True)
 
 
 # ============================================
 # Provider Auth Endpoints (to be implemented)
 # ============================================
+
 
 @router.post("/google", response_model=TokenResponse)
 async def auth_google(
@@ -202,61 +200,66 @@ async def auth_google(
     """
     # Import here to avoid circular dependencies
     from ..services.google_auth import verify_google_id_token
-    
+
     try:
         # Verify Google ID token
         google_user_info = verify_google_id_token(payload.id_token)
-        
+
         # Extract user info
         email = google_user_info.get("email")
         provider_sub = google_user_info.get("sub")  # Google subject ID
-        
+
         if not provider_sub:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid Google ID token: missing sub"
+                detail="Invalid Google ID token: missing sub",
             )
-        
+
         # Find or create user by (auth_provider, provider_sub)
-        user = db.query(User).filter(
-            User.auth_provider == "google",
-            User.provider_sub == provider_sub
-        ).first()
-        
+        user = (
+            db.query(User)
+            .filter(User.auth_provider == "google", User.provider_sub == provider_sub)
+            .first()
+        )
+
         if not user:
             # Create new user
             import uuid
+
             user = User(
                 public_id=str(uuid.uuid4()),
                 email=email,
                 auth_provider="google",
                 provider_sub=provider_sub,
-                is_active=True
+                is_active=True,
             )
             db.add(user)
             db.flush()
             db.add(UserPreferences(user_id=user.id))
             db.commit()
             db.refresh(user)
-            
+
             # Emit driver_signed_up event (non-blocking)
             try:
                 from ..events.domain import DriverSignedUpEvent
                 from ..events.outbox import store_outbox_event
+
                 event = DriverSignedUpEvent(
                     user_id=str(user.id),
                     email=email or "",
                     auth_provider="google",
-                    created_at=datetime.utcnow()
+                    created_at=datetime.utcnow(),
                 )
                 store_outbox_event(db, event)
             except Exception as e:
                 logger.warning(f"Failed to emit driver_signed_up event: {e}")
-        
+
         # Create tokens
         access_token = create_access_token(user.public_id, auth_provider=user.auth_provider)
-        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(db, user)
-        
+        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(
+            db, user
+        )
+
         db.commit()
 
         return TokenResponse(
@@ -270,7 +273,7 @@ async def auth_google(
                 "phone": user.phone,
                 "name": user.display_name,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
-            }
+            },
         )
 
     except HTTPException:
@@ -278,7 +281,7 @@ async def auth_google(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google authentication failed: {str(e)}"
+            detail=f"Google authentication failed: {str(e)}",
         )
 
 
@@ -293,36 +296,38 @@ async def auth_apple(
     """
     # Import here to avoid circular dependencies
     from ..services.apple_auth import verify_apple_id_token
-    
+
     try:
         # Verify Apple ID token
         apple_user_info = verify_apple_id_token(payload.id_token)
-        
+
         # Extract user info
         email = apple_user_info.get("email")
         provider_sub = apple_user_info.get("sub")  # Apple subject ID
-        
+
         if not provider_sub:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid Apple ID token: missing sub"
+                detail="Invalid Apple ID token: missing sub",
             )
-        
+
         # Find or create user by (auth_provider, provider_sub)
-        user = db.query(User).filter(
-            User.auth_provider == "apple",
-            User.provider_sub == provider_sub
-        ).first()
-        
+        user = (
+            db.query(User)
+            .filter(User.auth_provider == "apple", User.provider_sub == provider_sub)
+            .first()
+        )
+
         if not user:
             # Create new user
             import uuid
+
             user = User(
                 public_id=str(uuid.uuid4()),
                 email=email,
                 auth_provider="apple",
                 provider_sub=provider_sub,
-                is_active=True
+                is_active=True,
             )
             db.add(user)
             db.flush()
@@ -334,11 +339,12 @@ async def auth_apple(
             try:
                 from ..events.domain import DriverSignedUpEvent
                 from ..events.outbox import store_outbox_event
+
                 event = DriverSignedUpEvent(
                     user_id=str(user.id),
                     email=email or "",
                     auth_provider="apple",
-                    created_at=datetime.utcnow()
+                    created_at=datetime.utcnow(),
                 )
                 store_outbox_event(db, event)
             except Exception as e:
@@ -346,7 +352,9 @@ async def auth_apple(
 
         # Create tokens
         access_token = create_access_token(user.public_id, auth_provider=user.auth_provider)
-        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(db, user)
+        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(
+            db, user
+        )
 
         db.commit()
 
@@ -358,8 +366,8 @@ async def auth_apple(
                 "public_id": user.public_id,
                 "auth_provider": user.auth_provider,
                 "email": user.email,
-                "phone": user.phone
-            }
+                "phone": user.phone,
+            },
         )
 
     except HTTPException:
@@ -367,7 +375,7 @@ async def auth_apple(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Apple authentication failed: {str(e)}"
+            detail=f"Apple authentication failed: {str(e)}",
         )
 
 
@@ -382,13 +390,14 @@ async def otp_start(
     Includes rate limiting per phone + IP and audit logging.
     """
     import logging
-    from ..services.otp_service_v2 import OTPServiceV2
+
     from ..services.analytics import get_analytics_client
-    
+    from ..services.otp_service_v2 import OTPServiceV2
+
     logger = logging.getLogger(__name__)
     client_ip = request.client.host if request.client else "unknown"
     request_id = getattr(request.state, "request_id", None)
-    
+
     try:
         # Use production-ready OTP service (handles rate limiting, audit, normalization)
         otp_sent = await OTPServiceV2.send_otp(
@@ -398,10 +407,11 @@ async def otp_start(
             ip=client_ip,
             user_agent=request.headers.get("user-agent"),
         )
-        
+
         # PostHog: Capture OTP start event
         analytics = get_analytics_client()
         from ..utils.phone import get_phone_last4
+
         phone_last4 = get_phone_last4(payload.phone)
         analytics.capture(
             event="server.driver.otp.start",
@@ -411,14 +421,15 @@ async def otp_start(
             user_agent=request.headers.get("user-agent"),
             properties={
                 "phone_last4": phone_last4,
-            }
+            },
         )
-        
+
         return OTPStartResponse(otp_sent=otp_sent)
     except HTTPException as e:
         # PostHog: Capture OTP start failure (rate limit, etc.)
         analytics = get_analytics_client()
         from ..utils.phone import get_phone_last4
+
         phone_last4 = get_phone_last4(payload.phone)
         analytics.capture(
             event="server.driver.otp.start",
@@ -430,7 +441,7 @@ async def otp_start(
                 "phone_last4": phone_last4,
                 "error": e.detail,
                 "status_code": e.status_code,
-            }
+            },
         )
         raise
     except Exception as e:
@@ -438,6 +449,7 @@ async def otp_start(
         # PostHog: Capture exception
         analytics = get_analytics_client()
         from ..utils.phone import get_phone_last4
+
         phone_last4 = get_phone_last4(payload.phone)
         analytics.capture(
             event="server.driver.otp.start",
@@ -448,11 +460,11 @@ async def otp_start(
             properties={
                 "phone_last4": phone_last4,
                 "error": str(e),
-            }
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to send code. Try again later."
+            detail="Unable to send code. Try again later.",
         )
 
 
@@ -468,15 +480,15 @@ async def otp_verify(
     Includes audit logging and role-based token creation.
     """
     import logging
-    from datetime import datetime
-    from ..services.otp_service_v2 import OTPServiceV2
+
     from ..services.analytics import get_analytics_client
+    from ..services.otp_service_v2 import OTPServiceV2
     from ..utils.phone import get_phone_last4
-    
+
     logger = logging.getLogger(__name__)
     client_ip = request.client.host if request.client else "unknown"
     request_id = getattr(request.state, "request_id", None)
-    
+
     try:
         # Verify OTP using production-ready service (handles rate limiting, audit, normalization)
         phone = await OTPServiceV2.verify_otp(
@@ -487,20 +499,21 @@ async def otp_verify(
             ip=client_ip,
             user_agent=request.headers.get("user-agent"),
         )
-        
+
         # Find or create user by phone
         user = db.query(User).filter(User.phone == phone).first()
         is_new_user = False
-        
+
         if not user:
             # Create new user with driver role
             import uuid
+
             user = User(
                 public_id=str(uuid.uuid4()),
                 phone=phone,
                 auth_provider="phone",
                 role_flags="driver",
-                is_active=True
+                is_active=True,
             )
             db.add(user)
             db.flush()
@@ -508,17 +521,17 @@ async def otp_verify(
             db.commit()
             db.refresh(user)
             is_new_user = True
-        
+
         # Create tokens with role claim
         access_token = create_access_token(
-            user.public_id,
-            auth_provider=user.auth_provider,
-            role="driver"
+            user.public_id, auth_provider=user.auth_provider, role="driver"
         )
-        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(db, user)
-        
+        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(
+            db, user
+        )
+
         db.commit()
-        
+
         # PostHog: Fire otp_verified event
         analytics = get_analytics_client()
         phone_last4 = get_phone_last4(phone)
@@ -529,13 +542,9 @@ async def otp_verify(
             user_id=user.public_id,
             ip=client_ip,
             user_agent=request.headers.get("user-agent"),
-            properties={
-                "phone_last4": phone_last4,
-                "is_new_user": is_new_user,
-                "source": "driver"
-            }
+            properties={"phone_last4": phone_last4, "is_new_user": is_new_user, "source": "driver"},
         )
-        
+
         # HubSpot: Track OTP verify (only for new users - signup event handled in auth_domain)
         # Note: Login events are not tracked as lifecycle events per HubSpot design
         # Only lifecycle milestones are sent to HubSpot
@@ -551,7 +560,7 @@ async def otp_verify(
                 "phone": user.phone,
                 "name": user.display_name,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
-            }
+            },
         )
 
     except HTTPException as e:
@@ -568,7 +577,7 @@ async def otp_verify(
                 "phone_last4": phone_last4,
                 "error": e.detail,
                 "status_code": e.status_code,
-            }
+            },
         )
         raise
     except Exception as e:
@@ -584,18 +593,19 @@ async def otp_verify(
             properties={
                 "phone_last4": phone_last4,
                 "error": str(e),
-            }
+            },
         )
         logger.error(f"[Auth][OTP] OTP verify exception: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Verification service error. Please request a new code."
+            detail="Verification service error. Please request a new code.",
         )
 
 
 # ============================================
 # Email OTP Endpoints (free via AWS SES)
 # ============================================
+
 
 @router.post("/email-otp/start", response_model=OTPStartResponse)
 async def email_otp_start(
@@ -608,6 +618,7 @@ async def email_otp_start(
     Uses AWS SES (free tier: 62K emails/month from App Runner).
     """
     import logging
+
     from ..services.email_otp_service import EmailOTPService
 
     logger = logging.getLogger(__name__)
@@ -622,7 +633,7 @@ async def email_otp_start(
         logger.error(f"[Auth][EmailOTP] Send failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to send code. Try again later."
+            detail="Unable to send code. Try again later.",
         )
 
 
@@ -637,6 +648,7 @@ async def email_otp_verify(
     Creates user if email is new.
     """
     import logging
+
     from ..services.email_otp_service import EmailOTPService
 
     logger = logging.getLogger(__name__)
@@ -649,7 +661,7 @@ async def email_otp_verify(
         logger.error(f"[Auth][EmailOTP] Verify error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Verification service error. Please request a new code."
+            detail="Verification service error. Please request a new code.",
         )
 
     # Find or create user by email
@@ -659,12 +671,13 @@ async def email_otp_verify(
 
     if not user:
         import uuid
+
         user = User(
             public_id=str(uuid.uuid4()),
             email=email,
             auth_provider="email",
             role_flags="driver",
-            is_active=True
+            is_active=True,
         )
         db.add(user)
         db.flush()
@@ -677,11 +690,12 @@ async def email_otp_verify(
         try:
             from ..events.domain import DriverSignedUpEvent
             from ..events.outbox import store_outbox_event
+
             event = DriverSignedUpEvent(
                 user_id=str(user.id),
                 email=email,
                 auth_provider="email",
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
             store_outbox_event(db, event)
         except Exception as e:
@@ -689,9 +703,7 @@ async def email_otp_verify(
 
     # Create tokens
     access_token = create_access_token(
-        user.public_id,
-        auth_provider=user.auth_provider,
-        role="driver"
+        user.public_id, auth_provider=user.auth_provider, role="driver"
     )
     refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(db, user)
 
@@ -702,10 +714,7 @@ async def email_otp_verify(
     analytics.capture(
         event="email_otp_verified",
         distinct_id=user.public_id,
-        properties={
-            "is_new_user": is_new_user,
-            "source": "driver"
-        }
+        properties={"is_new_user": is_new_user, "source": "driver"},
     )
 
     return TokenResponse(
@@ -719,13 +728,14 @@ async def email_otp_verify(
             "phone": user.phone,
             "name": user.display_name,
             "created_at": user.created_at.isoformat() if user.created_at else None,
-        }
+        },
     )
 
 
 # ============================================
 # Dev Mode Endpoints
 # ============================================
+
 
 @router.post("/dev/login", response_model=TokenResponse)
 async def dev_login(
@@ -737,6 +747,7 @@ async def dev_login(
     NEVER accessible in production.
     """
     import logging
+
     logger = logging.getLogger("nerava")
 
     env_lower = settings.ENV.lower() if settings.ENV else ""
@@ -744,38 +755,34 @@ async def dev_login(
     # SECURITY: Block dev login in production — no exceptions
     if env_lower in ("prod", "production", "staging"):
         logger.warning(f"Dev login rejected — ENV={settings.ENV}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
     is_dev_env = env_lower in ("dev", "local", "test")
 
     if not settings.DEMO_MODE and not is_dev_env:
         logger.warning(f"Dev login rejected — ENV={settings.ENV}, DEMO_MODE={settings.DEMO_MODE}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
     logger.info(f"Dev login allowed — ENV={settings.ENV}, DEMO_MODE={settings.DEMO_MODE}")
-    
+
     try:
         # Find or create dev user
         dev_email = "dev@nerava.local"
         # Try to find by email first (for existing dev users)
         user = db.query(User).filter(User.email == dev_email).first()
-        
+
         # If not found by email, try by auth_provider + provider_sub
         if not user:
-            user = db.query(User).filter(
-                User.auth_provider == "dev",
-                User.provider_sub == "dev-user-001"
-            ).first()
-        
+            user = (
+                db.query(User)
+                .filter(User.auth_provider == "dev", User.provider_sub == "dev-user-001")
+                .first()
+            )
+
         if not user:
             # Create dev user
             import uuid
+
             logger.info("Creating new dev user")
             user = User(
                 public_id=str(uuid.uuid4()),
@@ -783,30 +790,34 @@ async def dev_login(
                 auth_provider="dev",
                 provider_sub="dev-user-001",  # Unique identifier for dev user
                 is_active=True,
-                password_hash=None  # Explicitly set to None for OAuth/dev users
+                password_hash=None,  # Explicitly set to None for OAuth/dev users
             )
             db.add(user)
             db.flush()
-            
+
             # Create user preferences
             try:
                 preferences = UserPreferences(user_id=user.id)
                 db.add(preferences)
             except Exception as pref_error:
-                logger.warning(f"Could not create user preferences (may already exist): {pref_error}")
-            
+                logger.warning(
+                    f"Could not create user preferences (may already exist): {pref_error}"
+                )
+
             db.commit()
             db.refresh(user)
             logger.info(f"Created dev user: {user.public_id}")
         else:
             logger.info(f"Found existing dev user: {user.public_id}")
-        
+
         # Create tokens
         access_token = create_access_token(user.public_id, auth_provider=user.auth_provider)
-        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(db, user)
-        
+        refresh_token_plain, refresh_token_model = RefreshTokenService.create_refresh_token(
+            db, user
+        )
+
         db.commit()
-        
+
         logger.info("Dev login successful - tokens created")
 
         return TokenResponse(
@@ -820,14 +831,13 @@ async def dev_login(
                 "phone": user.phone,
                 "name": user.display_name,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
-            }
+            },
         )
     except Exception as e:
         logger.error(f"Dev login error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Dev login failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Dev login failed: {str(e)}"
         )
 
 
@@ -835,27 +845,26 @@ async def dev_login(
 # Legacy Endpoints (behind DEMO_MODE flag)
 # ============================================
 
+
 @router.post("/register")
 def register_legacy(payload, db: Session = Depends(get_db)):
     """Legacy registration endpoint - only available in DEMO_MODE"""
     if not settings.DEMO_MODE:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Endpoint not available"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Endpoint not available")
     # Keep old implementation for demo mode
-    from ..schemas import Token, UserCreate
-    from ..core.security import hash_password, create_access_token
-    
+    from ..core.security import create_access_token, hash_password
+    from ..schemas import Token
+
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         return Token(access_token=create_access_token(existing.public_id))
-    
+
     import uuid
+
     user = User(
         public_id=str(uuid.uuid4()),
         email=payload.email,
-        password_hash=hash_password(payload.password)
+        password_hash=hash_password(payload.password),
     )
     db.add(user)
     db.flush()
@@ -868,15 +877,13 @@ def register_legacy(payload, db: Session = Depends(get_db)):
 def login_legacy(form, db: Session = Depends(get_db)):
     """Legacy login endpoint - only available in DEMO_MODE"""
     if not settings.DEMO_MODE:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Endpoint not available"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Endpoint not available")
     # Keep old implementation for demo mode
+    from ..core.security import create_access_token, verify_password
     from ..schemas import Token
-    from ..core.security import verify_password, create_access_token
-    
+
     user = db.query(User).filter(User.email == form.username).first()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     return Token(access_token=create_access_token(user.public_id))
+

@@ -224,3 +224,4 @@ export function useSessionPolling() {
 
   return { ...state, clearIncentive }
 }
+
