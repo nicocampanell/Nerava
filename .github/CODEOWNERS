@@ -1,1 +1,17 @@
-*   @jamesdouglasskirk96
+# Default — James reviews everything
+*                           @jamesdouglasskirk96
+
+# Backend
+backend/**                  @jamesdouglasskirk96
+backend/alembic/**          @jamesdouglasskirk96
+
+# Frontend apps
+apps/driver/**              @jamesdouglasskirk96
+apps/merchant/**            @jamesdouglasskirk96
+apps/admin/**               @jamesdouglasskirk96
+apps/console/**             @jamesdouglasskirk96
+apps/landing/**             @jamesdouglasskirk96
+
+# Infrastructure — extra careful
+infra/**                    @jamesdouglasskirk96
+.github/workflows/**        @jamesdouglasskirk96

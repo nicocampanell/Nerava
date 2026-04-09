@@ -1,0 +1,34 @@
+language: "en-US"
+early_access: false
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "backend/**"
+      instructions: |
+        Python 3.9 compatibility required (no PEP 604 union syntax).
+        Check for missing imports and undefined variables.
+        Verify all SQLAlchemy queries use proper session handling.
+        Flag any hardcoded secrets or credentials.
+    - path: "apps/driver/**"
+      instructions: |
+        React 19 + TypeScript + Tailwind 4.
+        Check for proper error boundaries.
+        Verify API calls use the api.ts service layer, not raw fetch.
+    - path: "apps/merchant/**"
+      instructions: |
+        React 18 + Radix UI.
+        Check localStorage usage for auth state.
+    - path: "backend/alembic/**"
+      instructions: |
+        Verify migrations are reversible (have downgrade).
+        Check for data-destructive operations.
+chat:
+  auto_reply: true
