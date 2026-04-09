@@ -9,7 +9,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -62,7 +62,7 @@ class PayoutService:
     """Service for handling driver payouts via Stripe Express"""
 
     @staticmethod
-    def get_or_create_wallet(db: Session, driver_id: int) -> dict[str, Any]:
+    def get_or_create_wallet(db: Session, driver_id: int) -> Dict[str, Any]:
         """Get or create a driver wallet"""
         from ..models.driver_wallet import DriverWallet
 
@@ -101,7 +101,7 @@ class PayoutService:
         }
 
     @staticmethod
-    def get_balance(db: Session, driver_id: int) -> dict[str, Any]:
+    def get_balance(db: Session, driver_id: int) -> Dict[str, Any]:
         """Get driver wallet balance"""
         wallet_data = PayoutService.get_or_create_wallet(db, driver_id)
         bal = wallet_data["balance_cents"]
@@ -123,8 +123,8 @@ class PayoutService:
         amount_cents: int,
         reference_type: str,
         reference_id: str,
-        description: str | None = None,
-    ) -> dict[str, Any]:
+        description: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Credit a driver's wallet (e.g., from CLO reward)"""
         from ..models.driver_wallet import DriverWallet, WalletLedger
 
@@ -169,7 +169,7 @@ class PayoutService:
         return {"new_balance_cents": wallet.balance_cents, "ledger_id": ledger.id}
 
     @staticmethod
-    def create_express_account(db: Session, driver_id: int, email: str) -> dict[str, Any]:
+    def create_express_account(db: Session, driver_id: int, email: str) -> Dict[str, Any]:
         """Create or retrieve Stripe Express account for driver"""
         from ..models.driver_wallet import DriverWallet
 
@@ -247,7 +247,7 @@ class PayoutService:
     @staticmethod
     def create_account_link(
         db: Session, driver_id: int, return_url: str, refresh_url: str
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Create Stripe account onboarding link"""
         from ..models.driver_wallet import DriverWallet
 
@@ -278,7 +278,7 @@ class PayoutService:
             raise ValueError(f"Failed to create onboarding link: {str(e)}")
 
     @staticmethod
-    def check_stripe_onboarding_status(db: Session, driver_id: int) -> dict[str, Any]:
+    def check_stripe_onboarding_status(db: Session, driver_id: int) -> Dict[str, Any]:
         """Check Stripe account status by calling Stripe API directly"""
         from ..models.driver_wallet import DriverWallet
 
@@ -320,7 +320,7 @@ class PayoutService:
     @staticmethod
     def check_withdrawal_eligibility(
         db: Session, driver_id: int, amount_cents: int
-    ) -> tuple[bool, str]:
+    ) -> Tuple[bool, str]:
         """Check if driver is eligible for withdrawal"""
         from ..models.driver_wallet import DriverWallet, Payout
 
@@ -393,7 +393,7 @@ class PayoutService:
         return True, "Eligible"
 
     @staticmethod
-    def request_withdrawal(db: Session, driver_id: int, amount_cents: int) -> dict[str, Any]:
+    def request_withdrawal(db: Session, driver_id: int, amount_cents: int) -> Dict[str, Any]:
         """Request a withdrawal (creates payout, moves funds to pending).
 
         For withdrawals under $20, the Stripe processing fee ($0.25 + 0.25%)
@@ -482,7 +482,7 @@ class PayoutService:
         return result
 
     @staticmethod
-    def _process_transfer(db: Session, payout) -> dict[str, Any]:
+    def _process_transfer(db: Session, payout) -> Dict[str, Any]:
         """Process the transfer via the appropriate provider (Stripe or Dwolla)."""
         from ..models.driver_wallet import DriverWallet
         from .payout_provider import get_provider
@@ -586,7 +586,7 @@ class PayoutService:
             raise ValueError(f"Payout failed: {str(e)}")
 
     @staticmethod
-    def handle_webhook(db: Session, payload: bytes, signature: str) -> dict[str, Any]:
+    def handle_webhook(db: Session, payload: bytes, signature: str) -> Dict[str, Any]:
         """Handle Stripe webhook events for payouts"""
 
         if _is_mock_mode():
@@ -616,7 +616,7 @@ class PayoutService:
             return {"status": "ignored", "event_type": event_type}
 
     @staticmethod
-    def _handle_transfer_paid(db: Session, transfer_data: dict) -> dict[str, Any]:
+    def _handle_transfer_paid(db: Session, transfer_data: dict) -> Dict[str, Any]:
         """Handle transfer.paid webhook"""
         from ..models.driver_wallet import DriverWallet, Payout
 
@@ -654,7 +654,7 @@ class PayoutService:
         return {"status": "success", "payout_id": payout.id, "action": "marked_paid"}
 
     @staticmethod
-    def _handle_transfer_failed(db: Session, transfer_data: dict) -> dict[str, Any]:
+    def _handle_transfer_failed(db: Session, transfer_data: dict) -> Dict[str, Any]:
         """Handle transfer.failed webhook"""
         from ..models.driver_wallet import DriverWallet, Payout
 
@@ -684,7 +684,7 @@ class PayoutService:
         return {"status": "success", "payout_id": payout.id, "action": "marked_failed"}
 
     @staticmethod
-    def _handle_account_updated(db: Session, account_data: dict) -> dict[str, Any]:
+    def _handle_account_updated(db: Session, account_data: dict) -> Dict[str, Any]:
         """Handle account.updated webhook (onboarding completion)"""
         from ..models.driver_wallet import DriverWallet
 
@@ -759,4 +759,3 @@ def credit_wallet(db: Session, driver_id: int, amount_cents: int, description: s
         reference_id=f"referral_{driver_id}",
         description=description,
     )
-

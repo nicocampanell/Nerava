@@ -73,7 +73,9 @@ async function proactiveTokenRefresh(): Promise<void> {
 }
 
 // Refresh token when app becomes visible (user returns from background)
-if (typeof document !== 'undefined') {
+// Guard prevents duplicate listeners on HMR re-execution
+let _tokenRefreshListenersBound = false
+if (typeof document !== 'undefined' && !_tokenRefreshListenersBound) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       proactiveTokenRefresh()
@@ -83,6 +85,7 @@ if (typeof document !== 'undefined') {
   window.addEventListener('focus', () => {
     proactiveTokenRefresh()
   })
+  _tokenRefreshListenersBound = true
 }
 
 // Check if mock mode is enabled - default to backend mode unless explicitly set
@@ -1495,4 +1498,3 @@ export function useLoyaltyProgress(merchantId: string | null) {
     staleTime: 30_000,
   })
 }
-

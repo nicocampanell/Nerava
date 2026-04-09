@@ -6,6 +6,7 @@ Supports candidate/pending sessions, webhook delivery, and reward breakdowns.
 """
 
 import logging
+from typing import Optional, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -42,7 +43,7 @@ async def _fire_session_webhook(partner, session_data):
 def ingest_session(
     req: PartnerSessionIngestRequest,
     background_tasks: BackgroundTasks,
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
         require_partner_scope("sessions:write")
     ),
     db: Session = Depends(get_db),
@@ -95,7 +96,7 @@ def ingest_session(
 def list_sessions(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
         require_partner_scope("sessions:read")
     ),
     db: Session = Depends(get_db),
@@ -112,7 +113,7 @@ def list_sessions(
 @router.get("/sessions/{partner_session_id}")
 def get_session(
     partner_session_id: str,
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
         require_partner_scope("sessions:read")
     ),
     db: Session = Depends(get_db),
@@ -131,7 +132,7 @@ def update_session(
     partner_session_id: str,
     req: PartnerSessionUpdateRequest,
     background_tasks: BackgroundTasks,
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
         require_partner_scope("sessions:write")
     ),
     db: Session = Depends(get_db),
@@ -167,7 +168,7 @@ def update_session(
 def list_grants(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("grants:read")),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("grants:read")),
     db: Session = Depends(get_db),
 ):
     """List incentive grants for this partner's sessions."""
@@ -181,11 +182,11 @@ def list_grants(
 
 @router.get("/campaigns/available")
 def list_available_campaigns(
-    lat: float | None = Query(None),
-    lng: float | None = Query(None),
-    charger_network: str | None = Query(None),
-    connector_type: str | None = Query(None),
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(
+    lat: Optional[float] = Query(None),
+    lng: Optional[float] = Query(None),
+    charger_network: Optional[str] = Query(None),
+    connector_type: Optional[str] = Query(None),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
         require_partner_scope("campaigns:read")
     ),
     db: Session = Depends(get_db),
@@ -236,7 +237,7 @@ def list_available_campaigns(
 
 @router.get("/me")
 def get_partner_profile(
-    partner_and_key: tuple[Partner, PartnerAPIKey] = Depends(get_current_partner),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(get_current_partner),
     db: Session = Depends(get_db),
 ):
     """Get the authenticated partner's profile and usage stats."""
@@ -273,4 +274,3 @@ def get_partner_profile(
         "total_sessions": total_sessions,
         "total_grants": total_grants,
     }
-

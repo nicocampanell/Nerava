@@ -8,8 +8,9 @@ Polls one vehicle only, with backoff and caching.
 
 import logging
 import uuid
+from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Bounded to prevent unbounded memory growth in long-running processes
 _CACHE_MAX_SIZE = 10000
 _CACHE_EVICT_AGE_SECS = 300  # evict entries older than 5 minutes
-_charging_cache: dict[int, dict[str, Any]] = {}
+_charging_cache: Dict[int, Dict[str, Any]] = {}
 
 
 def _cache_cleanup() -> None:
@@ -57,7 +58,7 @@ class SessionEventService:
         driver_id: int,
         charge_data: dict,
         vehicle_info: dict,
-        charger_id: str | None = None,
+        charger_id: Optional[str] = None,
         charger_network: str = "Tesla",
     ) -> SessionEvent:
         """
@@ -131,9 +132,9 @@ class SessionEventService:
         db: Session,
         session_event_id: str,
         ended_reason: str = "unplugged",
-        battery_end_pct: int | None = None,
-        kwh_delivered: float | None = None,
-    ) -> SessionEvent | None:
+        battery_end_pct: Optional[int] = None,
+        kwh_delivered: Optional[float] = None,
+    ) -> Optional[SessionEvent]:
         """
         End an active session. Computes duration.
         IncentiveEngine should be called AFTER this returns.
@@ -177,8 +178,8 @@ class SessionEventService:
     def get_active_session(
         db: Session,
         driver_id: int,
-        vehicle_id: str | None = None,
-    ) -> SessionEvent | None:
+        vehicle_id: Optional[str] = None,
+    ) -> Optional[SessionEvent]:
         """Find the active (un-ended) session for a driver."""
         query = db.query(SessionEvent).filter(
             SessionEvent.driver_user_id == driver_id,
@@ -194,7 +195,7 @@ class SessionEventService:
         driver_id: int,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[SessionEvent]:
+    ) -> List[SessionEvent]:
         """Get a driver's charging sessions, most recent first."""
         return (
             db.query(SessionEvent)
@@ -209,10 +210,10 @@ class SessionEventService:
     def get_charger_sessions(
         db: Session,
         charger_id: str,
-        since: datetime | None = None,
-        until: datetime | None = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
         limit: int = 100,
-    ) -> list[SessionEvent]:
+    ) -> List[SessionEvent]:
         """Get sessions at a specific charger."""
         query = db.query(SessionEvent).filter(SessionEvent.charger_id == charger_id)
         if since:
@@ -227,8 +228,8 @@ class SessionEventService:
         driver_id: int,
         tesla_connection: "TeslaConnection",
         tesla_oauth_service: Any,
-        device_lat: float | None = None,
-        device_lng: float | None = None,
+        device_lat: Optional[float] = None,
+        device_lng: Optional[float] = None,
     ) -> dict:
         """
         Poll Tesla API for a single driver's charging state.
@@ -288,10 +289,8 @@ class SessionEventService:
                 try:
                     # Wake vehicle before data request only when justified
                     if attempt > 0 and should_wake:
-                        try:
+                        with suppress(Exception):
                             await tesla_oauth_service.wake_vehicle(access_token, vehicle_id)
-                        except Exception:
-                            pass
                         await asyncio.sleep(3)
 
                     vehicle_data = await tesla_oauth_service.get_vehicle_data(
@@ -844,7 +843,7 @@ class SessionEventService:
         db: Session,
         driver_id: int,
         stale_minutes: int = 15,
-    ) -> SessionEvent | None:
+    ) -> Optional[SessionEvent]:
         """
         Find and close ALL active sessions that haven't been updated in
         `stale_minutes`. Evaluates incentives for each closed session.
@@ -907,7 +906,7 @@ class SessionEventService:
         db: Session,
         session_event_id: str,
         driver_id: int,
-    ) -> SessionEvent | None:
+    ) -> Optional[SessionEvent]:
         """
         Manually end a session (user-initiated). Verifies ownership.
         Evaluates incentives after ending.
@@ -960,7 +959,7 @@ class SessionEventService:
     def _calculate_next_poll_at(
         db: Session,
         session: SessionEvent,
-        minutes_to_full: int | None = None,
+        minutes_to_full: Optional[int] = None,
     ) -> datetime:
         """
         Smart polling: use Tesla's `minutes_to_full_charge` to schedule
@@ -1060,8 +1059,8 @@ class SessionEventService:
     def count_driver_sessions(
         db: Session,
         driver_id: int,
-        charger_id: str | None = None,
-        since: datetime | None = None,
+        charger_id: Optional[str] = None,
+        since: Optional[datetime] = None,
     ) -> int:
         """Count completed sessions for a driver, optionally filtered."""
         query = db.query(SessionEvent).filter(
@@ -1073,4 +1072,3 @@ class SessionEventService:
         if since:
             query = query.filter(SessionEvent.session_start >= since)
         return query.count()
-

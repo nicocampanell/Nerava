@@ -1,5 +1,6 @@
 import os
 from datetime import timedelta
+from typing import Dict
 
 from app.core.secrets import get_secret
 from pydantic import BaseModel
@@ -374,7 +375,7 @@ settings = Settings()
 ACCESS_TOKEN_EXPIRE = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
 # Feature flag cache
-_flag_cache: dict[str, bool] = {}
+_flag_cache: Dict[str, bool] = {}
 
 
 def flag_enabled(key: str) -> bool:
@@ -550,7 +551,7 @@ def validate_config():
                 "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
             )
             logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
 
         # Validate PUBLIC_BASE_URL is not localhost
         if (
@@ -585,4 +586,3 @@ def validate_config():
         logger.info(f"Twilio Account SID: {settings.TWILIO_ACCOUNT_SID[:8]}...")
     if settings.GOOGLE_OAUTH_CLIENT_ID:
         logger.info(f"Google OAuth Client ID: {settings.GOOGLE_OAUTH_CLIENT_ID[:20]}...")
-

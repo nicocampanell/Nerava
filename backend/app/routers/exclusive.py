@@ -6,6 +6,7 @@ Handles POST /v1/exclusive/activate, POST /v1/exclusive/complete, GET /v1/exclus
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, field_validator
@@ -36,19 +37,19 @@ EXCLUSIVE_DURATION_MIN = settings.EXCLUSIVE_DURATION_MIN
 
 # Request/Response Models
 class ActivateExclusiveRequest(BaseModel):
-    merchant_id: str | None = None
-    merchant_place_id: str | None = None
+    merchant_id: Optional[str] = None
+    merchant_place_id: Optional[str] = None
     charger_id: str
-    charger_place_id: str | None = None
-    intent_session_id: str | None = None
+    charger_place_id: Optional[str] = None
+    intent_session_id: Optional[str] = None
     lat: float  # Required: driver must provide location for radius validation
     lng: float  # Required: driver must provide location for radius validation
-    accuracy_m: float | None = None
+    accuracy_m: Optional[float] = None
     # V3: Intent capture fields
-    intent: str | None = None  # "eat" | "work" | "quick-stop"
-    party_size: int | None = None
-    needs_power_outlet: bool | None = None
-    is_to_go: bool | None = None
+    intent: Optional[str] = None  # "eat" | "work" | "quick-stop"
+    party_size: Optional[int] = None
+    needs_power_outlet: Optional[bool] = None
+    is_to_go: Optional[bool] = None
 
     @field_validator("intent")
     @classmethod
@@ -60,52 +61,52 @@ class ActivateExclusiveRequest(BaseModel):
 
 class ExclusiveSessionResponse(BaseModel):
     id: str
-    merchant_id: str | None
-    charger_id: str | None
+    merchant_id: Optional[str]
+    charger_id: Optional[str]
     expires_at: str
     activated_at: str
     remaining_seconds: int
     # Enriched fields for claim card / claim details
-    merchant_name: str | None = None
-    merchant_place_id: str | None = None
-    exclusive_title: str | None = None
-    merchant_lat: float | None = None
-    merchant_lng: float | None = None
-    merchant_distance_m: float | None = None
-    merchant_walk_time_min: int | None = None
-    merchant_category: str | None = None
-    merchant_photo_url: str | None = None
-    charger_name: str | None = None
-    verification_code: str | None = None
-    charging_active: bool | None = None
-    charging_session_ended_at: str | None = None
+    merchant_name: Optional[str] = None
+    merchant_place_id: Optional[str] = None
+    exclusive_title: Optional[str] = None
+    merchant_lat: Optional[float] = None
+    merchant_lng: Optional[float] = None
+    merchant_distance_m: Optional[float] = None
+    merchant_walk_time_min: Optional[int] = None
+    merchant_category: Optional[str] = None
+    merchant_photo_url: Optional[str] = None
+    charger_name: Optional[str] = None
+    verification_code: Optional[str] = None
+    charging_active: Optional[bool] = None
+    charging_session_ended_at: Optional[str] = None
 
 
 class ActivateExclusiveResponse(BaseModel):
     status: str
     exclusive_session: ExclusiveSessionResponse
-    idempotent: bool | None = None
+    idempotent: Optional[bool] = None
 
 
 class CompleteExclusiveRequest(BaseModel):
     exclusive_session_id: str
-    feedback: dict | None = None  # thumbs_up: bool, tags: list[str]
+    feedback: Optional[dict] = None  # thumbs_up: bool, tags: List[str]
 
 
 class CompleteExclusiveResponse(BaseModel):
     status: str
-    idempotent: bool | None = None
-    nova_earned: float | None = None
+    idempotent: Optional[bool] = None
+    nova_earned: Optional[float] = None
 
 
 class ActiveExclusiveResponse(BaseModel):
-    exclusive_session: ExclusiveSessionResponse | None = None
+    exclusive_session: Optional[ExclusiveSessionResponse] = None
 
 
 class VerifyVisitRequest(BaseModel):
     exclusive_session_id: str
-    lat: float | None = None
-    lng: float | None = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class VerifyVisitResponse(BaseModel):
@@ -235,7 +236,7 @@ def _enrich_session_response(
     )
 
 
-def validate_charger_radius(db: Session, charger_id: str, lat: float, lng: float) -> tuple:
+def validate_charger_radius(db: Session, charger_id: str, lat: float, lng: float) -> Tuple:
     """
     Validate that activation location is within charger radius.
 
@@ -698,7 +699,7 @@ async def activate_exclusive(
 async def complete_exclusive(
     request: CompleteExclusiveRequest,
     http_request: Request,
-    driver: User | None = Depends(get_current_driver_optional),
+    driver: Optional[User] = Depends(get_current_driver_optional),
     db: Session = Depends(get_db),
 ):
     """
@@ -929,10 +930,10 @@ async def get_active_exclusive(
 
 
 class SessionLookupResponse(BaseModel):
-    exclusive_session: ExclusiveSessionResponse | None = None
-    merchant_name: str | None = None
-    exclusive_title: str | None = None
-    staff_instructions: str | None = None
+    exclusive_session: Optional[ExclusiveSessionResponse] = None
+    merchant_name: Optional[str] = None
+    exclusive_title: Optional[str] = None
+    staff_instructions: Optional[str] = None
 
 
 @router.get("/session/{session_id}", response_model=SessionLookupResponse)
@@ -1223,8 +1224,8 @@ class VisitListItem(BaseModel):
     visit_number: int
     driver_id: int
     verified_at: str
-    redeemed_at: str | None = None
-    order_reference: str | None = None
+    redeemed_at: Optional[str] = None
+    order_reference: Optional[str] = None
 
 
 class MerchantVisitsResponse(BaseModel):
@@ -1232,7 +1233,7 @@ class MerchantVisitsResponse(BaseModel):
     merchant_name: str
     total_visits: int
     visits_today: int
-    visits: list[VisitListItem]
+    visits: List[VisitListItem]
 
 
 @router.get("/visits/{merchant_id}", response_model=MerchantVisitsResponse)
@@ -1301,8 +1302,8 @@ class VisitLookupResponse(BaseModel):
     visit_number: int
     merchant_name: str
     verified_at: str
-    redeemed_at: str | None = None
-    order_reference: str | None = None
+    redeemed_at: Optional[str] = None
+    order_reference: Optional[str] = None
 
 
 @router.get("/visits/lookup/{verification_code}", response_model=VisitLookupResponse)
@@ -1341,8 +1342,8 @@ async def lookup_visit(
 
 
 class MarkRedeemedRequest(BaseModel):
-    order_reference: str | None = None
-    notes: str | None = None
+    order_reference: Optional[str] = None
+    notes: Optional[str] = None
 
 
 @router.post("/visits/redeem/{verification_code}")
@@ -1382,4 +1383,3 @@ async def mark_visit_redeemed(
     )
 
     return {"status": "REDEEMED", "verification_code": verification_code}
-

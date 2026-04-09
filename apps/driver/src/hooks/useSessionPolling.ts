@@ -49,35 +49,62 @@ export function useSessionPolling() {
   const incentiveShownRef = useRef<string | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollIntervalRef = useRef<number>(60000) // start at 60s
-  const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inFlightRef = useRef(false)
 
   // Smart polling: adjusts interval based on charging state
+  // Uses chained setTimeout (not setInterval) to prevent overlapping polls
   useEffect(() => {
     if (!authToken) return
+    let cancelled = false
+
+    const schedulePoll = (delayMs: number) => {
+      if (cancelled) return
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current)
+      timeoutIdRef.current = setTimeout(doPoll, delayMs)
+    }
 
     const doPoll = async () => {
+      if (cancelled || inFlightRef.current) return
+      inFlightRef.current = true
       try {
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
-              const speed = pos.coords.speed
-              if (speed !== null && speed > 5) {
-                console.log(`[SessionPolling] Skipping poll — moving at ${speed.toFixed(1)} m/s`)
-                // Moving = not charging, slow down polls
+              try {
+                const speed = pos.coords.speed
+                if (speed !== null && speed > 5) {
+                  console.log(`[SessionPolling] Skipping poll — moving at ${speed.toFixed(1)} m/s`)
+                  // Moving = not charging, slow down polls
+                  updateInterval(300000)
+                  return
+                }
+                const result = await pollChargingSession(pos.coords.latitude, pos.coords.longitude)
+                queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
+                adjustInterval(result)
+              } catch {
                 updateInterval(300000)
-                return
+              } finally {
+                inFlightRef.current = false
+                schedulePoll(pollIntervalRef.current)
               }
-              const result = await pollChargingSession(pos.coords.latitude, pos.coords.longitude)
-              queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
-              adjustInterval(result)
             },
             async () => {
-              const result = await pollChargingSession()
-              queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
-              adjustInterval(result)
+              try {
+                const result = await pollChargingSession()
+                queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
+                adjustInterval(result)
+              } catch {
+                updateInterval(300000)
+              } finally {
+                inFlightRef.current = false
+                schedulePoll(pollIntervalRef.current)
+              }
             },
             { timeout: 5000, maximumAge: 30000 }
           )
+          // Note: inFlightRef is cleared inside the callbacks above
+          return
         } else {
           const result = await pollChargingSession()
           queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
@@ -87,6 +114,8 @@ export function useSessionPolling() {
         // On error, back off to 5 min
         updateInterval(300000)
       }
+      inFlightRef.current = false
+      schedulePoll(pollIntervalRef.current)
     }
 
     const adjustInterval = (result: PollSessionResponse | undefined) => {
@@ -123,19 +152,14 @@ export function useSessionPolling() {
       if (newMs === pollIntervalRef.current) return
       console.log(`[SessionPolling] Interval changed: ${pollIntervalRef.current / 1000}s → ${newMs / 1000}s`)
       pollIntervalRef.current = newMs
-      // Restart the interval with the new timing
-      if (intervalIdRef.current) clearInterval(intervalIdRef.current)
-      intervalIdRef.current = setInterval(doPoll, newMs)
     }
 
-    // Initial poll after 5s delay
-    const initialTimeout = setTimeout(doPoll, 5000)
-    // Start with 60s interval
-    intervalIdRef.current = setInterval(doPoll, 60000)
+    // Initial poll after 5s delay, then chain via setTimeout
+    schedulePoll(5000)
 
     return () => {
-      clearTimeout(initialTimeout)
-      if (intervalIdRef.current) clearInterval(intervalIdRef.current)
+      cancelled = true
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current)
     }
   }, [queryClient, authToken])
 
@@ -224,4 +248,3 @@ export function useSessionPolling() {
 
   return { ...state, clearIncentive }
 }
-

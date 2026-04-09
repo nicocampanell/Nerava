@@ -13,6 +13,7 @@ import logging
 import math
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,7 @@ class IncentiveEngine:
     """Evaluates completed sessions against active campaigns."""
 
     @staticmethod
-    def evaluate_session(db: Session, session: SessionEvent) -> IncentiveGrant | None:
+    def evaluate_session(db: Session, session: SessionEvent) -> Optional[IncentiveGrant]:
         """
         Evaluate a completed session against all active campaigns.
         Returns the grant if one was created, else None.
@@ -236,7 +237,7 @@ class IncentiveEngine:
         db: Session,
         session: SessionEvent,
         campaign: Campaign,
-    ) -> IncentiveGrant | None:
+    ) -> Optional[IncentiveGrant]:
         """
         Create an incentive grant and atomically decrement campaign budget.
         Also creates a Nova transaction for the driver.
@@ -308,6 +309,7 @@ class IncentiveEngine:
                 wallet = (
                     db.query(DriverWallet)
                     .filter(DriverWallet.driver_id == session.driver_user_id)
+                    .with_for_update()
                     .first()
                 )
                 if not wallet:
@@ -368,4 +370,3 @@ class IncentiveEngine:
         else:
             # Overnight window
             return time_str >= start or time_str <= end
-

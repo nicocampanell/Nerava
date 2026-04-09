@@ -5,6 +5,7 @@ Implements Google SSO, Apple SSO, Phone OTP, refresh token rotation, /me, logout
 
 import logging
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
@@ -46,7 +47,7 @@ class RefreshResponse(BaseModel):
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str | None = None
+    refresh_token: Optional[str] = None
 
 
 class LogoutResponse(BaseModel):
@@ -86,9 +87,9 @@ class EmailOTPVerifyRequest(BaseModel):
 class UserMeResponse(BaseModel):
     public_id: str
     auth_provider: str
-    email: str | None = None
-    phone: str | None = None
-    display_name: str | None = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    display_name: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -163,7 +164,7 @@ async def refresh_token(
 async def logout(
     payload: LogoutRequest,
     db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Logout: revoke refresh token(s).
@@ -886,4 +887,3 @@ def login_legacy(form, db: Session = Depends(get_db)):
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     return Token(access_token=create_access_token(user.public_id))
-
