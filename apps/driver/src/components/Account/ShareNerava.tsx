@@ -21,7 +21,19 @@ export function ShareNerava({ onClose, referralCode }: ShareNeravaProps) {
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(referralLink)
+      // navigator.clipboard requires HTTPS — fallback for HTTP dev servers
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(referralLink)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = referralLink
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -99,7 +111,7 @@ export function ShareNerava({ onClose, referralCode }: ShareNeravaProps) {
             <span className="font-semibold text-[#1877F2]">Referral Rewards</span>
           </div>
           <ul className="space-y-1 text-sm text-[#050505]">
-            <li>• Driver referral: Both get $5 credit</li>
+            <li>• Driver referral: Both get $2.50 credit</li>
             <li>• Merchant referral: Free month premium</li>
           </ul>
         </div>

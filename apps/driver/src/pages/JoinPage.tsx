@@ -27,7 +27,7 @@ export default function JoinPage() {
       {ref && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 mb-6">
           <p className="text-sm text-[#1877F2] font-medium">
-            Referral code <span className="font-bold">{ref}</span> applied — you'll both earn $5 after your first charge
+            Referral code <span className="font-bold">{ref}</span> applied — you'll both earn $2.50 after your first charge
           </p>
         </div>
       )}
