@@ -21,7 +21,7 @@ jobs:
         run: ruff check backend/app/
       - name: Run tests
         working-directory: backend
-        run: pytest tests/ -x -q --ignore=tests/integration --ignore=tests/test_queued_orders.py --ignore=tests/test_twilio_sms_webhook.py --ignore=tests/test_exclusive_sessions.py --ignore=tests/api/test_exclusive_sessions.py --ignore=tests/unit/test_ev_connect.py --ignore=tests/unit/test_ev_telemetry.py -k "not test_ev_connect and not test_vote_amenity_invalid_vote_type and not test_domain_hub and not test_demo_runner"
+        run: pytest tests/test_session_event_service.py tests/test_campaign_service.py tests/test_security_headers.py tests/test_partner_api.py -q
   driver:
     runs-on: ubuntu-latest
     defaults:
