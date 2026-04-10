@@ -252,7 +252,7 @@ def cache_key(*args, **kwargs) -> str:
     """Generate cache key from arguments"""
     key_data = {"args": args, "kwargs": kwargs}
     key_str = json.dumps(key_data, sort_keys=True, default=str)
-    return hashlib.md5(key_str.encode()).hexdigest()
+    return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
 
 def cached(ttl: int = 300, key_func: Optional[Callable] = None):
     """Decorator for caching function results"""
@@ -263,7 +263,7 @@ def cached(ttl: int = 300, key_func: Optional[Callable] = None):
             if key_func:
                 cache_key = key_func(*args, **kwargs)
             else:
-                cache_key = f"{func.__name__}:{hashlib.md5(str(args).encode()).hexdigest()}"
+                cache_key = f"{func.__name__}:{hashlib.md5(str(args).encode(), usedforsecurity=False).hexdigest()}"
             
             # Try to get from cache
             result = await layered_cache.get(cache_key)

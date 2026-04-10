@@ -336,7 +336,7 @@ def _create_manifest(pass_files: dict) -> dict:
     """
     manifest = {}
     for filename, content in pass_files.items():
-        sha1 = hashlib.sha1(content).hexdigest()
+        sha1 = hashlib.sha1(content, usedforsecurity=False).hexdigest()
         manifest[filename] = sha1
     return manifest
 

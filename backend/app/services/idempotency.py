@@ -15,7 +15,7 @@ class IdempotencyService:
         """Generate idempotency key from operation and payload"""
         payload_str = json.dumps(payload, sort_keys=True)
         hash_input = f"{operation}:{payload_str}"
-        return f"idempotency:{hashlib.md5(hash_input.encode()).hexdigest()}"
+        return f"idempotency:{hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest()}"
     
     async def check_and_store(self, operation: str, payload: dict) -> Optional[Any]:
         """Check if operation is already processed, store if not"""
