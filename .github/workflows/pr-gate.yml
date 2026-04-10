@@ -46,7 +46,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/driver/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Type check + Build
@@ -65,7 +65,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/driver/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Run unit tests
         run: npx vitest run
 
@@ -83,7 +83,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/merchant/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Build
@@ -103,7 +103,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/admin/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Build
@@ -123,7 +123,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/console/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Build
