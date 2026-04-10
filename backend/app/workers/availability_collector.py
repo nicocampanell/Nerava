@@ -1,12 +1,16 @@
 """
-Background worker that collects charger availability from TomTom every 5 minutes.
+Background worker that collects charger availability from TomTom every 15 minutes.
 
-Runs as an asyncio task inside the FastAPI process. Lightweight: ~10 API calls per cycle.
+Runs as an asyncio task inside the FastAPI process. Lightweight: ~25 TomTom calls
+per cycle plus one Tesla Fleet API call (for Harker Heights Supercharger data
+via James's driver account).
+
 Stores snapshots in charger_availability_snapshots for historical pattern analysis.
 """
 import asyncio
 import logging
 import os
+import re
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -17,6 +21,16 @@ TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "")
 POLL_INTERVAL_SECONDS = 900  # 15 minutes (25 stations × 96 polls/day = 2,400 < 2,500 free tier)
 FIELD_ALERT_THRESHOLD_PCT = 60  # Alert when occupancy exceeds this %
 BUSINESS_HOURS = (7, 21)  # 7am-9pm local time for alerts
+
+# Tesla Fleet API collector: uses James's driver account (phone auth) to poll
+# nearby_charging_sites every cycle. Tesla Superchargers don't expose availability
+# via TomTom or any other public API — nearby_charging_sites is the only way,
+# and it's scoped to the vehicle's current GPS location. As long as this Tesla
+# stays in Bell County (Killeen/Harker Heights/Temple), Market Heights will be
+# in the response. The target phone is stored here (not env var) because this
+# is tactical data collection for the Harker Heights pizzeria merchant report
+# (Fri 2026-04-10 → Tue 2026-04-14). To disable, set to empty string.
+TESLA_COLLECTOR_PHONE = "+17133056318"
 
 # Monitored stations across all regions
 MONITORED_STATIONS: List[Dict[str, str]] = [
@@ -192,12 +206,152 @@ def _log_field_alert(db, station: Dict[str, str], occupancy_pct: float, total: i
         pass  # Don't let alert logic crash the collector
 
 
+def _slugify_site_name(name: str) -> str:
+    """Convert 'Harker Heights, TX' → 'harker_heights_tx' for a stable charger_id."""
+    s = (name or "").lower().strip()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    return s.strip("_")
+
+
+async def _collect_tesla_once():
+    """
+    Fetch Supercharger availability via Tesla Fleet API nearby_charging_sites.
+
+    Uses the TeslaConnection belonging to TESLA_COLLECTOR_PHONE. Writes one
+    ChargerAvailabilitySnapshot per supercharger in the response with
+    source="tesla_fleet" and charger_id="tesla_sc_{slug}".
+
+    Silently returns (without raising) if:
+      - TESLA_COLLECTOR_PHONE is empty
+      - No matching user
+      - No active Tesla connection
+      - Token refresh fails
+      - Fleet API call fails
+      - Response has no superchargers (vehicle out of Bell County)
+
+    Designed to be safe to run alongside the TomTom collection — it catches
+    its own errors so failure here never affects TomTom snapshots.
+    """
+    if not TESLA_COLLECTOR_PHONE:
+        return
+
+    from app.db import SessionLocal
+    from app.models.charger_availability import ChargerAvailabilitySnapshot
+    from app.models.tesla_connection import TeslaConnection
+    from app.models.user import User
+    from app.services.tesla_oauth import get_tesla_oauth_service, get_valid_access_token
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.phone == TESLA_COLLECTOR_PHONE).first()
+        if not user:
+            logger.debug(f"[TeslaCollector] No user for phone {TESLA_COLLECTOR_PHONE}")
+            return
+
+        conn = db.query(TeslaConnection).filter(
+            TeslaConnection.user_id == user.id,
+            TeslaConnection.is_active == True,  # noqa: E712
+        ).first()
+        if not conn or not conn.vehicle_id:
+            logger.debug(
+                f"[TeslaCollector] No active Tesla connection for user {user.id}"
+            )
+            return
+
+        oauth = get_tesla_oauth_service()
+        try:
+            access_token = await get_valid_access_token(db, conn, oauth)
+        except Exception as token_err:
+            logger.warning(f"[TeslaCollector] Token refresh failed: {token_err}")
+            return
+        if not access_token:
+            logger.warning("[TeslaCollector] No access token (connection revoked?)")
+            return
+
+        # Best-effort wake. Swallow errors — the Fleet API call below will
+        # return 408 if the vehicle is still asleep, which we log and move on.
+        try:
+            await oauth.wake_vehicle(access_token, conn.vehicle_id)
+        except Exception as wake_err:
+            logger.info(f"[TeslaCollector] wake_vehicle non-fatal: {wake_err}")
+
+        try:
+            response = await oauth.get_nearby_charging_sites(
+                access_token, conn.vehicle_id
+            )
+        except Exception as call_err:
+            logger.warning(
+                f"[TeslaCollector] get_nearby_charging_sites failed: {call_err}"
+            )
+            return
+
+        superchargers = response.get("superchargers") or []
+        if not superchargers:
+            logger.info(
+                "[TeslaCollector] Empty superchargers array — "
+                "vehicle may be outside Tesla's nearby radius"
+            )
+            return
+
+        stored = 0
+        for sc in superchargers:
+            name = sc.get("name") or ""
+            total = sc.get("total_stalls")
+            available = sc.get("available_stalls")
+            # Skip entries without live stall data (shouldn't happen in 2026
+            # but be defensive if Tesla changes the schema later).
+            if total is None or available is None:
+                continue
+            occupied = max(0, int(total) - int(available))
+            slug = _slugify_site_name(name)
+            if not slug:
+                loc = sc.get("location") or {}
+                slug = f"{loc.get('lat','?')}_{loc.get('long','?')}"
+            charger_id = f"tesla_sc_{slug}"
+
+            snapshot = ChargerAvailabilitySnapshot(
+                id=str(uuid.uuid4()),
+                charger_id=charger_id,
+                tomtom_availability_id=None,
+                source="tesla_fleet",
+                total_ports=int(total),
+                available_ports=int(available),
+                occupied_ports=occupied,
+                out_of_service_ports=0,  # Tesla does not report OOS stalls
+                connector_details=sc,  # Full raw supercharger dict
+                recorded_at=datetime.utcnow(),
+            )
+            db.add(snapshot)
+            stored += 1
+
+        db.commit()
+        logger.info(
+            f"[TeslaCollector] Stored {stored} supercharger snapshot(s) "
+            f"(vehicle_id={conn.vehicle_id})"
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[TeslaCollector] Collection failed: {e}")
+    finally:
+        db.close()
+
+
 async def run_collector():
-    """Main loop: collect availability every 3 minutes."""
-    logger.info(f"[AvailCollector] Starting — monitoring {len(MONITORED_STATIONS)} stations every {POLL_INTERVAL_SECONDS}s")
+    """Main loop: collect availability every 15 minutes."""
+    logger.info(
+        f"[AvailCollector] Starting — monitoring {len(MONITORED_STATIONS)} TomTom "
+        f"stations + Tesla Fleet (phone={TESLA_COLLECTOR_PHONE or 'disabled'}) "
+        f"every {POLL_INTERVAL_SECONDS}s"
+    )
     while True:
+        # TomTom path
         try:
             await _collect_once()
         except Exception as e:
-            logger.error(f"[AvailCollector] Unexpected error: {e}")
+            logger.error(f"[AvailCollector] TomTom path error: {e}")
+        # Tesla Fleet path — independent, isolated from TomTom errors
+        try:
+            await _collect_tesla_once()
+        except Exception as e:
+            logger.error(f"[AvailCollector] Tesla path error: {e}")
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
