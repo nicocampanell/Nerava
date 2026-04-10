@@ -1,12 +1,15 @@
 """Events API router."""
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
 from app.db import get_db
-from app.services import events as events_service, verifier as verifier_service
+from app.services import events as events_service
+from app.services import verifier as verifier_service
 from app.utils.log import get_logger
 
 router = APIRouter(prefix="/v1/events", tags=["events"])
@@ -66,19 +69,15 @@ class EndEventReq(BaseModel):
 
 
 @router.post("")
-def create_event(
-    req: EventCreateReq,
-    request_obj: Request,
-    db: Session = Depends(get_db)
-):
+def create_event(req: EventCreateReq, request_obj: Request, db: Session = Depends(get_db)):
     """Create a new event."""
     user_id = resolve_user_id(request_obj, req.user_id)
     payload = req.event.dict()
-    
+
     # Parse timestamps
-    payload["starts_at"] = datetime.fromisoformat(request.starts_at.replace("Z", "+00:00"))
-    payload["ends_at"] = datetime.fromisoformat(request.ends_at.replace("Z", "+00:00"))
-    
+    payload["starts_at"] = datetime.fromisoformat(req.event.starts_at.replace("Z", "+00:00"))
+    payload["ends_at"] = datetime.fromisoformat(req.event.ends_at.replace("Z", "+00:00"))
+
     event = events_service.create_event(db, user_id, payload)
     return event
 
@@ -89,23 +88,20 @@ def list_events_nearby(
     lng: float = Query(...),
     radius_m: int = Query(2000, ge=0, le=50000),
     now: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """List events near a location."""
     now_utc = None
     if now:
         now_utc = datetime.fromisoformat(now.replace("Z", "+00:00"))
-    
+
     events = events_service.list_events_nearby(db, lat, lng, radius_m, now_utc)
     return events
 
 
 @router.post("/{event_id}/join")
 def join_event(
-    event_id: int,
-    body: EventJoinReq,
-    request_obj: Request,
-    db: Session = Depends(get_db)
+    event_id: int, body: EventJoinReq, request_obj: Request, db: Session = Depends(get_db)
 ):
     """Join an event."""
     user_id = resolve_user_id(request_obj, getattr(body, "user_id", None))
@@ -118,7 +114,7 @@ def start_verification(
     event_id: int,
     request: StartVerificationRequest,
     request_obj: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Start verification for an event."""
     user_id = resolve_user_id(request_obj, request.user_id)
@@ -130,26 +126,18 @@ def start_verification(
 
 @router.post("/verify/{verification_id}/complete")
 def complete_verification(
-    verification_id: int,
-    request: CompleteVerificationRequest,
-    db: Session = Depends(get_db)
+    verification_id: int, request: CompleteVerificationRequest, db: Session = Depends(get_db)
 ):
     """Complete verification."""
-    result = verifier_service.complete_verification(
-        db, verification_id, request.lat, request.lng
-    )
+    result = verifier_service.complete_verification(db, verification_id, request.lat, request.lng)
     return result
 
 
 @router.post("/{event_id}/end")
 def end_event(
-    event_id: int,
-    body: EndEventReq,
-    request_obj: Request,
-    db: Session = Depends(get_db)
+    event_id: int, body: EndEventReq, request_obj: Request, db: Session = Depends(get_db)
 ):
     """End an event."""
     _uid = resolve_user_id(request_obj, getattr(body, "user_id", None))
     event = events_service.end_event(db, event_id)
     return event
-

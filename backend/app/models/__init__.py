@@ -1,108 +1,109 @@
 """
 Models package - organized by domain
 """
+
 # Re-export all models for backward compatibility
-from .user import User, UserPreferences
-from .refresh_token import RefreshToken
-from .otp_challenge import OTPChallenge
-from .email_otp_challenge import EmailOTPChallenge
-from .notification_prefs import UserNotificationPrefs
+from .ad_impression import AdImpression
+from .arrival_session import ArrivalSession
+from .billing_event import BillingEvent
+from .campaign import Campaign
+from .car_pin import CarPin
+from .charge_intent import ChargeIntent
+from .claim_session import ClaimSession
+from .device_token import DeviceToken
 from .domain import (
-    Zone,
-    EnergyEvent,
+    ApplePassRegistration,
+    DomainChargingSession,
     DomainMerchant,
     DriverWallet,
-    NovaTransaction,
-    DomainChargingSession,
-    StripePayment,
-    ApplePassRegistration,
+    EnergyEvent,
     GoogleWalletLink,
+    NovaTransaction,
+    StripePayment,
+    Zone,
 )
-from .vehicle import (
-    VehicleAccount,
-    VehicleToken,
-    VehicleTelemetry,
+from .driver_wallet import Payout, WalletLedger
+from .email_otp_challenge import EmailOTPChallenge
+from .exclusive_session import (
+    ExclusiveSession,
+    ExclusiveSessionStatus,
 )
-from .while_you_charge import (
-    Charger,
-    Merchant,
-    ChargerMerchant,
-    MerchantPerk,
-    MerchantBalance,
-    MerchantBalanceLedger,
-    MerchantOfferCode,
-    FavoriteMerchant,
-    ChargerCluster,
-    AmenityVote,
+from .extra import (
+    Challenge,
+    CommunityPeriod,
+    CreditLedger,
+    DualZoneSession,
+    FeatureFlag,
+    Follow,
+    FollowerShare,
+    IncentiveRule,
+    Participation,
+    RewardEvent,
+    UtilityEvent,
 )
 from .intent import (
     IntentSession,
     PerkUnlock,
 )
-from .charge_intent import ChargeIntent
-from .user_reputation import UserReputation
-from .exclusive_session import (
-    ExclusiveSession,
-    ExclusiveSessionStatus,
-)
-from .vehicle_onboarding import (
-    VehicleOnboarding,
+from .loyalty import LoyaltyCard, LoyaltyProgress
+from .merchant_account import (
+    MerchantAccount,
+    MerchantLocationClaim,
+    MerchantPaymentMethod,
+    MerchantPlacementRule,
 )
 from .merchant_cache import (
     MerchantCache,
 )
-from .wallet_pass_state import (
-    WalletPassState,
+from .merchant_notification_config import MerchantNotificationConfig
+from .merchant_oauth_token import MerchantOAuthToken
+from .merchant_pos_credentials import MerchantPOSCredentials
+from .merchant_reward import (
+    MerchantJoinRequest,
+    ReceiptStatus,
+    ReceiptSubmission,
+    RewardClaim,
+    RewardClaimStatus,
 )
+from .merchant_subscription import MerchantSubscription
+from .notification_prefs import UserNotificationPrefs
+from .otp_challenge import OTPChallenge
+from .partner import Partner, PartnerAPIKey
+from .queued_order import QueuedOrder, QueuedOrderStatus
+from .refresh_token import RefreshToken
+from .session_event import IncentiveGrant, SessionEvent
+from .tesla_connection import EVVerificationCode, TeslaConnection
+from .user import User, UserPreferences
+from .user_consent import UserConsent
+from .user_reputation import UserReputation
+from .vehicle import (
+    VehicleAccount,
+    VehicleTelemetry,
+    VehicleToken,
+)
+from .vehicle_onboarding import (
+    VehicleOnboarding,
+)
+from .verified_visit import VerifiedVisit
+from .virtual_key import VirtualKey
 from .wallet_pass import (
     WalletPassActivation,
     WalletPassStateEnum,
 )
-from .merchant_account import (
-    MerchantAccount,
-    MerchantLocationClaim,
-    MerchantPlacementRule,
-    MerchantPaymentMethod,
+from .wallet_pass_state import (
+    WalletPassState,
 )
-from .claim_session import ClaimSession
-from .verified_visit import VerifiedVisit
-from .user_consent import UserConsent
-from .arrival_session import ArrivalSession
-from .car_pin import CarPin
-from .merchant_notification_config import MerchantNotificationConfig
-from .merchant_pos_credentials import MerchantPOSCredentials
-from .billing_event import BillingEvent
-from .queued_order import QueuedOrder, QueuedOrderStatus
-from .virtual_key import VirtualKey
-from .tesla_connection import TeslaConnection, EVVerificationCode
-from .device_token import DeviceToken
-from .campaign import Campaign
-from .session_event import SessionEvent, IncentiveGrant
-from .driver_wallet import Payout, WalletLedger
-from .merchant_oauth_token import MerchantOAuthToken
-from .merchant_subscription import MerchantSubscription
-from .ad_impression import AdImpression
-from .partner import Partner, PartnerAPIKey
-from .merchant_reward import (
-    MerchantJoinRequest,
-    RewardClaim,
-    RewardClaimStatus,
-    ReceiptSubmission,
-    ReceiptStatus,
-)
-from .loyalty import LoyaltyCard, LoyaltyProgress
-from .extra import (
-    CreditLedger,
-    IncentiveRule,
-    UtilityEvent,
-    Follow,
-    RewardEvent,
-    FollowerShare,
-    CommunityPeriod,
-    Challenge,
-    Participation,
-    FeatureFlag,
-    DualZoneSession,
+from .while_you_charge import (
+    AmenityVote,
+    Charger,
+    ChargerCluster,
+    ChargerMerchant,
+    FavoriteMerchant,
+    Merchant,
+    MerchantBalance,
+    MerchantBalanceLedger,
+    MerchantOfferCode,
+    MerchantPerk,
 )
 
 __all__ = [
@@ -203,5 +204,16 @@ __all__ = [
     # Loyalty models
     "LoyaltyCard",
     "LoyaltyProgress",
+    # Driver wallet models
+    "Payout",
+    "WalletLedger",
+    # Merchant reward models
+    "MerchantJoinRequest",
+    "ReceiptStatus",
+    "ReceiptSubmission",
+    "RewardClaim",
+    "RewardClaimStatus",
+    # Tesla models
+    "EVVerificationCode",
+    "TeslaConnection",
 ]
-

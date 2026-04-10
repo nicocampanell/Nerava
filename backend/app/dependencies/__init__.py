@@ -1,8 +1,9 @@
 """
 FastAPI dependencies for database sessions and other common dependencies.
 """
-from sqlalchemy.orm import Session
+
 from ..db import SessionLocal
+
 
 def get_db():
     """Get database session dependency."""
@@ -11,5 +12,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
