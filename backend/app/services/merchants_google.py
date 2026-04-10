@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import requests
 
-# Hardcoded API key (no longer reads from environment variables)
+# Google Places API key — set GOOGLE_API_KEY in environment
 API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 # ---------- Local SQLite (sidecar used by merchants_local) ----------
