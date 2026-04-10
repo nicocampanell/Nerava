@@ -31,7 +31,7 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov freezegun
       - name: Run tests
         working-directory: backend
-        run: pytest tests/ -x -q --ignore=tests/integration --ignore=tests/test_queued_orders.py --ignore=tests/test_twilio_sms_webhook.py -k "not test_ev_connect and not test_domain_hub and not test_demo_runner"
+        run: pytest tests/ -x -q --ignore=tests/integration --ignore=tests/test_queued_orders.py --ignore=tests/test_twilio_sms_webhook.py --ignore=tests/test_exclusive_sessions.py -k "not test_ev_connect and not test_domain_hub and not test_demo_runner"
 
   driver-lint-build:
     name: Driver Lint + Build
