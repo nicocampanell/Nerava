@@ -149,6 +149,9 @@ async def admin_nearby_charging_sites(
             break
 
     return {
+        "target_user_id": target_user.id,
+        "target_user_email": target_user.email,
+        "target_user_phone_last4": (target_user.phone[-4:] if target_user.phone else None),
         "vehicle_id": vehicle_id,
         "vin_masked": (connection.vin[:5] + "…" + connection.vin[-4:]) if connection.vin else None,
         "timestamp": response.get("timestamp"),
