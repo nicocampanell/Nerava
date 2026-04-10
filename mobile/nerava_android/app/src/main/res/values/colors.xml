@@ -9,4 +9,5 @@
     <color name="nerava_text_secondary">#64748B</color>
     <color name="status_bar_color">#FFFFFF</color>
     <color name="nerava_splash_bg">#1A1A2E</color>
+    <color name="nerava_loading_text">#FFFFFF</color>
 </resources>

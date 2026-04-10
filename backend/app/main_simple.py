@@ -938,6 +938,10 @@ app.include_router(admin_analytics.router)   # /v1/admin/analytics/*
 from .routers import admin_chargers
 app.include_router(admin_chargers.router)    # /v1/admin/chargers/*
 
+# Admin Tesla Fleet API tooling
+from .routers import admin_tesla
+app.include_router(admin_tesla.router)    # /v1/admin/tesla/*
+
 # Consolidated Stripe Webhooks
 from .routers import stripe_webhooks
 app.include_router(stripe_webhooks.router)    # /v1/stripe/webhooks

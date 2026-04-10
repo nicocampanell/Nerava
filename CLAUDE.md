@@ -2,6 +2,198 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## Stack and Runtime Constraints
+
+- **Production runtime: Python 3.9.** Never use PEP 604 union syntax (`X | None`). Always use `Optional[X]` with `from typing import Optional`.
+- All new Python files must have `from __future__ import annotations` OR use `Optional` from typing. Never both.
+- Frontend: React + TypeScript + Vite. FastAPI monolith on AWS App Runner. PostgreSQL via SQLAlchemy. Stripe Express. Tesla Fleet API. Smartcar.
+- Before writing any new utility function, search the codebase for an existing one. Specifically: distance calculations live in `app/services/geo.py`, email sending uses `send_email()` not `send()`, wallet mutations go through `driver_wallet.py`.
+
+---
+
+## Pre-Change Checklist (Required Before Every Edit)
+
+Before making any code change, answer these questions out loud in your response:
+
+1. Does this touch a wallet, balance, or ledger? If yes, does every mutation use `with_for_update()`?
+2. Does this add a new Python type hint? Is it `Optional[X]` not `X | None`?
+3. Does this add a new utility function? Have I checked if one already exists?
+4. Does this touch auth or user data? Does every endpoint that returns user data verify ownership, not just role?
+5. Does this add any credential, API key, or secret? It must come from environment variables only. Never hardcode.
+6. Does this add a new import? Is it actually used?
+7. Does this change a transaction? Does every `db.commit()` have a corresponding try/except/rollback?
+8. Does this change a webhook handler? Is it idempotent — safe to receive the same event twice?
+9. Does this change polling or `setInterval`? Use recursive `setTimeout`, not `setInterval`, for async work.
+10. Does this change an environment check? Use `settings.is_prod` not raw string comparison like `settings.ENV == "prod"`.
+
+If any answer is "no" or "I am not sure", fix it before proceeding.
+
+---
+
+## Financial and Wallet Rules (Non-Negotiable)
+
+Nerava is a financial product. These rules are absolute:
+
+- Every wallet balance mutation (`balance_cents`, `pending_balance_cents`, `nova_balance`, `lifetime_earned_cents`) requires `with_for_update()` on the row before mutation. No exceptions.
+- Every budget decrement must be inside a transaction that rolls back if the subsequent grant creation fails. Budget reduced with no grant created is a financial integrity bug.
+- Every payout webhook handler (paid, failed) requires `with_for_update()` before mutating wallet state.
+- Visit number allocation (`max(...) + 1`) is not atomic. Use a database sequence or a locked select (`order_by(...desc()).with_for_update().first()`).
+- Double-entry means every credit has a corresponding debit. Never create one without the other in the same transaction.
+- All `incentive_grants.amount_cents` changes must be atomic via `CampaignService.decrement_budget_atomic()`.
+
+---
+
+## Authorization Rules
+
+- Every endpoint that returns or modifies user-specific data must verify both role AND ownership. Checking role only is insufficient.
+- Idempotency key lookups must filter by `driver_id` or the relevant owner. A global lookup by key alone allows one user to access another user's state.
+- Merchant endpoints must verify the requesting user owns the specific `merchant_id` in the request, not just that they have the merchant role (use `_verify_merchant_ownership()` in `exclusive.py`).
+- Never return raw exception text to the client. Catch and return a generic error message. Log the full exception server-side with `logger.error(..., exc_info=True)`.
+- Mock/demo features must be gated by admin account check (`public_id` verification), not just a localStorage flag or env variable.
+
+---
+
+## Secret and Credential Rules
+
+- Never hardcode API keys, secrets, or credentials in source code. Always use environment variables via `settings` or `os.getenv()`.
+- Never commit log files. Add `*.log` and `logs/` to `.gitignore` before creating any log output.
+- Never put API keys in JSON fixtures, documentation, or archive files.
+- If you see any string matching `AIza[A-Za-z0-9_-]{35}` (Google API key pattern), `sk_live_*`, `sk_test_*`, or similar credential patterns anywhere, flag it immediately and do not proceed until it is removed.
+- MD5 and SHA1 used for non-security purposes (caching, ETags, idempotency keys) require `usedforsecurity=False` on Python 3.9+.
+- JWT secret must not default to `"dev-secret-change-me"` outside dev/test environments. Fail closed in prod/staging.
+
+---
+
+## Transaction Safety Rules
+
+- Every `db.commit()` must be wrapped in try/except with `db.rollback()` in the except block.
+- Never flush without committing unless you explicitly need the ID before the transaction ends.
+- Budget restores after rollback must be committed (`db.commit()`), not just flushed.
+- Refresh token rotation must roll back the new token if the old token deletion fails.
+- `update_session()` webhooks must be idempotent. Check `is_new` flag before firing downstream events like `partner.session.resolved`.
+- `TeslaOAuthState.store()` and any other `db.merge()` + `db.commit()` sequence must be wrapped in try/except with rollback.
+
+---
+
+## Python Quality Rules
+
+- No bare `except: pass`. Use `contextlib.suppress(SpecificException)` or log the exception.
+- No `raise SomeError()` without `from original_exception` (or `from None`) in except blocks (B904).
+- No `print()` statements in production code. Use the module-level logger.
+- **Every file that uses `logger` must have `import logging` AND `logger = logging.getLogger(__name__)` at the top.** This is the #1 rule — the bug that triggered the 13-round audit.
+- Before using any variable, confirm it is imported or defined in scope. Never assume a variable exists because it exists in another file.
+- When writing a new file, add all imports at the top before writing any logic.
+- Distance calculations: always `from app.services.geo import haversine_m`. Never write a local haversine function.
+
+---
+
+## Frontend Quality Rules
+
+- Never use `setInterval` for async polling. Use recursive `setTimeout` that only fires the next poll after the current one resolves (single-flight pattern with `inFlightRef`).
+- Async errors inside `navigator.geolocation` callbacks bypass outer try/catch. Wrap the async logic inside the callback in its own try/catch.
+- Event listeners added at module level must be cleaned up in an `import.meta.hot.dispose()` hook to prevent duplication on Vite HMR reload. Use named callback references so `removeEventListener` actually removes them.
+- `console.log` with request or response payloads must be gated by a dev-only check (`API_DEBUG` flag) before shipping. Remove or gate all payload logging before any demo or production deploy.
+- Mock and demo mode must be gated by admin identity check (specific `public_id` comparison), not just an environment flag.
+- Auth errors (401, `refresh_failed`, `no_refresh_token`) in polling should stop the poll loop via `window.dispatchEvent(new CustomEvent('nerava:session-expired'))`, not retry after 30 seconds.
+- API calls must go through `src/services/api.ts` — flag any raw `fetch()` calls outside of the service file.
+- `VITE_API_BASE_URL` must be set for production builds. Without it, apps default to `localhost:8001` which breaks production.
+
+---
+
+## Before Every Commit
+
+Run these checks in order. Do not commit if any fail:
+
+```bash
+# From repo root
+ruff check backend/app/
+ruff check backend/app/ --fix  # Auto-fix if possible
+
+# If pre-commit is installed
+pre-commit run --all-files
+```
+
+If pre-commit is not installed: `pip install pre-commit && pre-commit install`
+
+---
+
+## Before Every New File
+
+1. Search for existing utilities: `grep -r "function_name_or_concept" backend/app/`
+2. Check `app/services/geo.py` before writing any distance calculation
+3. Check `app/services/driver_wallet.py` or `payout_service.py` before writing any wallet mutation
+4. Check `app/core/email_sender.py` for the correct method signature before calling it (`send_email`, not `send`)
+5. Confirm all imports at the top are actually used in the file
+6. Add `import logging` and `logger = logging.getLogger(__name__)` at the top
+
+---
+
+## Demo and Investor Safety
+
+Nerava is actively fundraising and demoing to investors. These rules protect the demo:
+
+- Mock charging and demo mode must require a specific hardcoded `public_id` check, not just an env flag
+- Never show raw database errors, stack traces, or internal state to the client
+- Wallet balance must always be accurate. Any doubt about transaction safety means stop and fix before continuing
+- `VITE_API_BASE_URL` must be set correctly for each environment: empty string for dev (uses Vite proxy), full URL for production
+- Never push directly to `main`. Always go through a PR with CodeRabbit review and passing CI.
+
+---
+
+## When You Are Unsure
+
+If you are unsure whether a pattern is safe, stop and ask before writing it. Specifically:
+
+- "Is this mutation safe under concurrent load?" — ask before writing
+- "Does this endpoint need a row lock?" — ask before writing
+- "Is there already a utility for this?" — search before writing
+- "Is this credential coming from environment variables?" — verify before writing
+- "Will this run on Python 3.9?" — check type hints before writing
+
+The cost of asking is one message. The cost of a production wallet bug is unquantifiable.
+
+---
+
+## Incident History (Learn From These — Never Reintroduce)
+
+These bugs were found in production or in the 13-round audit (April 2026). Never reintroduce them:
+
+- **`auth.py`**: Used `logger` on 15+ lines without importing `logging`. All email OTP crashed with `NameError`. **Fix: import `logging` and define `logger` at the top of every file.**
+- **`incentive_engine.py:308`**: Wallet mutation without `with_for_update()` caused lost updates under concurrent grants. **Fix: always lock row before mutating wallet or budget.**
+- **`incentive_engine.py:248-286`**: Budget decremented but grant creation could fail, leaving orphaned budget. **Fix: wrap post-decrement in try/except with rollback + budget restore.**
+- **`exclusive.py:1081`**: `visit_number = max(...) + 1` non-atomic. Duplicate visit numbers possible under concurrent load. **Fix: `order_by(...desc()).with_for_update().first()` then increment.**
+- **`exclusive.py:1239`**: Any authenticated driver could enumerate/redeem any merchant's visits via merchant endpoints. **Fix: `_verify_merchant_ownership()` checks `DomainMerchant.owner_user_id`, not just role.**
+- **`exclusive.py:294`**: Idempotency lookup by key alone leaked session state across drivers. **Fix: global unique constraint — driver mismatch returns 409.**
+- **`pwa_responses.py`, `merchants_google.py`, `places_google.py`, `google_distance_matrix_client.py`**: Google API key hardcoded in source. **Fix: `os.getenv("GOOGLE_API_KEY", "")`. Key has been rotated in Google Cloud Console.**
+- **`backend/logs/seed_city.log`**: 1.5 MB log file with API keys in request URLs committed to repo. **Fix: `backend/logs/` in `.gitignore`, never commit logs.**
+- **`config.py:14`**: JWT secret defaulted to `"dev-secret-change-me"` in all environments. **Fix: fallback only when `ENV in ("dev", "development", "test")`, empty string otherwise.**
+- **`config.py:510`**: `settings.ENV == "prod"` failed against `"production"` and `"Prod"`. **Fix: `settings.is_prod` property with lowercase membership check. No raw string comparison.**
+- **`weekly_merchant_report.py:197`**: Called `email_sender.send(to=, html=)` but interface defines `send_email(to_email=, subject=, body_text=, body_html=)`. **Fix: check method signatures before calling.**
+- **`useSessionPolling.ts`**: `setInterval` with async work caused overlapping polls and duplicate session events. **Fix: recursive `setTimeout` with `inFlightRef` single-flight guard.**
+- **`useSessionPolling.ts`**: Auth errors (401) triggered 30s retry instead of stopping. **Fix: `isAuthError()` check — dispatch `nerava:session-expired` event and stop polling.**
+- **`smartcar_client.py`**: Entire file had zero imports. Every variable was undefined. Dead code that would crash on first import. **Fix: imports at top of every file. Delete dead code.**
+- **`api.ts`**: Module-level event listeners leaked on Vite HMR. **Fix: named callbacks + `import.meta.hot.dispose()` + `removeEventListener`.**
+- **`api.ts`**: `console.log` of full request/response payloads in production leaked sensitive data. **Fix: `API_DEBUG` flag gated on `import.meta.env.DEV`.**
+- **`payout_service.py:633, 670`**: Webhook handlers mutated wallet without `with_for_update()`. **Fix: lock before mutate on both paid and failed paths.**
+- **`partner_api.py:135`**: Completion webhook fired on every PATCH replay. **Fix: only fire when `is_new` flag is truthy.**
+- **`partner_api.py:183`**: `lat`/`lng` query params accepted but never applied to geo filtering. **Fix: haversine distance check against campaign geo radius.**
+- **`auth.py:163`**: Logout endpoint used `get_current_user` (raises on expired token) instead of `get_current_user_optional`. Refresh-token logout path unreachable. **Fix: use `get_current_user_optional` for endpoints that have alternate auth paths.**
+- **`auth.py:283, 839`**: Error handlers leaked raw exception text to client. **Fix: generic message to client, full exception logged server-side.**
+- **Haversine function**: Duplicated in 10 files (`dual_zone.py`, `verify_dwell.py`, `intent_service.py`, `ml_ranker.py`, `merchant_charger_map.py`, `while_you_charge.py`, `merchant_details.py`, `bootstrap.py`, `drivers_domain.py`, `analyze_texas_chargers.py`). **Fix: always `from app.services.geo import haversine_m`.**
+- **MD5/SHA1 without `usedforsecurity=False`**: 6 instances in `cache/layers.py`, `idempotency.py`, `purchases.py`, `hubs_dynamic.py`, `apple_wallet_pass.py`. **Fix: add `usedforsecurity=False` to every non-security hash call.**
+- **PyJWT 2.10.1 CVE-2026-32597**: `crit` header bypass vulnerability. **Fix: upgraded to `>=2.12.0`.**
+- **SendGrid credits exhausted** (April 2026 incident): email OTP failed for all users. **Fix: migrated to AWS SES with domain verification via Route53 DKIM + App Runner instance role.**
+- **`VITE_API_BASE_URL` missing** in admin/merchant/console production builds: defaulted to `localhost:8001`, broke all three portals. **Fix: explicit env var in every production build command.**
+- **Mock charging not gated to admin**: any user could set `localStorage.debug_mock_charging = 'true'` and fake sessions. **Fix: specific `public_id` check in `useSessionPolling.ts` AND `AccountPage.tsx`.**
+- **PEP 604 syntax** (`X | None`) in 8+ backend files crashes Python 3.9. **Fix: `Optional[X]` with `from typing import Optional`. Lint rule `UP045` is ignored in `ruff.toml`.**
+- **CI pipeline broken**: `continue-on-error: true` swallowed failures, `pytest-cov` not installed, legacy tests imported `app.main`. **Fix: removed failure swallowing, added test deps, skipped broken legacy tests with `--ignore`.**
+
+**See `AUDIT_RETROSPECTIVE_REPORT.md` for the full 90-issue post-mortem.**
+
+---
+
 ## What is Nerava
 
 Nerava is **"Google Ads for EV charging dwell time"** — a verified commerce platform for the EV charging ecosystem. When drivers charge their EVs at supported locations, nearby merchants can reach them with offers during their 20-45 minute charging dwell time. The core billing event is **Claim + Presence**: a driver actively charging + within walking distance + taps "Claim Offer" = one qualified charging lead billed to the merchant. Merchants buy prepaid campaign credits (4% of AOV per claim). Sponsors can also create campaigns that reward drivers for charging at specific locations/times. The system has a driver-facing app, merchant portal, admin dashboard, sponsor console, landing page, iOS native shell, Android app, and a FastAPI backend.
