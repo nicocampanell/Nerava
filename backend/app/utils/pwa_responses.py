@@ -6,7 +6,7 @@ Helpers for normalizing API responses to be PWA-friendly:
 - Consistent object shapes
 - Remove internal fields
 """
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 def google_photo_url(photo_reference: Optional[str], max_width: int = 160) -> Optional[str]:

@@ -5,16 +5,16 @@ Handles Tesla Virtual Key provisioning, pairing status, and management.
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
 from app.dependencies.driver import get_current_driver
 from app.dependencies.feature_flags import require_feature_flag
+from app.models import User
 from app.services.virtual_key_service import get_virtual_key_service
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

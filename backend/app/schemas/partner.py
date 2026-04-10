@@ -3,8 +3,8 @@ Pydantic schemas for the Partner Incentive API.
 """
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # --- Session Ingest ---
 

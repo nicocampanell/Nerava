@@ -7,15 +7,16 @@ import asyncio
 import json
 import logging
 import time
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
-from sqlalchemy import text
 from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from app.db import SessionLocal
-from app.events.domain import DomainEvent, EVENT_TYPES
-from app.services.hubspot import get_hubspot_client
+from app.events.domain import EVENT_TYPES
 from app.events.hubspot_adapter import adapt_event_to_hubspot, to_hubspot_external_id
 from app.models import User
+from app.services.hubspot import get_hubspot_client
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 

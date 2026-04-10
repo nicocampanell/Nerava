@@ -1,11 +1,11 @@
 """Claim session model for merchant onboarding"""
-from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.sql import func
 import uuid
 
-from ..db import Base
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy.sql import func
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class ClaimSession(Base):

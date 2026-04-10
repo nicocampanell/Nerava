@@ -5,10 +5,12 @@ Tracks all wallet mutations and admin actions for audit purposes.
 P1-1: Admin audit log for all wallet mutations + admin actions.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Text, Index, ForeignKey
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON  # for non-sqlite engines

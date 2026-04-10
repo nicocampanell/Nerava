@@ -4,7 +4,7 @@ Extracts reward calculation logic from energy_rep_cron, reward_routing_runner, a
 This file should be pure business logic; no FastAPI, no DB session.
 """
 from datetime import datetime, time
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 
 def _parse_t(s: str) -> time:

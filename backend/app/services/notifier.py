@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Dict, Any
+
 import json
+from typing import Any, Dict
 
 
 def send(user_id: int, kind: str, payload: Dict[str, Any]) -> Dict[str, Any]:

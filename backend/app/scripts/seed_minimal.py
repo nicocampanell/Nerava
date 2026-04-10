@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from sqlalchemy import text
+
 from app.db import SessionLocal
 
 
@@ -87,7 +88,7 @@ def seed_minimal():
                 "email": "demo@nerava.app",
                 "merchant_id": first_merchant_id
             })
-            print(f"\n✅ Demo Merchant API Key Generated:")
+            print("\n✅ Demo Merchant API Key Generated:")
             print(f"   Merchant ID: {first_merchant_id}")
             print(f"   API Key: {demo_api_key}")
             print(f"   Dashboard: http://localhost:8001/m/dashboard?merchant_id={first_merchant_id}\n")

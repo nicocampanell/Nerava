@@ -5,13 +5,13 @@ This module can be called before uvicorn starts to ensure the database schema
 is up to date. Safe to call multiple times - Alembic will be a no-op if already at head.
 Also seeds Domain hub chargers after migrations to ensure they exist for merchant fetching.
 """
-from pathlib import Path
 import logging
+import os
 import sys
+from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,8 @@ def _seed_domain_chargers(database_url: str) -> None:
     try:
         # Import here to avoid circular dependencies
         from app.db import SessionLocal
-        from app.models_while_you_charge import Charger
         from app.domains.domain_hub import DOMAIN_CHARGERS
+        from app.models_while_you_charge import Charger
         
         logger.info("Seeding Domain hub chargers...")
         db = SessionLocal()

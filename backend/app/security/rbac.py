@@ -3,9 +3,9 @@ Role-Based Access Control (RBAC) for Nerava
 """
 import logging
 from enum import Enum
-from typing import List, Optional
+from typing import List
+
 from fastapi import HTTPException, status
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

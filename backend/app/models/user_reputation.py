@@ -1,7 +1,8 @@
 """
 UserReputation model for ORM access to user_reputations table
 """
-from sqlalchemy import Column, String, Integer, DateTime, func
+from sqlalchemy import Column, DateTime, Integer, String, func
+
 from ..db import Base
 
 

@@ -5,9 +5,10 @@ Helper functions for storing domain events in the outbox.
 """
 import json
 import logging
-from typing import Optional
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
 from .domain import DomainEvent
 
 logger = logging.getLogger(__name__)

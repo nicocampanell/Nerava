@@ -12,13 +12,12 @@ Example:
     python -m app.jobs.seed_city --city="Austin" --bbox="30.0,-98.0,30.5,-97.5"
     python -m app.jobs.seed_city --city="Austin" --bbox="30.0,-98.0,30.5,-97.5" --categories coffee food
 """
-import asyncio
 import argparse
-import uuid
+import asyncio
 import logging
-from logging.handlers import RotatingFileHandler
 import os
-from sqlalchemy.orm import Session
+import uuid
+from logging.handlers import RotatingFileHandler
 
 # ------------------------------------------------------
 # Logging Setup (writes to file + prints to console)
@@ -57,12 +56,14 @@ logging.basicConfig(
 logger = logging.getLogger("seed_city")
 
 from app.db import SessionLocal
-from app.models_while_you_charge import Charger, Merchant, ChargerMerchant, MerchantPerk
-from app.integrations.nrel_client import fetch_chargers_in_bbox, ChargerData
-from app.integrations.google_places_client import (
-    search_places_near, normalize_category_to_google_type, get_place_details
-)
 from app.integrations.google_distance_matrix_client import get_walk_times
+from app.integrations.google_places_client import (
+    get_place_details,
+    normalize_category_to_google_type,
+    search_places_near,
+)
+from app.integrations.nrel_client import fetch_chargers_in_bbox
+from app.models_while_you_charge import Charger, ChargerMerchant, Merchant
 from app.services.while_you_charge import haversine_distance
 
 

@@ -7,13 +7,20 @@ PartnerAPIKey: API key for partner authentication. Key stored as SHA-256 hash.
 Key format: nrv_pk_{32_hex_chars} — plaintext returned once on creation only.
 """
 from datetime import datetime
+
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime,
-    ForeignKey, Text, Index,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
 )
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON

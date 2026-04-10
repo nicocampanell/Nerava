@@ -3,7 +3,7 @@ Token creation with role claims
 """
 from datetime import datetime, timedelta
 from typing import Optional
-from ...core.security import create_access_token as _create_access_token
+
 from ...core.config import settings
 
 

@@ -3,8 +3,8 @@ CORS configuration extracted from main_simple.py.
 
 Call `configure_cors(app, settings, is_local, logger, ...)` to set up CORS middleware.
 """
-import os
 import logging
+import os
 from typing import List, Tuple
 
 from fastapi import FastAPI

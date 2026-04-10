@@ -1,8 +1,9 @@
 """
 Schemas for Perk Unlock API
 """
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 class PerkUnlockRequest(BaseModel):

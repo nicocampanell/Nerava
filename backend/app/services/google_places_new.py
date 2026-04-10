@@ -3,14 +3,13 @@ Google Places API (New) client
 Uses the new Places API with SearchNearby and GetPhotoMedia endpoints
 """
 import logging
-import httpx
-import json
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
-from app.core.config import settings as core_settings
-from app.config import settings
+import httpx
+
 from app.cache.layers import LayeredCache
+from app.config import settings
+from app.core.config import settings as core_settings
 from app.core.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)

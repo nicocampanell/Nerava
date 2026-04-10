@@ -6,8 +6,10 @@ car verification to phone sessions.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, func
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 

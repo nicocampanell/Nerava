@@ -4,10 +4,12 @@ Created only on merchant confirmation with a known total.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class BillingEvent(Base):

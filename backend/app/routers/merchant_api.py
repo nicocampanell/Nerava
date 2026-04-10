@@ -1,14 +1,14 @@
 """
 Merchant API endpoints (authenticated by API key)
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 from typing import Optional
-from datetime import datetime
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.services.merchant_analytics import merchant_summary, merchant_offers
+from app.services.merchant_analytics import merchant_offers, merchant_summary
 from app.utils.log import get_logger
 
 router = APIRouter(prefix="/v1/merchant", tags=["merchant"])

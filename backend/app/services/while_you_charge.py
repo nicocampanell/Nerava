@@ -2,18 +2,21 @@
 Service layer for "While You Charge" search and ranking
 """
 import logging
-from typing import List, Dict, Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
-from math import radians, cos, sin, asin, sqrt
 import uuid
+from math import asin, cos, radians, sin, sqrt
+from typing import Dict, List, Optional, Tuple
 
-from app.models_while_you_charge import Charger, Merchant, ChargerMerchant, MerchantPerk
-from app.integrations.nrel_client import fetch_chargers_in_bbox, ChargerData
-from app.integrations.google_places_client import (
-    search_places_near, normalize_category_to_google_type, PlaceData, get_place_details
-)
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
 from app.integrations.google_distance_matrix_client import get_walk_times
+from app.integrations.google_places_client import (
+    get_place_details,
+    normalize_category_to_google_type,
+    search_places_near,
+)
+from app.integrations.nrel_client import fetch_chargers_in_bbox
+from app.models_while_you_charge import Charger, ChargerMerchant, Merchant, MerchantPerk
 
 logger = logging.getLogger(__name__)
 
@@ -520,7 +523,7 @@ async def get_domain_hub_view_async(db: Session) -> Dict:
     """
     from app.domains.domain_hub import DOMAIN_CHARGERS, HUB_ID, HUB_NAME
     
-    logger.info(f"[DomainHub] Fetching Domain hub view (async)")
+    logger.info("[DomainHub] Fetching Domain hub view (async)")
     
     # Get charger IDs from config
     charger_ids = [ch["id"] for ch in DOMAIN_CHARGERS]
@@ -580,7 +583,7 @@ async def get_domain_hub_view_async(db: Session) -> Dict:
     # OR create them in DB first (better long-term)
     chargers_for_fetching = list(chargers)  # Start with DB chargers
     if not chargers_for_fetching:
-        logger.info(f"[DomainHub] No chargers in DB, creating Charger objects from config for merchant fetching...")
+        logger.info("[DomainHub] No chargers in DB, creating Charger objects from config for merchant fetching...")
         for charger_config in DOMAIN_CHARGERS:
             # Try to get or create charger in DB
             existing = db.query(Charger).filter(Charger.id == charger_config["id"]).first()
@@ -616,9 +619,9 @@ async def get_domain_hub_view_async(db: Session) -> Dict:
     
     # If no merchants found, automatically fetch and link them (ASYNC)
     if not merchant_ids and chargers_for_fetching:
-        print(f"[DomainHub] 🔍🔍🔍 NO MERCHANTS FOUND! Starting auto-fetch from Google Places...", flush=True)
+        print("[DomainHub] 🔍🔍🔍 NO MERCHANTS FOUND! Starting auto-fetch from Google Places...", flush=True)
         print(f"[DomainHub] 🔍 Have {len(chargers_for_fetching)} chargers to search around: {[c.id for c in chargers_for_fetching]}", flush=True)
-        logger.info(f"[DomainHub] 🔍 No merchants found in DB, starting auto-fetch from Google Places...")
+        logger.info("[DomainHub] 🔍 No merchants found in DB, starting auto-fetch from Google Places...")
         logger.info(f"[DomainHub] 🔍 Have {len(chargers_for_fetching)} chargers to search around")
         try:
             # Fetch merchants with multiple categories to get variety
@@ -650,7 +653,7 @@ async def get_domain_hub_view_async(db: Session) -> Dict:
                     continue
             
             # Refresh merchant_ids from newly created links
-            logger.info(f"[DomainHub] 🔍 Refreshing merchant links from DB...")
+            logger.info("[DomainHub] 🔍 Refreshing merchant links from DB...")
             # Expire all objects to force fresh DB query after commits
             db.expire_all()
             charger_ids_for_lookup = [c.id for c in chargers_for_fetching]
@@ -670,7 +673,7 @@ async def get_domain_hub_view_async(db: Session) -> Dict:
             logger.error(f"[DomainHub] ❌ Traceback: {traceback.format_exc()}")
             db.rollback()
     elif not chargers:
-        logger.warning(f"[DomainHub] ⚠️ No chargers available, cannot fetch merchants")
+        logger.warning("[DomainHub] ⚠️ No chargers available, cannot fetch merchants")
     
     # Fetch merchants - expire session to ensure we see newly committed data
     db.expire_all()
@@ -787,7 +790,7 @@ async def get_domain_hub_view_async(db: Session) -> Dict:
             print(f"[DomainHub] ✅ Attached {len(charger_merchants)} merchants to charger {charger_id}", flush=True)
             logger.info(f"[DomainHub] ✅ Attached {len(charger_merchants)} merchants to charger {charger_id}")
     else:
-        logger.warning(f"[DomainHub] ⚠️ No merchants available (merchant_ids is empty)")
+        logger.warning("[DomainHub] ⚠️ No merchants available (merchant_ids is empty)")
         # Ensure all chargers have empty merchants array
         for charger_data in charger_list:
             charger_data["merchants"] = []
@@ -909,7 +912,7 @@ def build_recommended_merchants_from_chargers(chargers: List[Dict], limit: int =
     )
     
     if len(result) == 0:
-        print(f"[WhileYouCharge][Agg] ⚠️⚠️⚠️ WARNING: Returning 0 merchants! Check if chargers have merchants attached.", flush=True)
+        print("[WhileYouCharge][Agg] ⚠️⚠️⚠️ WARNING: Returning 0 merchants! Check if chargers have merchants attached.", flush=True)
     
     return result
 
@@ -971,7 +974,7 @@ def _get_domain_hub_view_sync_only(db: Session) -> Dict:
     """Sync-only version without auto-fetch (used when called from async context)."""
     from app.domains.domain_hub import DOMAIN_CHARGERS, HUB_ID, HUB_NAME
     
-    logger.info(f"[DomainHub] Fetching Domain hub view (sync-only, no auto-fetch)")
+    logger.info("[DomainHub] Fetching Domain hub view (sync-only, no auto-fetch)")
     
     # Get charger IDs from config
     charger_ids = [ch["id"] for ch in DOMAIN_CHARGERS]

@@ -1,6 +1,8 @@
-from typing import List, Dict, Optional
-from datetime import datetime, time
+from datetime import datetime
+from typing import Dict, List, Optional
+
 from app.services.energyhub_sim import sim
+
 
 class IncentiveService:
     """Service for managing incentive windows and rewards"""

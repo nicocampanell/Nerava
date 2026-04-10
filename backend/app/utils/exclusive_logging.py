@@ -1,10 +1,10 @@
 """
 Logging utility for exclusive session events
 """
-import logging
 import json
+import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 

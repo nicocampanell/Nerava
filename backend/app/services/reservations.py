@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict
 
+
 # naive preview builder; you can swap in network-aware rules later
 def reserve_preview_for(hub: dict) -> Dict:
     now = datetime.now(timezone.utc)

@@ -2,19 +2,20 @@
 Plaid Link endpoints for bank account linking (Dwolla payout users).
 """
 from __future__ import annotations
+
 import logging
 import uuid
 from datetime import datetime
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List
 
 from app.db import get_db
+from app.dependencies_domain import get_current_user
 from app.models import User
 from app.models.funding_source import FundingSource
-from app.dependencies_domain import get_current_user
 from app.services import plaid_service
 
 router = APIRouter(prefix="/v1/wallet/plaid", tags=["plaid"])
@@ -96,7 +97,7 @@ def exchange_public_token(
         if _dwolla_enabled:
             processor_token = plaid_service.create_dwolla_processor_token(access_token, body.account_id)
 
-            from app.services.dwolla_payout_provider import dwolla_api, _is_mock
+            from app.services.dwolla_payout_provider import _is_mock, dwolla_api
             dwolla_customer_url = getattr(wallet, 'external_account_id', None) if wallet else None
 
             # Auto-create Dwolla customer if none exists

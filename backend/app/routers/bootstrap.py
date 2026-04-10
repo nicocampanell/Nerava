@@ -1,29 +1,33 @@
 """
 Bootstrap endpoint for seeding Charge Party cluster
 """
-import os
-import logging
-import secrets
-import hashlib
 import json
+import logging
+import os
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from datetime import datetime
-import uuid
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.email_sender import get_email_sender
 from app.db import get_db
 from app.models import User
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant, ChargerCluster, MerchantPerk
-from app.models.merchant_account import MerchantAccount
 from app.models.domain import DomainMerchant
-from app.services.google_places_new import search_nearby, place_details
-from app.services.qr_service import create_or_get_merchant_qr
-from app.core.email_sender import get_email_sender
-from app.core.config import settings
+from app.models.merchant_account import MerchantAccount
+from app.models.while_you_charge import (
+    Charger,
+    ChargerCluster,
+    ChargerMerchant,
+    Merchant,
+)
 from app.routers.auth_domain import create_magic_link_token
+from app.services.google_places_new import place_details, search_nearby
+from app.services.qr_service import create_or_get_merchant_qr
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +128,7 @@ async def bootstrap_asadas_party(
         db.refresh(cluster)
         
         # 2. Upsert charger (if not exists)
-        charger_id = f"asadas_party_charger"
+        charger_id = "asadas_party_charger"
         charger = db.query(Charger).filter(Charger.id == charger_id).first()
         if not charger:
             charger = Charger(
@@ -181,7 +185,7 @@ async def bootstrap_asadas_party(
         place_details_path = Path(__file__).parent.parent.parent.parent / "merchant_photos_asadas_grill" / "place_details.json"
         if place_details_path.exists():
             try:
-                with open(place_details_path, 'r') as f:
+                with open(place_details_path) as f:
                     place_details_data = json.load(f)
                 logger.info(f"Loaded place_details.json from {place_details_path}")
             except Exception as e:
@@ -192,7 +196,7 @@ async def bootstrap_asadas_party(
             place_details_data = await place_details(asadas_place["place_id"])
         
         # Create or update merchant
-        merchant_id = f"m_asadas_party"
+        merchant_id = "m_asadas_party"
         merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
         
         if not merchant:
@@ -875,6 +879,7 @@ async def bootstrap_trigger_seed(
         if lat is not None and lng is not None:
             # Target a specific area — only seed chargers near lat/lng
             import math
+
             from app.models.while_you_charge import Charger
             lat_delta = radius_km / 111.0
             lng_delta = radius_km / (111.0 * max(math.cos(math.radians(lat)), 0.01))

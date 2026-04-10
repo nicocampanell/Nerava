@@ -2,11 +2,12 @@
 Payments Service - Wrapper for Stripe/Square/Toast payment logic
 Just wraps existing calls; no new behavior.
 """
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from sqlalchemy.orm import Session
 
 # Import existing Stripe service
-from .stripe_service import StripeService, NOVA_PACKAGES
+from .stripe_service import StripeService
 
 
 def create_payment_session(

@@ -6,12 +6,12 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from app.models import PerkUnlock, MerchantPerk, IntentSession
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.copy import PERK_UNLOCK_COPY
+from app.models import IntentSession, MerchantPerk, PerkUnlock
 from app.services.wallet_pass_state import (
     transition_to_charging_moment,
     transition_to_perk_unlocked,

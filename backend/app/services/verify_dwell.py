@@ -1,6 +1,8 @@
 from __future__ import annotations
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+
+from datetime import datetime
+from typing import Any, Dict, Optional
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -9,7 +11,7 @@ from app.utils.log import get_logger
 
 
 def haversine_m(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
-    from math import radians, cos, sin, asin, sqrt
+    from math import asin, cos, radians, sin, sqrt
     R = 6371000.0
     dlat = radians(b_lat - a_lat)
     dlng = radians(b_lng - a_lng)
@@ -115,9 +117,7 @@ def _get_session_hub_id(db: Session, session_id: str) -> Optional[str]:
 def _get_domain_radius(target_type: str, target_id: str, default_radius: int) -> int:
     """Get domain-specific radius for target, falling back to default."""
     try:
-        from app.domains.domain_verification import (
-            HUB_ID, get_charger_radius, get_merchant_radius
-        )
+        from app.domains.domain_verification import get_charger_radius, get_merchant_radius
         
         if target_type == "charger":
             return get_charger_radius(target_id)
@@ -210,8 +210,10 @@ def _calculate_drift_penalty(db: Session, session_id: str, lat: float, lng: floa
     """Calculate drift penalty based on recent ping history."""
     try:
         from app.domains.domain_verification import (
-            DOMAIN_DRIFT_TOLERANCE_M, DOMAIN_DRIFT_WINDOW_S,
-            SCORE_DRIFT_PENALTY_PER_M, MAX_DRIFT_PENALTY
+            DOMAIN_DRIFT_TOLERANCE_M,
+            DOMAIN_DRIFT_WINDOW_S,
+            MAX_DRIFT_PENALTY,
+            SCORE_DRIFT_PENALTY_PER_M,
         )
         
         # Get ping history from meta (if column exists)
@@ -306,10 +308,14 @@ def _calculate_verification_score(
     """Calculate verification score with penalties."""
     try:
         from app.domains.domain_verification import (
+            DOMAIN_DWELL_OPTIMAL_S,
+            MAX_ACCURACY_PENALTY,
+            MAX_DISTANCE_PENALTY,
+            MAX_DWELL_PENALTY,
+            SCORE_ACCURACY_PENALTY_PER_M,
+            SCORE_DISTANCE_PENALTY_PER_M,
+            SCORE_DWELL_PENALTY_PER_S,
             VERIFICATION_BASE_SCORE,
-            SCORE_DISTANCE_PENALTY_PER_M, MAX_DISTANCE_PENALTY,
-            SCORE_DWELL_PENALTY_PER_S, MAX_DWELL_PENALTY, DOMAIN_DWELL_OPTIMAL_S,
-            MAX_ACCURACY_PENALTY, SCORE_ACCURACY_PENALTY_PER_M
         )
     except Exception:
         # Fallback to defaults if domain verification not available

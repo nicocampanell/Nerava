@@ -8,19 +8,19 @@ Handles:
 """
 import logging
 import os
-import uuid
-import httpx
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Optional
+
+import httpx
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.models.merchant_reward import (
     MerchantJoinRequest,
+    ReceiptStatus,
+    ReceiptSubmission,
     RewardClaim,
     RewardClaimStatus,
-    ReceiptSubmission,
-    ReceiptStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -381,7 +381,7 @@ def get_merchant_reward_state(
         return state
 
     # Check for active perk/exclusive on this merchant (existing system)
-    from app.models.while_you_charge import MerchantPerk, ChargerMerchant, Merchant as WYCMerchant
+    from app.models.while_you_charge import ChargerMerchant, MerchantPerk
     has_perk = False
 
     if merchant_id:

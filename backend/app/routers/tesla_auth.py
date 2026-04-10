@@ -4,33 +4,34 @@ Tesla OAuth and EV Verification Router.
 Handles Tesla account connection, Tesla-based login, and charging verification for EV rewards.
 """
 import json
+import logging
 import secrets
 import uuid
-import logging
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.security import create_access_token
+from app.core.token_encryption import encrypt_token
 from app.db import get_db
-from app.models import User, UserPreferences
-from app.models.tesla_connection import TeslaConnection, EVVerificationCode, TeslaOAuthState
-from app.models.domain import DomainMerchant
-from app.models.while_you_charge import Merchant
 from app.dependencies.domain import get_current_user
+from app.models import User, UserPreferences
+from app.models.domain import DomainMerchant
+from app.models.tesla_connection import EVVerificationCode, TeslaConnection, TeslaOAuthState
+from app.models.while_you_charge import Merchant
+from app.services.geo import haversine_m
+from app.services.refresh_token_service import RefreshTokenService
+from app.services.tesla_auth_service import fetch_tesla_user_profile, verify_tesla_id_token
 from app.services.tesla_oauth import (
+    generate_ev_code,
     get_tesla_oauth_service,
     get_valid_access_token,
-    generate_ev_code,
 )
-from app.core.token_encryption import encrypt_token, decrypt_token
-from app.services.tesla_auth_service import verify_tesla_id_token, fetch_tesla_user_profile
-from app.core.security import create_access_token
-from app.services.refresh_token_service import RefreshTokenService
-from app.services.geo import haversine_m
-from app.core.config import settings
 
 PROXIMITY_THRESHOLD_METERS = 500
 

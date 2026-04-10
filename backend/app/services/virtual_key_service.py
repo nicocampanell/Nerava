@@ -4,15 +4,16 @@ Virtual Key Service for Tesla Virtual Key provisioning and management.
 Handles Virtual Key lifecycle: creation, pairing, activation, and revocation.
 """
 import logging
-import uuid
 import secrets
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
-from app.models.virtual_key import VirtualKey
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.models.virtual_key import VirtualKey
 from app.services.virtual_key_qr import get_qr_service
 
 logger = logging.getLogger(__name__)

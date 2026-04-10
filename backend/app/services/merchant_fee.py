@@ -4,11 +4,12 @@ Merchant Fee Service
 Records merchant fees for Nova redemptions.
 Fee is 15% of Nova redeemed (e.g., 300 cents Nova → 45 cents fee).
 """
-from sqlalchemy.orm import Session
-from datetime import datetime, date
-from calendar import monthrange
-import uuid
 import logging
+import uuid
+from calendar import monthrange
+from datetime import date, datetime
+
+from sqlalchemy.orm import Session
 
 from app.models.domain import MerchantFeeLedger
 

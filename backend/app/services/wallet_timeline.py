@@ -4,12 +4,13 @@ Wallet Timeline Service
 Provides a unified timeline of wallet activity (earned/spent events)
 with explicit duplicate prevention rules.
 """
-from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
 from datetime import datetime
+from typing import Any, Dict, List
 
-from app.models.domain import NovaTransaction, MerchantRedemption, DriverWallet
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
+from app.models.domain import MerchantRedemption, NovaTransaction
 
 
 def get_wallet_timeline(

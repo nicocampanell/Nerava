@@ -4,10 +4,12 @@ Models for Intent Capture system
 - PerkUnlock: Tracks perk unlocks by users
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class IntentSession(Base):

@@ -3,8 +3,9 @@ Google Distance Matrix API client
 https://developers.google.com/maps/documentation/distance-matrix
 """
 import logging
+from typing import Dict, List, Tuple
+
 import httpx
-from typing import List, Tuple, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def _estimate_single_walk_time(
     destination: Tuple[float, float]
 ) -> Dict:
     """Estimate walk time from straight-line distance"""
-    from math import radians, cos, sin, asin, sqrt
+    from math import asin, cos, radians, sin, sqrt
     
     # Haversine formula for distance
     lat1, lon1 = radians(origin[0]), radians(origin[1])

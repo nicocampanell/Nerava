@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Query
 from typing import Dict
-from app.services.seed_hubs import list_hubs
+
+from fastapi import APIRouter, Query
+
 from app.services.db_user import get_prefs_dict
 from app.services.routing import recommend_hub
+from app.services.seed_hubs import list_hubs
 
 router = APIRouter()
 

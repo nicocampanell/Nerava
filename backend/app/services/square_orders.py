@@ -4,17 +4,17 @@ Square Orders Service
 Handles Square API integration for order lookup, creation, and payment.
 Supports both sandbox and production environments.
 """
-import os
-import httpx
-import uuid
 import logging
-from typing import Optional, List, Dict, Any
+import os
+import uuid
 from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
+import httpx
 from sqlalchemy.orm import Session
 
 from app.models.domain import DomainMerchant
-from app.services.token_encryption import decrypt_token, TokenDecryptionError
-from fastapi import HTTPException, status
+from app.services.token_encryption import TokenDecryptionError, decrypt_token
 
 logger = logging.getLogger(__name__)
 

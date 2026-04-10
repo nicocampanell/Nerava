@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Query, HTTPException, Depends
-from typing import List, Dict, Any, Optional
-from ..services.merchant_analytics import merchant_summary, merchant_offers
-from ..db import get_db
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
+from ..db import get_db
+from ..services.merchant_analytics import merchant_summary
 
 router = APIRouter(prefix="/v1/merchant", tags=["merchant"])
 

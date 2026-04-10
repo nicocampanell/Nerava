@@ -1,18 +1,18 @@
 """
 Public verify flow endpoints: verify page and locate endpoint
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
-import os
+from typing import Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.config import settings
 from app.db import get_db
 from app.security.tokens import decode_verify_token
-from app.config import settings
 from app.services.rewards import award_verify_bonus
 from app.utils.log import get_logger
 
@@ -230,8 +230,11 @@ async def locate_session(
     Rate limit: 30/min per IP (handled by middleware if configured)
     """
     from app.services.fraud import (
-        hash_device, touch_device, record_verify_attempt,
-        compute_risk_score, emit_abuse_event
+        compute_risk_score,
+        emit_abuse_event,
+        hash_device,
+        record_verify_attempt,
+        touch_device,
     )
     
     # Get client IP (from FastAPI Request)

@@ -1,8 +1,9 @@
 """
 External offers feed provider interface
 """
+from typing import Any, Dict, List
+
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
 
 from app.utils.log import get_logger
 

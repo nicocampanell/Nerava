@@ -1,9 +1,11 @@
 # app/services/hubs_dynamic.py
 import hashlib
-from typing import List, Dict
-from .chargers_openmap import fetch_chargers  # async
+from typing import Dict, List
+
 from .cache import cache
+from .chargers_openmap import fetch_chargers  # async
 from .reservations import reserve_preview_for
+
 
 def _stable_hub_id(lat: float, lng: float, member_ids: List[int]) -> str:
     sig = f"{round(lat,6)}|{round(lng,6)}|{','.join(map(str,sorted(member_ids)))}"

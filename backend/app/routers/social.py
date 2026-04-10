@@ -1,11 +1,14 @@
 from __future__ import annotations
-from fastapi import APIRouter, Query, Depends, HTTPException
+
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
+
 from ..db import get_db
-from ..models_extra import Follow, RewardEvent, CommunityPeriod
+from ..models_extra import CommunityPeriod, Follow, RewardEvent
 
 router = APIRouter(prefix="/v1/social", tags=["social"])
 

@@ -3,19 +3,17 @@ Google Wallet Service
 
 Creates and updates Google Wallet passes linked to a driver wallet.
 """
-import os
-import logging
-import time
 import json
-import base64
-from typing import Optional, Tuple
+import logging
+import os
+import time
+from typing import Tuple
 
 import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.domain import DriverWallet, GoogleWalletLink
-from app.services.wallet_timeline import get_wallet_timeline
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +212,7 @@ def generate_google_wallet_add_link(object_id: str) -> str:
     
     # Load service account key and create JWT
     try:
-        with open(service_account_key_path, 'r') as f:
+        with open(service_account_key_path) as f:
             key_data = json.load(f)
         
         service_account_email = key_data.get("client_email")

@@ -11,9 +11,8 @@ Usage:
     
     Then import and call initialize_tracing() in main_simple.py
 """
-import os
 import logging
-from typing import Optional
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +39,9 @@ def initialize_tracing() -> bool:
     
     try:
         from opentelemetry import trace
+        from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.sdk.resources import Resource
         
         # Try to import OTLP exporter
         try:

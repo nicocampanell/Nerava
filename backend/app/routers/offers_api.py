@@ -1,11 +1,13 @@
 """Offers API router."""
 
-from fastapi import APIRouter, Query, Depends
-from typing import Optional, List
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session
+
 from app.db import get_db
 from app.services.geo import haversine_m
-from sqlalchemy import text
 
 router = APIRouter(prefix="/v1/offers", tags=["offers"])
 

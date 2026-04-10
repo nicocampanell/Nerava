@@ -1,4 +1,7 @@
-import time, functools
+import functools
+import time
+
+
 def ttl_cache(ttl_seconds=300):
     def deco(fn):
         cache={}

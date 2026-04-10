@@ -8,23 +8,24 @@ optimized for Nerava merchant monetization.
 Usage:
     python -m app.scripts.analyze_texas_chargers
 """
-import sys
 import asyncio
 import json
 import logging
-from pathlib import Path
+import sys
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.services.google_places_new import search_text, search_nearby, place_details
-from app.scripts.franchise_exclusions import is_franchise
-from app.scripts.data.texas_metro_bounds import get_all_search_locations, TEXAS_METRO_BOUNDS
-from app.core.config import settings as core_settings
 import math
 import os
+
+from app.core.config import settings as core_settings
+from app.scripts.data.texas_metro_bounds import get_all_search_locations
+from app.scripts.franchise_exclusions import is_franchise
+from app.services.google_places_new import place_details, search_nearby, search_text
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -523,7 +524,7 @@ def recommend_anchor_merchant_type(merchants: List[Dict[str, Any]]) -> str:
     for merchant in top_merchants:
         types = merchant.get("types", [])
         for place_type in types:
-            category = type_to_category.get(place_type, None)
+            category = type_to_category.get(place_type)
             if category:
                 category_counts[category] = category_counts.get(category, 0) + 1
     
@@ -739,7 +740,7 @@ def generate_markdown_table(output_data: Dict[str, Any], output_path: Path):
         lines.append(f"- **Merchant Quality:** {scores['merchant_quality']}")
         lines.append(f"- **Monetization Likelihood:** {scores['monetization_likelihood']}")
         lines.append(f"- **Recommended Anchor Type:** {item['recommended_first_anchor_merchant_type']}")
-        lines.append(f"- **Top Merchants:**")
+        lines.append("- **Top Merchants:**")
         for merchant in top_merchants[:3]:
             lines.append(f"  - {merchant['name']} ({merchant['distance_m']}m, {merchant.get('rating', 'N/A')}⭐)")
         lines.append("")

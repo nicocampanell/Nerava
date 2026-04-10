@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Dict, Any
+
 import json
+from typing import Any, Dict
 
 
 def emit(topic: str, payload: Dict[str, Any]) -> None:

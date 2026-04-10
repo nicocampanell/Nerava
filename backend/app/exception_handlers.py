@@ -6,13 +6,13 @@ Register these on a FastAPI app instance via `register_exception_handlers(app)`.
 import logging
 import traceback
 
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.utils.pwa_responses import shape_error
 from app.core.env import is_local_env
+from app.utils.pwa_responses import shape_error
 
 logger = logging.getLogger("nerava")
 

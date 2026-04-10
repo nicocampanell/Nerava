@@ -1,6 +1,5 @@
-import pytest
-from datetime import datetime, date, timedelta
-from app.services.energy_rep import compute_v1, snapshot_energy_rep, backfill_last_60_days
+from app.services.energy_rep import backfill_last_60_days, compute_v1, snapshot_energy_rep
+
 
 class TestEnergyRepLogic:
     """Test energy reputation v1 logic implementation."""

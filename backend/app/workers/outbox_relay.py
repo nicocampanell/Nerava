@@ -4,14 +4,14 @@ Outbox pattern implementation for reliable event publishing
 import asyncio
 import json
 import logging
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-from sqlalchemy import text
 from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from app.db import SessionLocal
 from app.events.bus import event_bus
-from app.events.domain import DomainEvent, EVENT_TYPES
-from app.config import settings
+from app.events.domain import EVENT_TYPES
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 

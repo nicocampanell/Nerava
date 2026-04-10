@@ -3,7 +3,9 @@ Exclusive Session Model
 Tracks driver exclusive activation sessions for web-only flow
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum as SQLEnum
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
 from sqlalchemy.orm import relationship
 
@@ -11,10 +13,11 @@ try:
     from sqlalchemy import JSON
 except Exception:
     JSON = SQLITE_JSON
-from ..db import Base
-from ..core.uuid_type import UUIDType
 import enum
 import uuid
+
+from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class ExclusiveSessionStatus(str, enum.Enum):

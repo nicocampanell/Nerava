@@ -1,11 +1,10 @@
 """
 Tests for rate limiting functionality.
 """
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
+
 from app.main_simple import app
-from app.core.config import flag_enabled
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

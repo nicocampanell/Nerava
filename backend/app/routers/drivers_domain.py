@@ -2,27 +2,25 @@
 Domain Charge Party MVP Driver Router
 Driver-specific endpoints for charging sessions and Nova operations
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import func, text
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
-from zoneinfo import ZoneInfo
-import uuid
 import math
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from cachetools import TTLCache
-from app.db import get_db
-from app.models import User
-from app.models_domain import DomainMerchant, DomainChargingSession, NovaTransaction
-from app.services.nova_service import NovaService
-from app.dependencies_domain import get_current_user
-from app.dependencies_driver import get_current_driver, get_current_driver_optional
-from app.services.auth_service import AuthService
-from app.services.incentives import get_offpeak_state
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
-from app.models.domain import DriverWallet
+from app.db import get_db
+from app.dependencies_driver import get_current_driver, get_current_driver_optional
+from app.models import User
+from app.models_domain import DomainChargingSession, DomainMerchant, NovaTransaction
+from app.services.incentives import get_offpeak_state
+from app.services.nova_service import NovaService
 
 # Location check response cache — keyed by rounded coordinates
 # Reduces DB load for repeated location checks from the same area
@@ -199,9 +197,12 @@ async def get_nearby_merchants(
     # For now, bridge to the Domain hub view which has all the merchant data we need
     # TODO: Eventually refactor to query DomainMerchant + enrich with perks/logo/walk_time
     if zone_slug == "domain_austin":
-        from app.services.while_you_charge import get_domain_hub_view_async, build_recommended_merchants_from_chargers
-        from app.utils.pwa_responses import shape_charger, shape_merchant
         from app.models.while_you_charge import ChargerMerchant, MerchantPerk
+        from app.services.while_you_charge import (
+            build_recommended_merchants_from_chargers,
+            get_domain_hub_view_async,
+        )
+        from app.utils.pwa_responses import shape_charger, shape_merchant
         
         # Get Domain hub view with chargers and merchants
         hub_view = await get_domain_hub_view_async(db)
@@ -439,9 +440,9 @@ async def get_merchants_for_charger(
     In charging state: Returns primary merchant first, then secondary merchants (up to 3 total).
     """
     import logging
+
     from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
     from app.services.merchant_enrichment import enrich_from_google_places, format_open_until
-    from app.services.verify_dwell import haversine_m
     
     logger = logging.getLogger(__name__)
     user_id = user.id if user else "anonymous"
@@ -650,9 +651,6 @@ def redeem_nova(
     db: Session = Depends(get_db)
 ):
     """Redeem Nova from driver to merchant"""
-    import uuid
-    from fastapi import Header
-    from typing import Optional
     
     # Require idempotency key in non-local environments
     from app.core.env import is_local_env
@@ -740,8 +738,9 @@ def get_driver_wallet_summary(
     offpeak_active, window_ends_in_seconds = get_offpeak_state(now, tz)
     
     # Calculate reputation tier using service (with error handling)
-    from app.services.reputation import compute_reputation
     import logging
+
+    from app.services.reputation import compute_reputation
     logger = logging.getLogger(__name__)
     reputation_score = wallet.energy_reputation_score or 0
     try:
@@ -1183,10 +1182,10 @@ def check_location(
     Returns charger proximity information.
     Supports demo static driver mode via DEMO_STATIC_DRIVER_ENABLED.
     """
-    import os
-    from app.models_while_you_charge import Charger
-
     import logging
+    import os
+
+    from app.models_while_you_charge import Charger
     logger = logging.getLogger(__name__)
 
     # Check for demo static driver mode

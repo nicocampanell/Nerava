@@ -1,10 +1,13 @@
 import time
-from typing import Dict, Optional
-from fastapi import Request, HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
-from cachetools import TTLCache
+from typing import Dict
+
 from app.config import settings
-from app.security.ratelimit_redis import rate_limit as redis_rate_limit, _get_redis_client
+from app.security.ratelimit_redis import _get_redis_client
+from app.security.ratelimit_redis import rate_limit as redis_rate_limit
+from cachetools import TTLCache
+from fastapi import HTTPException, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Rate limiting middleware using token bucket algorithm with endpoint-specific limits"""

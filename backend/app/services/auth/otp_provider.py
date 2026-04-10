@@ -2,7 +2,6 @@
 Abstract OTP provider interface
 """
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class OTPProvider(ABC):

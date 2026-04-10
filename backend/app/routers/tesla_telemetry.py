@@ -6,15 +6,15 @@ POST /v1/webhooks/tesla/telemetry
 Fleet Telemetry server dispatches HTTP POST events when vehicle fields change.
 This endpoint processes them into charging session lifecycle events.
 """
-import hmac
 import hashlib
+import hmac
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from ..db import get_db
 from ..core.config import settings
+from ..db import get_db
 from ..schemas.telemetry import TelemetryPayload
 from ..services.telemetry_processor import TelemetryProcessor
 

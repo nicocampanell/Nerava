@@ -8,22 +8,23 @@ Core business logic for:
 - Code generation and SMS
 - Redemption and merchant confirmation
 """
+import hashlib
 import logging
 import math
 import secrets
-import hashlib
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Tuple, List, Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from typing import Any, Dict, List, Optional, Tuple
 
-from app.models.arrival_session import ArrivalSession, ACTIVE_STATUSES
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
-from app.models.billing_event import BillingEvent
-from app.models import User
-from app.services.geo import haversine_m
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.models import User
+from app.models.arrival_session import ACTIVE_STATUSES, ArrivalSession
+from app.models.billing_event import BillingEvent
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
+from app.services.geo import haversine_m
 
 logger = logging.getLogger(__name__)
 

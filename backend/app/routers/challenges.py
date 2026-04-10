@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Query, HTTPException, Depends
-from typing import List, Dict, Any, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
+
 from ..db import get_db
-from ..models_extra import Challenge, Participation, RewardEvent
+from ..models_extra import Challenge, Participation
 
 router = APIRouter(prefix="/v1/challenges", tags=["challenges"])
 

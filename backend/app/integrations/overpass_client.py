@@ -4,10 +4,11 @@ OpenStreetMap Overpass API client for finding POIs near EV chargers.
 100% free, no API key required. Rate-limited to ~2 requests/second.
 https://wiki.openstreetmap.org/wiki/Overpass_API
 """
-import logging
 import asyncio
+import logging
+from typing import List, Optional
+
 import httpx
-from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

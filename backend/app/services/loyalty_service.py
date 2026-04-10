@@ -3,12 +3,13 @@ Loyalty Service — punch card programs for merchants.
 
 Handles card CRUD, visit tracking, auto-unlock, and merchant analytics.
 """
-import uuid
 import logging
+import uuid
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.models.loyalty import LoyaltyCard, LoyaltyProgress
 

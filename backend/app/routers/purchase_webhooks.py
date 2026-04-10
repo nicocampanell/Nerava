@@ -1,22 +1,23 @@
 """
 Purchase webhook ingestion and reconciliation endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+import base64
+import hashlib
+import hmac
 import json
 import os
 import uuid
-import hmac
-import hashlib
-import base64
+from datetime import datetime, timedelta
+from typing import Optional
 
-from app.db import get_db
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
-from app.services.purchases import normalize_event, find_or_create_merchant, match_session
+from app.db import get_db
+from app.services.purchases import find_or_create_merchant, match_session, normalize_event
 from app.services.rewards import award_purchase_reward
 from app.utils.log import get_logger, log_reward_event
 

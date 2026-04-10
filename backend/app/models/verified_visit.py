@@ -2,12 +2,12 @@
 Verified Visit Model
 Tracks verified merchant visits with incremental verification codes for merchant-driver linkage.
 """
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index
-from sqlalchemy.orm import relationship
-from ..db import Base
-from ..core.uuid_type import UUIDType
 import uuid
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Float, Index, Integer, String
+
+from ..db import Base
 
 
 class VerifiedVisit(Base):

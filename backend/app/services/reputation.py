@@ -3,7 +3,7 @@ Energy Reputation Tier Computation Service.
 
 Single source of truth for tier definitions and reputation calculations.
 """
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
 # Tier definitions (single source of truth)
 # Using min points only - avoids boundary bugs with max comparisons

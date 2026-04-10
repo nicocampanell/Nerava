@@ -3,15 +3,16 @@ Smartcar API client service
 Handles OAuth token exchange, refresh, and vehicle API calls
 """
 import logging
-import httpx
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
-from sqlalchemy.orm import Session
+from typing import Any, Dict
+
+import httpx
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models.vehicle import VehicleAccount, VehicleToken
 from ..core.retry import retry_with_backoff
+from ..models.vehicle import VehicleAccount, VehicleToken
 
 logger = logging.getLogger(__name__)
 

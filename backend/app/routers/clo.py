@@ -3,10 +3,11 @@ Card Linked Offers (CLO) Router - Fidel Integration
 
 Endpoints for card linking, transaction verification, and reward management.
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_db

@@ -1,10 +1,11 @@
 # app/services/wallet.py
 from __future__ import annotations
+
+import logging
 import os
 import sqlite3
 from contextlib import contextmanager
-from typing import Optional, Dict, Any
-import logging
+from typing import Any, Dict
 
 from ..core.env import is_local_env
 

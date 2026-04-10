@@ -6,8 +6,10 @@ to the driver's Android or iOS app.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Boolean, Index
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 

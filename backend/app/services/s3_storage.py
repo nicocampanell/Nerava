@@ -2,11 +2,9 @@
 S3 Storage Service for Vehicle Onboarding Photos
 """
 import logging
-import uuid
-import json
-from typing import List, Optional
-from datetime import datetime, timedelta
 import os
+import uuid
+from typing import List
 
 logger = logging.getLogger(__name__)
 

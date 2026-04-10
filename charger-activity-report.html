@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nerava — EV Charger Activity Report</title>
+<style>
+  :root {
+    --navy: #0F1523;
+    --navy-light: #1a2235;
+    --card-bg: #ffffff;
+    --blue: #4D8EF5;
+    --blue-light: #e8f0fe;
+    --teal: #10b981;
+    --teal-light: #d1fae5;
+    --amber: #f59e0b;
+    --amber-light: #fef3c7;
+    --red: #ef4444;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-50); color: var(--gray-900); line-height: 1.5; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 40px; padding: 40px 24px; background: linear-gradient(135deg, var(--navy) 0%, #1e3a5f 100%); border-radius: 16px; color: white; }
+  .header-logo { font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); margin-bottom: 8px; }
+  .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+  .header p { font-size: 15px; color: rgba(255,255,255,0.7); }
+  .header .date { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 12px; }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+  .summary-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .summary-value { font-size: 32px; font-weight: 700; color: var(--navy); }
+  .summary-label { font-size: 12px; color: var(--gray-500); margin-top: 4px; font-weight: 500; }
+  .summary-card.highlight { background: var(--blue); color: white; }
+  .summary-card.highlight .summary-value { color: white; }
+  .summary-card.highlight .summary-label { color: rgba(255,255,255,0.8); }
+
+  /* Section */
+  .section { margin-bottom: 36px; }
+  .section-title { font-size: 18px; font-weight: 700; color: var(--gray-900); margin-bottom: 4px; }
+  .section-subtitle { font-size: 13px; color: var(--gray-500); margin-bottom: 16px; }
+
+  /* Cards */
+  .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 16px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-title { font-size: 16px; font-weight: 600; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .badge-green { background: var(--teal-light); color: #065f46; }
+  .badge-amber { background: var(--amber-light); color: #92400e; }
+  .badge-blue { background: var(--blue-light); color: #1e40af; }
+
+  /* Bar chart */
+  .bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 100px; margin: 12px 0 4px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s; }
+  .bar-label { font-size: 9px; color: var(--gray-400); margin-top: 4px; }
+  .bar.domain { background: var(--blue); }
+  .bar.katy { background: var(--teal); }
+  .bar.downtown { background: var(--amber); }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 600; color: var(--gray-500); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 2px solid var(--gray-200); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); }
+  tr:last-child td { border-bottom: none; }
+  .util-bar { height: 8px; border-radius: 4px; background: var(--gray-100); overflow: hidden; width: 100px; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .util-fill { height: 100%; border-radius: 4px; }
+  .util-high { background: var(--red); }
+  .util-med { background: var(--amber); }
+  .util-low { background: var(--teal); }
+
+  /* Merchant pitch */
+  .pitch-box { background: linear-gradient(135deg, #ecfdf5 0%, #f0f9ff 100%); border: 1px solid #d1fae5; border-radius: 12px; padding: 24px; margin-top: 24px; }
+  .pitch-box h3 { font-size: 16px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+  .pitch-box p { font-size: 14px; color: var(--gray-700); margin-bottom: 8px; }
+  .pitch-stat { display: inline-block; background: white; border-radius: 8px; padding: 12px 16px; margin: 4px 6px 4px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .pitch-stat .num { font-size: 22px; font-weight: 700; color: var(--navy); }
+  .pitch-stat .lbl { font-size: 11px; color: var(--gray-500); }
+
+  /* Key insight callout */
+  .insight { background: var(--amber-light); border-left: 4px solid var(--amber); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #78350f; }
+  .insight strong { color: #92400e; }
+
+  /* Footer */
+  .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--gray-200); }
+  .footer p { font-size: 12px; color: var(--gray-400); }
+  .footer a { color: var(--blue); text-decoration: none; }
+
+  @media (max-width: 640px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .container { padding: 16px 12px 60px; }
+    .header { padding: 28px 16px; }
+    .header h1 { font-size: 22px; }
+  }
+  @media print {
+    body { background: white; }
+    .header { break-after: avoid; }
+    .card { break-inside: avoid; box-shadow: none; border: 1px solid var(--gray-200); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div class="header-logo">Nerava Intelligence</div>
+  <h1>EV Charger Activity Report</h1>
+  <p>Austin Metro Area — Live Data from 25 Monitored Stations</p>
+  <div class="date">Data collected March 30 – April 6, 2026 &middot; 16,784 data points &middot; Updated every 15 minutes</div>
+</div>
+
+<!-- Summary -->
+<div class="summary-grid">
+  <div class="summary-card">
+    <div class="summary-value">25</div>
+    <div class="summary-label">Charger Stations</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-value">70+</div>
+    <div class="summary-label">Total Charging Ports</div>
+  </div>
+  <div class="summary-card highlight">
+    <div class="summary-value">16.8K</div>
+    <div class="summary-label">Data Points Collected</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-value">7</div>
+    <div class="summary-label">Days of Continuous Data</div>
+  </div>
+</div>
+
+<!-- Area Overviews -->
+<div class="section">
+  <div class="section-title">Monitored Areas</div>
+  <div class="section-subtitle">Three Austin-metro zones with continuous 15-minute availability polling</div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">The Domain, North Austin</div>
+      <span class="badge badge-blue">10 Stations &middot; ~70 Ports</span>
+    </div>
+    <table>
+      <tr><td style="font-weight:500;width:180px;">Avg. chargers in use</td><td>3–10 vehicles at any time during peak hours</td></tr>
+      <tr><td style="font-weight:500;">Peak activity</td><td><strong>5–7 PM weekdays</strong> (up to 6 simultaneous chargers occupied)</td></tr>
+      <tr><td style="font-weight:500;">Busiest days</td><td>Saturday (highest peak) and Sunday</td></tr>
+      <tr><td style="font-weight:500;">Est. daily charging sessions</td><td><strong>~56 sessions/day</strong> across all stations</td></tr>
+      <tr><td style="font-weight:500;">Driver dwell time (typical)</td><td>30–45 minutes per session</td></tr>
+    </table>
+    <div class="insight"><strong>Merchant opportunity:</strong> The Domain has the highest EV driver density in the Austin metro. During evening peak hours, 6+ drivers are simultaneously charging within a 5-minute walk of restaurants and retail.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Katy, TX (Houston West)</div>
+      <span class="badge badge-green">10 Stations &middot; ~38 Ports</span>
+    </div>
+    <table>
+      <tr><td style="font-weight:500;width:180px;">Avg. chargers in use</td><td>4–7 vehicles at any time during business hours</td></tr>
+      <tr><td style="font-weight:500;">Peak activity</td><td><strong>10 AM – 4 PM</strong> (steady all-day utilization)</td></tr>
+      <tr><td style="font-weight:500;">Busiest days</td><td>Monday (highest avg utilization)</td></tr>
+      <tr><td style="font-weight:500;">Est. daily charging sessions</td><td><strong>~35 sessions/day</strong> across all stations</td></tr>
+      <tr><td style="font-weight:500;">Top station utilization</td><td>Katy Station #3: 26.7% (11 ports, consistently busy)</td></tr>
+    </table>
+    <div class="insight"><strong>Merchant opportunity:</strong> Katy has all-day utilization — drivers charge during lunch, errands, and commutes. Businesses near chargers see steady foot traffic potential from 10 AM through 4 PM, not just rush hour.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Downtown Austin</div>
+      <span class="badge badge-amber">5 Stations &middot; ~18 Ports</span>
+    </div>
+    <table>
+      <tr><td style="font-weight:500;width:180px;">Avg. chargers in use</td><td>1–2 vehicles at any time</td></tr>
+      <tr><td style="font-weight:500;">Peak activity</td><td><strong>2–3 PM weekdays</strong></td></tr>
+      <tr><td style="font-weight:500;">Est. daily charging sessions</td><td><strong>~7 sessions/day</strong> across all stations</td></tr>
+      <tr><td style="font-weight:500;">Data collection start</td><td>April 3, 2026 (newest zone — still building baseline)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- Hourly Heatmap -->
+<div class="section">
+  <div class="section-title">When Drivers Charge</div>
+  <div class="section-subtitle">Average occupied ports by hour of day (last 7 days)</div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">The Domain — Hourly Activity</div>
+      <span class="badge badge-blue">Peak: 5–7 PM</span>
+    </div>
+    <div class="bar-chart">
+      <div class="bar-col"><div class="bar domain" style="height:43%"></div><div class="bar-label">12a</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:36%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:29%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:21%"></div><div class="bar-label">3a</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:14%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:14%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label">6a</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label">9a</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label">12p</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:7%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:14%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:29%"></div><div class="bar-label">3p</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:71%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:71%"></div><div class="bar-label">6p</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:57%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:50%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:29%"></div><div class="bar-label">9p</div></div>
+      <div class="bar-col"><div class="bar domain" style="height:29%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar domain" style="height:36%"></div><div class="bar-label">11p</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Katy, TX — Hourly Activity</div>
+      <span class="badge badge-green">Peak: 10 AM – 4 PM</span>
+    </div>
+    <div class="bar-chart">
+      <div class="bar-col"><div class="bar katy" style="height:21%"></div><div class="bar-label">12a</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:21%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:29%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:36%"></div><div class="bar-label">3a</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label">6a</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label">9a</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:50%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:50%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label">12p</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:43%"></div><div class="bar-label">3p</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:50%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:36%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:36%"></div><div class="bar-label">6p</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:21%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:14%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:21%"></div><div class="bar-label">9p</div></div>
+      <div class="bar-col"><div class="bar katy" style="height:21%"></div><div class="bar-label"></div></div>
+      <div class="bar-col"><div class="bar katy" style="height:21%"></div><div class="bar-label">11p</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Busiest Stations -->
+<div class="section">
+  <div class="section-title">Busiest Charger Stations</div>
+  <div class="section-subtitle">Ranked by average utilization over 7 days — these are the highest-traffic locations for merchants</div>
+
+  <div class="card" style="padding:16px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Station</th>
+          <th>Area</th>
+          <th>Ports</th>
+          <th>Avg Utilization</th>
+          <th>Peak</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:600;">Station #3</td>
+          <td>Katy</td>
+          <td>11</td>
+          <td><div class="util-bar"><div class="util-fill util-high" style="width:27%"></div></div>26.7%</td>
+          <td>5 occupied</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #7</td>
+          <td>Katy</td>
+          <td>2</td>
+          <td><div class="util-bar"><div class="util-fill util-med" style="width:20%"></div></div>19.5%</td>
+          <td>2 (full)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #1</td>
+          <td>Domain</td>
+          <td>6</td>
+          <td><div class="util-bar"><div class="util-fill util-med" style="width:18%"></div></div>18.1%</td>
+          <td>6 (full)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #2</td>
+          <td>Katy</td>
+          <td>4</td>
+          <td><div class="util-bar"><div class="util-fill util-med" style="width:17%"></div></div>16.6%</td>
+          <td>2 occupied</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #6</td>
+          <td>Katy</td>
+          <td>4</td>
+          <td><div class="util-bar"><div class="util-fill util-med" style="width:17%"></div></div>16.5%</td>
+          <td>2 occupied</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #5</td>
+          <td>Domain</td>
+          <td>2</td>
+          <td><div class="util-bar"><div class="util-fill util-low" style="width:10%"></div></div>10.3%</td>
+          <td>2 (full)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #3</td>
+          <td>Domain</td>
+          <td>12</td>
+          <td><div class="util-bar"><div class="util-fill util-low" style="width:7%"></div></div>7.3%</td>
+          <td>7 occupied</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Station #4</td>
+          <td>Downtown</td>
+          <td>4</td>
+          <td><div class="util-bar"><div class="util-fill util-low" style="width:8%"></div></div>7.9%</td>
+          <td>2 occupied</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Merchant Pitch -->
+<div class="section">
+  <div class="section-title">The Opportunity for Local Merchants</div>
+  <div class="section-subtitle">Why businesses near EV chargers should care about this data</div>
+
+  <div class="pitch-box">
+    <h3>EV drivers are a captive audience for 30–45 minutes</h3>
+    <p>Every driver plugged in at a nearby charger is waiting. They're looking for coffee, lunch, errands — anything within walking distance. Nerava connects your business to these drivers at the exact moment they're available.</p>
+    <div style="margin-top:16px;">
+      <div class="pitch-stat">
+        <div class="num">~98</div>
+        <div class="lbl">Est. daily charging sessions (all areas)</div>
+      </div>
+      <div class="pitch-stat">
+        <div class="num">30–45</div>
+        <div class="lbl">Minutes per session (avg dwell time)</div>
+      </div>
+      <div class="pitch-stat">
+        <div class="num">$0</div>
+        <div class="lbl">Cost to get started on Nerava</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title" style="margin-bottom:12px;">How it works for your business</div>
+    <table>
+      <tr>
+        <td style="width:30px;font-size:18px;text-align:center;">1</td>
+        <td><strong>Claim your business</strong> on Nerava — takes 2 minutes, no POS changes</td>
+      </tr>
+      <tr>
+        <td style="font-size:18px;text-align:center;">2</td>
+        <td><strong>Create a deal</strong> for EV drivers (e.g., "10% off" or "free appetizer")</td>
+      </tr>
+      <tr>
+        <td style="font-size:18px;text-align:center;">3</td>
+        <td><strong>Drivers see your deal</strong> while charging nearby — within walking distance</td>
+      </tr>
+      <tr>
+        <td style="font-size:18px;text-align:center;">4</td>
+        <td><strong>You only pay when it works</strong> — verified visits, not impressions</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Data Methodology -->
+<div class="section">
+  <div class="card" style="background: var(--gray-50); border: 1px solid var(--gray-200);">
+    <div class="card-title" style="font-size:13px;color:var(--gray-500);margin-bottom:8px;">Data Methodology</div>
+    <p style="font-size:12px;color:var(--gray-500);line-height:1.6;">
+      Charger availability data is collected every 15 minutes via TomTom's EV Charging Availability API across 25 stations in three Austin-metro zones. Data points include total ports, available ports, occupied ports, and out-of-service ports per station. Collection began March 30, 2026 and runs continuously. Session estimates are derived from occupied port snapshots and average session duration. This report contains 16,784 individual data points.
+    </p>
+  </div>
+</div>
+
+<div class="footer">
+  <p><strong>Nerava</strong> — The incentive layer for EV charging dwell time</p>
+  <p style="margin-top:4px;">Questions? <a href="mailto:james@nerava.network">james@nerava.network</a> &middot; <a href="https://nerava.network">nerava.network</a></p>
+</div>
+
+</div>
+</body>
+</html>

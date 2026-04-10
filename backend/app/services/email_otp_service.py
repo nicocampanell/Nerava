@@ -7,12 +7,12 @@ import secrets
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
+from sqlalchemy.orm import Session
 
-from ..models.email_otp_challenge import EmailOTPChallenge
-from ..core.security import hash_password, verify_password
 from ..core.email_sender import get_email_sender
+from ..core.security import hash_password, verify_password
+from ..models.email_otp_challenge import EmailOTPChallenge
 
 logger = logging.getLogger(__name__)
 

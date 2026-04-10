@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Request, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import Optional
 from sqlalchemy.orm import Session
-from app.db import get_db, SessionLocal
-from app.config import settings
-from app.security.tokens import decode_verify_token
-from app.utils.log import get_logger
-from app.services.verify_dwell import start_session as svc_start, ping as svc_ping
 
+from app.config import settings
+from app.db import SessionLocal
+from app.security.tokens import decode_verify_token
+from app.services.verify_dwell import ping as svc_ping
+from app.services.verify_dwell import start_session as svc_start
+from app.utils.log import get_logger
 
 router = APIRouter(tags=["sessions-verify"])
 logger = get_logger(__name__)

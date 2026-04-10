@@ -1,7 +1,10 @@
 from datetime import datetime
+
 from sqlalchemy.orm import Session
-from ..models_extra import FollowerShare, CommunityPeriod
+
+from ..models_extra import CommunityPeriod, FollowerShare
 from .wallet import credit_wallet
+
 
 def settle_unpaid_follower_shares(db: Session, limit: int = 500) -> int:
     """Settle unpaid follower shares by crediting wallets."""

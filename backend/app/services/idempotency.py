@@ -1,7 +1,9 @@
-import json
 import hashlib
-from typing import Optional, Any
+import json
+from typing import Any, Optional
+
 from app.services.cache import cache
+
 
 class IdempotencyService:
     """Service for handling idempotent operations"""

@@ -1,24 +1,23 @@
 """
 Stripe Connect API endpoints for payouts and webhooks
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, Header, Response, status
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime, timedelta
-import uuid
-import hmac
-import hashlib
 import json
+import uuid
+from datetime import datetime, timedelta
+from typing import Optional
 
-from app.db import get_db
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.clients.stripe_client import create_express_account_if_needed, create_transfer, get_stripe
 from app.config import settings
-from app.clients.stripe_client import get_stripe, create_transfer, create_express_account_if_needed
-from app.utils.log import get_logger, log_reward_event
-from app.services.nova_service import compute_payload_hash
-from app.dependencies.feature_flags import require_stripe
+from app.db import get_db
 from app.dependencies.domain import get_current_user
+from app.dependencies.feature_flags import require_stripe
+from app.services.nova_service import compute_payload_hash
+from app.utils.log import get_logger, log_reward_event
 
 router = APIRouter(prefix="/v1", tags=["stripe"])
 
@@ -574,9 +573,8 @@ async def stripe_webhook(
     Verifies webhook signature (required in non-local environments).
     Deduplicates events using stripe_webhook_events table.
     """
-    import os
     import json
-    from datetime import datetime
+    import os
     
     # Check feature flags (P1 stability fix)
     if settings.emergency_readonly_mode:
@@ -683,8 +681,8 @@ async def stripe_webhook(
         # Handle subscription lifecycle events
         if event_type in ("customer.subscription.updated", "customer.subscription.deleted"):
             from app.services.merchant_subscription_service import (
-                handle_subscription_updated,
                 handle_subscription_deleted,
+                handle_subscription_updated,
             )
             if event_type == "customer.subscription.updated":
                 handle_subscription_updated(db, event_data)

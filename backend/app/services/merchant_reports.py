@@ -3,12 +3,12 @@ Merchant Weekly Report Generator Service
 
 Aggregates key metrics per merchant over a time window for the Domain pilot.
 """
-from datetime import datetime, timedelta
-from typing import Optional, List
+import json
+from datetime import datetime
+from typing import List, Optional
+
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import text, func
-import json
 
 from app.models_extra import RewardEvent
 from app.models_while_you_charge import Merchant

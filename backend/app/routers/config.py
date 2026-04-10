@@ -4,12 +4,13 @@ Public configuration endpoint
 Returns non-sensitive configuration values that the frontend needs.
 """
 import os
-from fastapi import APIRouter
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from fastapi import Depends
 from sqlalchemy.orm import Session
-from ..db import get_db
+
 from ..core.config import settings
+from ..db import get_db
 from ..models import FeatureFlag
 
 router = APIRouter(prefix="/v1/public", tags=["config"])

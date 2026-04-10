@@ -4,12 +4,12 @@ EV browser detection utilities.
 Detects Tesla and other EV in-car browsers from User-Agent headers.
 Used for validating that checkin requests come from in-car browsers.
 """
-import re
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 

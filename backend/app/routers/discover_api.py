@@ -1,8 +1,9 @@
+from typing import List, Optional
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import List, Optional
-from app.services.discover import search as discover_search
 
+from app.services.discover import search as discover_search
 
 router = APIRouter(prefix="/v1/discover", tags=["discover"])
 

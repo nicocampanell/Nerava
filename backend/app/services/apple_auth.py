@@ -1,13 +1,14 @@
 """
 Apple Sign In ID token verification service
 """
-from typing import Dict, Any
-from fastapi import HTTPException, status
-import jwt
-from jwt.algorithms import RSAAlgorithm
-import httpx
-from ..core.config import settings
+from typing import Any, Dict
 
+import httpx
+import jwt
+from fastapi import HTTPException, status
+from jwt.algorithms import RSAAlgorithm
+
+from ..core.config import settings
 
 # Cache for Apple JWKS
 _apple_jwks_cache: Dict[str, Any] = {}

@@ -1,9 +1,12 @@
 """
 Demo mode models for investor-friendly demo system.
 """
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Boolean, UniqueConstraint
 from datetime import datetime
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
+
 from .db import Base
+
 
 class DemoState(Base):
     __tablename__ = "demo_state"

@@ -1,6 +1,5 @@
 """Empty state hints for discovery endpoints."""
 
-from typing import List
 from app.config import settings
 
 

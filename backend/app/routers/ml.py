@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Query, HTTPException
-from typing import List, Dict, Any
-from ..services.ml_ranker import rank_hubs_and_perks, score_hub, score_perk
+
+from fastapi import APIRouter, HTTPException, Query
+
 from ..services import hubs_dynamic
+from ..services.ml_ranker import rank_hubs_and_perks, score_hub
 
 router = APIRouter(prefix="/v1/ml", tags=["ml"])
 
@@ -98,7 +99,7 @@ async def score_hub_endpoint(
         return {
             'hub_id': hub_id,
             'score': score,
-            'reason': f"Hub scored based on location, rewards, and social factors"
+            'reason': "Hub scored based on location, rewards, and social factors"
         }
         
     except Exception as e:

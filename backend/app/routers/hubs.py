@@ -1,8 +1,10 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from app.db import get_db
 from app.services.while_you_charge import get_domain_hub_view
-import logging
 
 logger = logging.getLogger(__name__)
 

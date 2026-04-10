@@ -1,5 +1,5 @@
 # Schemas package
-from .auth import Token, TokenData, UserCreate, User
+from .auth import Token, TokenData, User, UserCreate
 from .preferences import PreferencesIn, PreferencesOut
 
 __all__ = [

@@ -1,7 +1,10 @@
-from math import radians, sin, cos, asin, sqrt
 from datetime import datetime
+from math import asin, cos, radians, sin, sqrt
+
 from sqlalchemy.orm import Session
+
 from app.models_extra import DualZoneSession
+
 
 def haversine_m(lat1, lon1, lat2, lon2):
     """Calculate distance between two points in meters using Haversine formula"""

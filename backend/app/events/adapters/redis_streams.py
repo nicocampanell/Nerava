@@ -1,11 +1,8 @@
 """
 Redis Streams adapter for event bus
 """
-import json
-import asyncio
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 import logging
+from typing import Any, Dict, List
 
 import redis.asyncio as redis
 from app.config import settings
@@ -51,7 +48,7 @@ class RedisStreamsAdapter:
                 await self.create_consumer_group(stream_name)
             
             # Read from streams
-            streams_dict = {stream: ">" for stream in stream_names}
+            streams_dict = dict.fromkeys(stream_names, ">")
             messages = await self.redis.xreadgroup(
                 self.consumer_group,
                 self.consumer_name,

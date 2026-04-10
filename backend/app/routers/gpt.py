@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Query, Depends, HTTPException
-from typing import Optional
-from datetime import datetime, timedelta
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 import uuid
+from datetime import datetime, timedelta
+from typing import Optional
 
-from app.db import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
+from app.db import get_db
 from app.security.tokens import create_verify_token
 from app.utils.names import normalize_merchant_name
 
@@ -32,8 +33,8 @@ async def find_merchants(
     Find nearby merchants with optional category filter.
     Returns merchants sorted by distance with attached offers if available.
     """
+
     from app.services.geo import haversine_m
-    from datetime import time
     
     # Fetch all merchants (or filter by category if provided)
     query = "SELECT id, name, category, lat, lng FROM merchants WHERE 1=1"
@@ -120,9 +121,11 @@ async def find_charger(
     """
     Find nearby chargers with green window times and nearby merchants.
     """
-    from app.services.geo import haversine_m
+    from datetime import datetime
+    from datetime import time as dt_time
+
     from app.services.chargers_openmap import fetch_chargers
-    from datetime import datetime, time as dt_time
+    from app.services.geo import haversine_m
     
     # Fetch chargers from OpenChargeMap
     radius_km = radius_m / 1000.0
@@ -209,9 +212,8 @@ def create_session_link(request: CreateSessionLinkRequest, db: Session = Depends
     
     Rate limit: 5/min per user (handled by middleware if configured)
     """
+
     from app.services.fraud import compute_risk_score, emit_abuse_event
-    from fastapi import Request
-    from fastapi import Header
     
     now = datetime.utcnow()
     

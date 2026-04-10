@@ -2,15 +2,16 @@
 Stripe Service - Nova purchase via Stripe Checkout
 for Domain Charge Party MVP
 """
-from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
-import uuid
 import logging
-import stripe
+import uuid
+from typing import Any, Dict
 
-from app.models_domain import StripePayment, DomainMerchant
-from app.services.nova_service import NovaService
+import stripe
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.models_domain import DomainMerchant, StripePayment
+from app.services.nova_service import NovaService
 
 logger = logging.getLogger(__name__)
 
@@ -340,9 +341,10 @@ class StripeService:
         Returns:
             Dict with payment status and reconciliation result
         """
-        from sqlalchemy import text
-        from datetime import datetime
         import json
+        from datetime import datetime
+
+        from sqlalchemy import text
         
         # Lock payment FOR UPDATE
         # SQLite lacks FOR UPDATE; transaction provides the necessary write lock for this path.

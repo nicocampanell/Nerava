@@ -2,8 +2,8 @@
 Background job for city impact aggregation.
 """
 import logging
-from typing import Dict, Any
 from datetime import datetime
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def aggregate_city(city_slug: str) -> Dict[str, Any]:
     - Build leaderboards
     """
     
-    logger.info(f"Starting city impact aggregation", extra={
+    logger.info("Starting city impact aggregation", extra={
         "city_slug": city_slug,
         "job": "city_impact_agg"
     })
@@ -33,7 +33,7 @@ def aggregate_city(city_slug: str) -> Dict[str, Any]:
             "completed_at": datetime.utcnow().isoformat()
         }
         
-        logger.info(f"City impact aggregation completed", extra={
+        logger.info("City impact aggregation completed", extra={
             "city_slug": city_slug,
             "job": "city_impact_agg",
             "mwh_saved": result["mwh_saved"]
@@ -42,7 +42,7 @@ def aggregate_city(city_slug: str) -> Dict[str, Any]:
         return result
         
     except Exception as e:
-        logger.error(f"City impact aggregation failed", extra={
+        logger.error("City impact aggregation failed", extra={
             "city_slug": city_slug,
             "job": "city_impact_agg",
             "error": str(e)

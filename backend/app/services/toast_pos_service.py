@@ -9,13 +9,14 @@ Uses MerchantOAuthToken model with provider="toast" for token storage.
 import logging
 import secrets
 import uuid
-import httpx
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
+
+import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.token_encryption import encrypt_token, decrypt_token
+from app.core.token_encryption import decrypt_token, encrypt_token
 from app.models.merchant_oauth_token import MerchantOAuthToken
 
 logger = logging.getLogger(__name__)

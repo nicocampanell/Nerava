@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies_domain import require_admin
 from app.services.nova_service import NovaService
-from app.dependencies_domain import require_admin, get_current_user
 
 router = APIRouter(prefix="/v1/nova", tags=["nova"])
 

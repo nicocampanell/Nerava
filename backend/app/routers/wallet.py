@@ -3,6 +3,7 @@ Wallet Pass Router
 Handles POST /v1/wallet/pass/activate endpoint
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 

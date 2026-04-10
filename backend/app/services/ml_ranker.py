@@ -1,5 +1,6 @@
-from typing import List, Dict, Any, Optional
 import math
+from typing import Any, Dict, List
+
 
 def score_hub(hub: Dict[str, Any], user_id: str, context: Dict[str, Any]) -> float:
     """
@@ -48,9 +49,7 @@ def score_perk(perk: Dict[str, Any], user_id: str, context: Dict[str, Any]) -> f
     
     # Time-based scoring (coffee in morning, etc.)
     hour = context.get('hour', 12)
-    if 'coffee' in perk.get('name', '').lower() and 6 <= hour <= 10:
-        base_score += 30
-    elif 'lunch' in perk.get('name', '').lower() and 11 <= hour <= 14:
+    if 'coffee' in perk.get('name', '').lower() and 6 <= hour <= 10 or 'lunch' in perk.get('name', '').lower() and 11 <= hour <= 14:
         base_score += 30
     
     # Value-based scoring
@@ -89,7 +88,7 @@ def rank_hubs_and_perks(user_id: str, lat: float, lng: float,
         hub_scores.append({
             'hub': hub,
             'score': score,
-            'reason': f"High value hub with good rewards and proximity"
+            'reason': "High value hub with good rewards and proximity"
         })
     
     # Sort by score (highest first)

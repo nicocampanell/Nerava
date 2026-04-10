@@ -9,18 +9,19 @@ POST /v1/charging-sessions/poll    — poll Tesla for current charging state
 POST /v1/charging-sessions/background-ping — geofence-triggered background detection
 """
 import logging
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy import func, desc, text
-from typing import Optional
 
 from ..db import get_db
 from ..dependencies.domain import get_current_user
+from ..models.session_event import SessionEvent
 from ..models.user import User
-from ..models.session_event import SessionEvent, IncentiveGrant
 from ..services.session_event_service import SessionEventService
 
 logger = logging.getLogger(__name__)

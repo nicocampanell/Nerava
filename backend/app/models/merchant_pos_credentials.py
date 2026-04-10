@@ -3,8 +3,10 @@ MerchantPOSCredentials — separated POS credentials table.
 Keeps sensitive tokens isolated from notification preferences.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 

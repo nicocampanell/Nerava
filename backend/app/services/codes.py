@@ -4,15 +4,16 @@ Merchant Offer Code Service
 Generates and manages unique redemption codes for merchant discounts.
 Code format: PREFIX-MERCHANT-#### (e.g., DOM-SB-4821)
 """
-import uuid
 import random
-from typing import Optional
+import uuid
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from typing import Optional
 
-from app.models_while_you_charge import MerchantOfferCode, Merchant
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from app.domains.domain_hub import HUB_ID
+from app.models_while_you_charge import Merchant, MerchantOfferCode
 from app.utils.log import get_logger
 
 logger = get_logger(__name__)

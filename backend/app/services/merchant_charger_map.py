@@ -5,6 +5,7 @@ Computes the nearest charger for a merchant location using Haversine formula.
 """
 import math
 from typing import Optional, Tuple
+
 from sqlalchemy.orm import Session
 
 from app.models.while_you_charge import Charger

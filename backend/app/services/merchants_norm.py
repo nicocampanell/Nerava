@@ -1,5 +1,7 @@
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from app.services.places_google import search_nearby
+
 
 def _dd_pickup_link(name: str, lat: float, lng: float) -> Optional[str]:
     return f"https://www.doordash.com/search/store/{name.replace(' ','%20')}/?lat={lat}&lng={lng}"

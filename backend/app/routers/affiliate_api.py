@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from app.domains.schemas import TrackClickReq, AffiliateNotifyReq
-from app.services.affiliate import build_click, ingest_conversion
 
+from app.domains.schemas import AffiliateNotifyReq, TrackClickReq
+from app.services.affiliate import build_click, ingest_conversion
 
 router = APIRouter(prefix="/v1/affiliate", tags=["affiliate"])
 

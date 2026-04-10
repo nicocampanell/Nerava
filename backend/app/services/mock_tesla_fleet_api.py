@@ -6,10 +6,9 @@ Enable with TESLA_MOCK_MODE=true in environment.
 """
 import logging
 import uuid
-import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 

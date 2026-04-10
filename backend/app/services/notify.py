@@ -1,12 +1,14 @@
 """Notification service (stub with DB logging)."""
 
-from typing import Dict, Optional
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from typing import Optional
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
-from app.utils.log import get_logger
 from app.utils.dbjson import as_db_json
+from app.utils.log import get_logger
 
 logger = get_logger("notify")
 

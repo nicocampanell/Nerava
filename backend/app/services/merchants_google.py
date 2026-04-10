@@ -1,9 +1,10 @@
 import os
 import sqlite3
 import urllib.parse
-import requests
 from contextlib import contextmanager
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+import requests
 
 # Hardcoded API key (no longer reads from environment variables)
 API_KEY = "AIzaSyAs0PVYXj3-ztRXCjdd0ztUGUSjQR73FFg"
@@ -122,7 +123,7 @@ def _local_offers_near(*, lat: float, lng: float, radius_m: int, prefs: List[str
             },
             # optional links your UI can use
             "links": {
-                "claim_api": f"/v1/local/perk/claim",  # POST with {perk_id, user_id}
+                "claim_api": "/v1/local/perk/claim",  # POST with {perk_id, user_id}
             },
         })
     return out

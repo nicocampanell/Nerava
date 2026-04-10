@@ -5,10 +5,12 @@ PosOAuthState model — DB-backed OAuth state for POS integrations (Toast, etc.)
 import json
 from datetime import datetime, timedelta
 from typing import Optional
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Index
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Session
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class MerchantOAuthToken(Base):

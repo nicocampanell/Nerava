@@ -3,8 +3,9 @@ Schemas for Tesla Fleet Telemetry webhook payloads.
 
 Fleet Telemetry dispatches vehicle data via HTTP POST when field values change.
 """
-from pydantic import BaseModel
 from typing import Any, Optional
+
+from pydantic import BaseModel
 
 
 class TelemetryValue(BaseModel):

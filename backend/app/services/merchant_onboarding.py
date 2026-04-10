@@ -2,16 +2,16 @@
 Merchant Onboarding Service
 Extracts merchant creation/validation logic from merchants_domain.py and related services.
 """
-from typing import Dict, Any, Optional
-from sqlalchemy.orm import Session
-from datetime import datetime
-import uuid
 import logging
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from sqlalchemy.orm import Session
 
 from ..models.domain import DomainMerchant, Zone
-from ..models import User
-from .square_service import SquareOAuthResult, fetch_square_location_stats
 from .qr_service import create_or_get_merchant_qr
+from .square_service import SquareOAuthResult, fetch_square_location_stats
 from .token_encryption import encrypt_token
 
 logger = logging.getLogger(__name__)

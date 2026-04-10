@@ -1,5 +1,5 @@
-from datetime import datetime
 from typing import Optional
+
 from app.services.pool2 import run_daily_close
 
 

@@ -2,17 +2,18 @@
 Notification preferences and device token registration router
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Literal
 
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.db import get_db
-from app.models import User
-from app.models.notification_prefs import UserNotificationPrefs
-from app.models.device_token import DeviceToken
 from app.dependencies_domain import get_current_user
+from app.models import User
+from app.models.device_token import DeviceToken
+from app.models.notification_prefs import UserNotificationPrefs
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +171,7 @@ def send_test_push(
     Send a test push notification to the current user's registered devices.
     Returns diagnostic info about token count and APNs configuration.
     """
-    from app.services.push_service import send_push_notification, _get_apns_client
+    from app.services.push_service import _get_apns_client, send_push_notification
 
     # Count registered devices for this user
     device_count = db.query(DeviceToken).filter(

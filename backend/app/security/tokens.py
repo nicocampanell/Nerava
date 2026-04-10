@@ -1,12 +1,13 @@
 """
 JWT token utilities for verify flow (short-lived, one-time use)
 """
-import jwt
+import os
 import secrets
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
+import jwt
 from fastapi import HTTPException, status
-import os
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret")
 JWT_ALG = os.getenv("JWT_ALG", "HS256")

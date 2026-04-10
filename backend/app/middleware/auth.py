@@ -3,14 +3,14 @@ Authentication middleware for FastAPI
 """
 import logging
 import os
-from typing import Optional
-from fastapi import Request, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from app.config import settings
+from app.security.jwt import jwt_manager
+from app.security.rbac import Role, get_user_role
+from fastapi import HTTPException, Request, status
+from fastapi.security import HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from app.security.jwt import jwt_manager
-from app.security.rbac import get_user_role, Role
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

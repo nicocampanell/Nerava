@@ -1,7 +1,10 @@
 from __future__ import annotations
-from datetime import datetime, timedelta, time
-from typing import Dict, Any
+
+from datetime import datetime, time, timedelta
+from typing import Any, Dict
+
 from sqlalchemy import text
+
 from app.db import SessionLocal
 from app.domains.schemas import AffiliateNotifyReq
 

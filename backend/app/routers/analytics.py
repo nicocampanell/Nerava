@@ -1,10 +1,11 @@
 """
 Analytics and KPI endpoints
 """
-from fastapi import APIRouter, Query, HTTPException
-from typing import Optional
-from app.analytics.kpis import kpi_calculator
+
+from fastapi import APIRouter, HTTPException, Query
+
 from app.analytics.batch_writer import analytics_batch_writer
+from app.analytics.kpis import kpi_calculator
 
 router = APIRouter(prefix="/v1/analytics", tags=["analytics"])
 

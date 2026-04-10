@@ -3,7 +3,8 @@ HubSpot Event Adapter
 
 Converts domain events to HubSpot event format.
 """
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from app.events.domain import DomainEvent
 from app.utils.log import get_logger
 

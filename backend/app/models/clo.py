@@ -1,8 +1,10 @@
 """Card Linked Offers (CLO) Models for Fidel Integration"""
-from datetime import datetime
 import uuid
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 

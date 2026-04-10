@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 from zoneinfo import ZoneInfo
+
 
 def _parse_t(s: str) -> time:
     hh, mm, *rest = s.split(":")

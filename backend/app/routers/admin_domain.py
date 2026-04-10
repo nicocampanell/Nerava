@@ -2,36 +2,27 @@
 Domain Charge Party MVP Admin Router
 Admin endpoints for overview, merchant management, and manual Nova grants
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Header
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import Optional, Literal
 import os
-import httpx
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import List, Literal, Optional
+
+import httpx
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, or_, text
+from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies_domain import require_admin
 from app.models import User
-from app.models_domain import (
-    DriverWallet,
-    DomainMerchant,
-    NovaTransaction,
-    StripePayment
-)
+from app.models_domain import DomainMerchant, DriverWallet, NovaTransaction, StripePayment
 from app.models_extra import CreditLedger
+from app.routers.drivers_wallet import _add_ledger, _balance
+from app.services.analytics import get_analytics_client
+from app.services.audit import log_admin_action, log_wallet_mutation
 from app.services.nova_service import NovaService
 from app.services.stripe_service import StripeService
-from app.services.audit import log_admin_action, log_wallet_mutation
-from app.dependencies_domain import require_admin, get_current_user
-from app.routers.drivers_wallet import _balance, _add_ledger
-from app.services.analytics import get_analytics_client
-from sqlalchemy import text, or_
-from sqlalchemy.orm import Session
-from fastapi import Path, Request
-from pydantic import Field
-from typing import List
 from app.utils.log import get_logger
 
 router = APIRouter(prefix="/v1/admin", tags=["admin-v1"])
@@ -85,12 +76,14 @@ def get_admin_health(
     
     Returns /readyz status to surface system health in admin UI.
     """
+    from urllib.parse import urlparse
+
+    import redis
     from fastapi.responses import JSONResponse
     from sqlalchemy import text
-    from app.db import get_engine
+
     from app.config import settings
-    import redis
-    from urllib.parse import urlparse
+    from app.db import get_engine
     
     checks = {
         "startup_validation": {"status": "ok", "error": None},
@@ -150,7 +143,8 @@ async def get_overview(
     ).count()
     
     # Count merchants (While You Charge merchants — the real ones with perks)
-    from app.models.while_you_charge import Merchant as WYCMerchant, Charger as WYCCharger
+    from app.models.while_you_charge import Charger as WYCCharger
+    from app.models.while_you_charge import Merchant as WYCMerchant
     total_merchants = db.query(WYCMerchant).count()
 
     # Count chargers
@@ -161,8 +155,9 @@ async def get_overview(
     total_charging_sessions = db.query(SessionEvent).count()
 
     # Count active campaigns
-    from app.models.campaign import Campaign
     from datetime import datetime as dt
+
+    from app.models.campaign import Campaign
     now = dt.utcnow()
     active_campaigns = db.query(Campaign).filter(
         Campaign.status == "active",
@@ -182,8 +177,8 @@ async def get_overview(
     total_nova_outstanding = total_driver_nova + total_merchant_nova
     
     # --- Revenue breakdown ---
-    from app.models.campaign import Campaign
     from app.core.config import settings
+    from app.models.campaign import Campaign
 
     # 1. Campaign revenue — ALL campaigns that have been active (not just funding_status='funded')
     # Some campaigns may have been activated without going through Stripe checkout
@@ -214,8 +209,9 @@ async def get_overview(
         campaign_driver_rewards += c.spent_cents or 0
 
     # 2. Merchant subscription revenue (amounts stored in Stripe, not DB)
-    from app.models.merchant_subscription import MerchantSubscription
     import stripe as stripe_module
+
+    from app.models.merchant_subscription import MerchantSubscription
 
     active_subs = db.query(MerchantSubscription).filter(
         MerchantSubscription.status == "active",
@@ -319,7 +315,7 @@ def list_session_history(
     db: Session = Depends(get_db),
 ):
     """List all charging sessions with driver info and reward status."""
-    from app.models.session_event import SessionEvent, IncentiveGrant
+    from app.models.session_event import IncentiveGrant, SessionEvent
 
     q = db.query(SessionEvent).order_by(SessionEvent.session_start.desc())
 
@@ -1029,7 +1025,7 @@ def resolve_google_place(
         google_places_api_key = os.getenv("GOOGLE_PLACES_API_KEY")
         if google_places_api_key:
             import httpx
-            url = f"https://maps.googleapis.com/maps/api/place/details/json"
+            url = "https://maps.googleapis.com/maps/api/place/details/json"
             params = {
                 "place_id": request.place_id,
                 "fields": "place_id,name,formatted_address,geometry,rating,types,website,international_phone_number",
@@ -1099,8 +1095,9 @@ def list_all_exclusives(
     """
     List all exclusives (optionally filtered by merchant_id).
     """
-    from app.models.while_you_charge import MerchantPerk
     import json
+
+    from app.models.while_you_charge import MerchantPerk
     
     query = db.query(MerchantPerk)
     if merchant_id:
@@ -1138,8 +1135,9 @@ def list_all_exclusives(
         merchants_map = {m.id: m.name for m in merchants}
     
     # Count today's activations per merchant (since ExclusiveSession doesn't have perk_id)
+    from datetime import datetime, timezone
+
     from app.models.exclusive_session import ExclusiveSession
-    from datetime import datetime, timezone, timedelta
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     
     activation_counts = {}
@@ -1265,6 +1263,7 @@ def set_demo_location(
     Production safety: This endpoint is disabled unless explicitly enabled via env var.
     """
     import os
+
     from app.config import settings
     
     # Check if demo mode is enabled (must be explicitly set to "true")
@@ -1286,7 +1285,6 @@ def set_demo_location(
     # Store in database table (more secure than env vars)
     # For MVP, we'll use a simple table or cache
     # In production, use Redis or database table with TTL
-    from app.models_extra import AdminAuditLog
     
     # Store demo location in audit metadata (for now)
     # TODO: Create dedicated DemoLocation table with TTL
@@ -1418,8 +1416,9 @@ def get_active_sessions(
     admin: User = Depends(require_admin)
 ):
     """Get all active exclusive sessions."""
-    from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
     from datetime import datetime, timezone
+
+    from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
     
     now = datetime.now(timezone.utc)
     sessions = db.query(ExclusiveSession).filter(
@@ -1875,6 +1874,7 @@ def pause_system(
     Returns 503 for non-admin endpoints until resumed.
     """
     import redis
+
     from app.config import settings
     
     try:
@@ -1906,6 +1906,7 @@ def resume_system(
     Removes Redis flag to allow all endpoints again.
     """
     import redis
+
     from app.config import settings
     
     try:
@@ -1999,9 +2000,11 @@ _seed_jobs: dict[str, dict] = {}  # job_id -> {type, status, started_at, progres
 
 def _run_seed_chargers_job(job_id: str, states: Optional[List[str]]):
     """Background thread for charger seeding."""
-    from app.db import SessionLocal
-    from scripts.seed_chargers_bulk import seed_chargers
     import asyncio
+
+    from scripts.seed_chargers_bulk import seed_chargers
+
+    from app.db import SessionLocal
 
     _seed_jobs[job_id]["status"] = "running"
     db = SessionLocal()
@@ -2027,9 +2030,11 @@ def _run_seed_chargers_job(job_id: str, states: Optional[List[str]]):
 
 def _run_seed_merchants_job(job_id: str, max_cells: Optional[int]):
     """Background thread for merchant seeding."""
-    from app.db import SessionLocal
-    from scripts.seed_merchants_free import seed_merchants
     import asyncio
+
+    from scripts.seed_merchants_free import seed_merchants
+
+    from app.db import SessionLocal
 
     _seed_jobs[job_id]["status"] = "running"
     db = SessionLocal()
@@ -2171,9 +2176,11 @@ def start_merchant_seed_key(
 
 def _run_seed_grid_job(job_id: str, states: Optional[List[str]], batch_size: int):
     """Background thread for grid-based charger seeding."""
-    from app.db import SessionLocal
-    from scripts.seed_chargers_grid import seed_chargers_grid
     import asyncio
+
+    from scripts.seed_chargers_grid import seed_chargers_grid
+
+    from app.db import SessionLocal
 
     def on_progress(metro_name, total_unique, total_metros):
         _seed_jobs[job_id]["progress"] = {
@@ -2340,9 +2347,10 @@ def admin_reconcile_campaigns(
     admin: User = Depends(require_admin),
 ):
     """Reconcile all campaign spent_cents and sessions_granted from actual grants."""
+    from sqlalchemy import func
+
     from app.models.campaign import Campaign
     from app.models.session_event import IncentiveGrant
-    from sqlalchemy import func
 
     campaigns = db.query(Campaign).all()
     fixed = []
@@ -2383,8 +2391,9 @@ def admin_reconcile_nova(
     admin: User = Depends(require_admin),
 ):
     """Reconcile nova_balance from nova_transactions for all wallets."""
+    from sqlalchemy import text
+
     from app.models.driver_wallet import DriverWallet
-    from sqlalchemy import func, text
 
     # Check if nova_transactions table exists and has data
     try:
@@ -2419,7 +2428,7 @@ def get_seed_stats_key(
     from app.core.config import settings as cfg
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
+    from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
     charger_count = db.query(func.count(Charger.id)).scalar() or 0
     merchant_count = db.query(func.count(Merchant.id)).scalar() or 0
     junction_count = db.query(func.count(ChargerMerchant.id)).scalar() or 0
@@ -2432,8 +2441,9 @@ def get_seed_stats(
     db: Session = Depends(get_db),
 ):
     """Get current charger + merchant counts."""
-    from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
     from sqlalchemy import func
+
+    from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
 
     charger_count = db.query(func.count(Charger.id)).scalar() or 0
     merchant_count = db.query(func.count(Merchant.id)).scalar() or 0
@@ -2460,9 +2470,10 @@ async def otp_diagnostics(
     OTP system diagnostics — checks Twilio credentials, Verify service, and rate-limit state.
     Admin-only endpoint for debugging OTP issues in production.
     """
+    import logging
+
     from app.core.config import settings as core_settings
     from app.services.auth import get_otp_provider, get_rate_limit_service
-    import logging
 
     diag_logger = logging.getLogger("nerava.otp_diag")
 
@@ -2490,8 +2501,9 @@ async def otp_diagnostics(
     if core_settings.OTP_PROVIDER == "twilio_verify" and core_settings.TWILIO_VERIFY_SERVICE_SID:
         try:
             import asyncio
-            from twilio.rest import Client
+
             from twilio.http.http_client import TwilioHttpClient
+            from twilio.rest import Client
 
             custom_http_client = TwilioHttpClient()
             custom_http_client.timeout = 10
@@ -2583,8 +2595,8 @@ async def seed_chargers(
 
     Idempotent: Safe to run multiple times.
     """
-    from app.services.charger_seeder import ChargerSeederService
     from app.core.config import settings
+    from app.services.charger_seeder import ChargerSeederService
 
     # Check API key
     if not settings.GOOGLE_PLACES_API_KEY:
@@ -2627,8 +2639,9 @@ async def list_chargers(
     """
     List all chargers in the database with merchant counts.
     """
-    from app.models.while_you_charge import Charger, ChargerMerchant
     from sqlalchemy import func
+
+    from app.models.while_you_charge import Charger, ChargerMerchant
 
     # Query chargers with merchant count
     chargers_with_counts = db.query(
@@ -2920,7 +2933,7 @@ def admin_seed_merchant(
     Create a merchant and link it to an existing charger.
     Idempotent — updates if merchant_id already exists.
     """
-    from app.models.while_you_charge import Charger, Merchant, ChargerMerchant, MerchantPerk
+    from app.models.while_you_charge import Charger, ChargerMerchant, Merchant, MerchantPerk
 
     # Verify charger exists
     charger = db.query(Charger).filter(Charger.id == request.charger_id).first()

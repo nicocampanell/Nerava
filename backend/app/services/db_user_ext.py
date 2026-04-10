@@ -1,7 +1,7 @@
-import os, sqlite3
+import os
+import sqlite3
 from contextlib import contextmanager
-from typing import Optional, Dict
-
+from typing import Dict, Optional
 
 DB_PATH = os.getenv("NERAVA_DB_PATH", os.path.join(os.path.dirname(__file__), "..", "..", "nerava.db"))
 DB_PATH = os.path.abspath(DB_PATH)

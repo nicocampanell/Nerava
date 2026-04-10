@@ -4,12 +4,17 @@ Refresh token service for token rotation and management
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
-from ..models import RefreshToken, User
-from ..core.security import generate_refresh_token, hash_refresh_token, verify_refresh_token, create_access_token
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
 from ..core.config import settings
+from ..core.security import (
+    generate_refresh_token,
+    hash_refresh_token,
+    verify_refresh_token,
+)
+from ..models import RefreshToken, User
 
 
 class RefreshTokenService:

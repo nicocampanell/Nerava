@@ -7,8 +7,8 @@ or AWS Secrets Manager (when enabled).
 Default implementation reads from environment variables.
 AWS Secrets Manager support can be enabled via SECRETS_PROVIDER env var.
 """
-import os
 import logging
+import os
 from abc import ABC, abstractmethod
 from typing import Optional
 

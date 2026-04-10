@@ -1,13 +1,13 @@
 """
 Dev-only endpoints for testing (gated behind APP_ENV=dev)
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import datetime
 import os
-import httpx
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.utils.log import get_logger
@@ -85,9 +85,9 @@ async def mock_purchase_webhook(
         }
     
     # Forward to webhook endpoint by calling the handler function directly
+
+
     from app.routers.purchase_webhooks import ingest_purchase_webhook
-    from fastapi import Request as FastAPIRequest
-    import json as json_lib
     
     # Create a mock request object
     class MockRequest:

@@ -1,21 +1,21 @@
 """Merchant claim flow endpoints - Email + Phone verification"""
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-import secrets
 import logging
+import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from ..db import get_db
-from ..models import ClaimSession, DomainMerchant, User, UserPreferences
+from ..core.config import settings
+
 # NOTE: OTPServiceV2 imported lazily inside functions to avoid triggering
 # Twilio SDK import at startup, which causes issues in App Runner
 from ..core.email_sender import get_email_sender
 from ..core.security import create_access_token
-from ..core.config import settings
+from ..db import get_db
+from ..models import ClaimSession, DomainMerchant, User, UserPreferences
 from ..utils.phone import normalize_phone
 
 logger = logging.getLogger(__name__)

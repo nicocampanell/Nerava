@@ -1,8 +1,11 @@
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List
+
+from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import Session
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
+
 from ..db import Base
+
 
 # Visa payout transaction model
 class VisaPayout(Base):

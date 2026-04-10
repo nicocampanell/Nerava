@@ -1,10 +1,9 @@
 """
 Schemas for Merchant Rewards: Request-to-Join, Reward Claims, Receipt Submissions
 """
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
+from typing import List, Optional
 
+from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
 # Request-to-Join

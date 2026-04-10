@@ -5,12 +5,13 @@ Handles intent capture logic: confidence tier assignment, charger lookup, sessio
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from typing import Dict, List, Optional, Tuple
 
-from app.models import IntentSession, Charger, MerchantCache
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.models import Charger, IntentSession, MerchantCache
 from app.services.google_places_new import _get_geo_cell
 
 logger = logging.getLogger(__name__)

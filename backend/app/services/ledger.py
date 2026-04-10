@@ -1,9 +1,11 @@
-import json
 import hashlib
+import json
 import os
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from ..models_extra import RewardEvent
+
 
 class LedgerService:
     """Local append-only ledger for reward proofs. Can be swapped for blockchain later."""
@@ -67,7 +69,7 @@ class LedgerService:
         if not os.path.exists(self.ledger_path):
             return None
         
-        with open(self.ledger_path, "r") as f:
+        with open(self.ledger_path) as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())
@@ -91,7 +93,7 @@ class LedgerService:
         if not os.path.exists(self.ledger_path):
             return False
         
-        with open(self.ledger_path, "r") as f:
+        with open(self.ledger_path) as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())

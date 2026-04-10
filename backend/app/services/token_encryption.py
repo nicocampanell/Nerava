@@ -5,12 +5,14 @@ Uses Fernet symmetric encryption for at-rest encryption.
 Backward compatibility: Supports decryption of tokens encrypted with legacy hash/pad-derived keys.
 New encryption always uses validated Fernet keys (fail-fast in non-local).
 """
-import os
-import logging
-from typing import Optional
-from cryptography.fernet import Fernet, InvalidToken
-from app.core.env import is_local_env
 import base64
+import logging
+import os
+from typing import Optional
+
+from cryptography.fernet import Fernet, InvalidToken
+
+from app.core.env import is_local_env
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +67,8 @@ def _get_encryption_key() -> bytes:
         except Exception as e:
             if not is_local_env():
                 raise ValueError(
-                    f"TOKEN_ENCRYPTION_KEY is not a valid Fernet key. "
-                    f"Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                    "TOKEN_ENCRYPTION_KEY is not a valid Fernet key. "
+                    "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
                 ) from e
             # In local, allow and warn
             logger.warning(f"Invalid Fernet key format in local env, attempting to use as-is: {e}")
@@ -89,10 +91,7 @@ def _get_legacy_key() -> bytes:
     
     # Legacy hash/pad logic (for backward compatibility)
     import hashlib as h
-    if len(key_str) < 32:
-        key_bytes = h.sha256(key_str.encode()).digest()
-        key_str = base64.urlsafe_b64encode(key_bytes).decode()
-    elif len(key_str) > 44:
+    if len(key_str) < 32 or len(key_str) > 44:
         key_bytes = h.sha256(key_str.encode()).digest()
         key_str = base64.urlsafe_b64encode(key_bytes).decode()
     
@@ -120,8 +119,8 @@ def _get_fernet() -> Fernet:
         except Exception as e:
             if not is_local_env():
                 raise ValueError(
-                    f"Failed to construct Fernet instance with provided key. "
-                    f"Generate valid key with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                    "Failed to construct Fernet instance with provided key. "
+                    "Generate valid key with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
                 ) from e
             # In local, allow and warn
             logger.warning(f"Invalid Fernet key in local env, attempting to use anyway: {e}")

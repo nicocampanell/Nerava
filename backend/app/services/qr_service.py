@@ -4,15 +4,16 @@ Extracts QR/code logic from pilot_redeem.py and services/codes.py
 (token → merchant/campaign resolution, status checks).
 Also handles merchant QR tokens for national checkout.
 """
-from typing import Optional, Dict, Any
-from datetime import datetime
-from sqlalchemy.orm import Session
-import secrets
 import logging
+import secrets
+from datetime import datetime
+from typing import Any, Dict, Optional
 
-from ..models.while_you_charge import MerchantOfferCode, Merchant
-from ..models.domain import DomainMerchant
+from sqlalchemy.orm import Session
+
 from ..config import settings
+from ..models.domain import DomainMerchant
+from ..models.while_you_charge import Merchant, MerchantOfferCode
 
 try:
     from ..utils.log import get_logger

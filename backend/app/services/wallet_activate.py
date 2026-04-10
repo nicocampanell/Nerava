@@ -3,12 +3,14 @@ Service for wallet pass activation
 """
 import uuid
 from datetime import datetime, timedelta
+
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.models.wallet_pass import WalletPassActivation, WalletPassStateEnum
+
 from app.models.intent import IntentSession
+from app.models.wallet_pass import WalletPassActivation, WalletPassStateEnum
 from app.models.while_you_charge import Merchant
 from app.schemas.wallet import WalletActivateResponse, WalletState
-from fastapi import HTTPException
 
 
 def activate_wallet_pass(

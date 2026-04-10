@@ -4,11 +4,13 @@ Virtual Key model for Tesla Fleet API integration.
 Stores Tesla vehicle pairing information for automatic arrival detection.
 """
 import uuid
-from datetime import datetime, timedelta
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Index, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class VirtualKey(Base):

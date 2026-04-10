@@ -3,13 +3,15 @@ OTP provider factory
 """
 import logging
 from typing import Optional
+
 from sqlalchemy.orm import Session
+
 from ...core.config import settings
-from .otp_provider import OTPProvider
-from .twilio_verify import TwilioVerifyProvider
-from .twilio_sms import TwilioSMSProvider
-from .stub_provider import StubOTPProvider
 from .email_otp_provider import EmailOTPProvider
+from .otp_provider import OTPProvider
+from .stub_provider import StubOTPProvider
+from .twilio_sms import TwilioSMSProvider
+from .twilio_verify import TwilioVerifyProvider
 
 logger = logging.getLogger(__name__)
 

@@ -2,14 +2,13 @@
 Tests for security features
 """
 import os
+from datetime import timedelta
+
 import pytest
-import jwt
-from datetime import datetime, timedelta
-from fastapi.testclient import TestClient
-from unittest.mock import patch
 from app.main_simple import app
 from app.security.jwt import jwt_manager
-from app.security.rbac import Role, rbac_manager, Permission
+from app.security.rbac import Permission, Role, rbac_manager
+from fastapi.testclient import TestClient
 
 # Set JWT secret for tests
 os.environ.setdefault("JWT_SECRET", "test-secret-key-for-testing-only")

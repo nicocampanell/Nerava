@@ -1,7 +1,10 @@
-import redis
 import json
 from typing import Any, Optional
+
+import redis
+
 from app.config import settings
+
 
 class CacheService:
     def __init__(self):

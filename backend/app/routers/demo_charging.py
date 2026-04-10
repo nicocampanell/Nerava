@@ -4,18 +4,19 @@ Demo Charging Router
 Sandbox-only endpoints for simulating charging detection and Nova accrual.
 Gated behind DEMO_MODE=true or DEMO_QR_ENABLED=true.
 """
+import logging
+import os
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
-from datetime import datetime
-import os
-import logging
 
 from app.db import get_db
+from app.dependencies.driver import get_current_driver
 from app.models import User
 from app.models.domain import DriverWallet
-from app.dependencies.driver import get_current_driver
 from app.services.wallet_activity import mark_wallet_activity
 
 logger = logging.getLogger(__name__)

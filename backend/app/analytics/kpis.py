@@ -3,10 +3,11 @@ Key Performance Indicators (KPIs) for business metrics
 """
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
-from sqlalchemy import text
-from app.db import get_db
+from typing import Any, Dict
+
 from app.config import settings
+from app.db import get_db
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 

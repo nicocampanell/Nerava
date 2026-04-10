@@ -5,15 +5,16 @@ Handles the complete OAuth2 flow for connecting user's Tesla account.
 """
 import asyncio
 import logging
-import httpx
 import secrets
-from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlencode
+
+import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.token_encryption import encrypt_token, decrypt_token
+from app.core.token_encryption import decrypt_token, encrypt_token
 from app.models.tesla_connection import TeslaConnection
 
 logger = logging.getLogger(__name__)

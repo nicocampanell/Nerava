@@ -2,17 +2,25 @@
 Demo seed script for populating synthetic data.
 """
 import logging
-from typing import Dict, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict
+
 from sqlalchemy.orm import Session
-from app.models_demo import DemoSeedLog
+
 from app.models import User
-from app.models_extra import (
-    Follow, RewardEvent, 
-    FollowerShare, CommunityPeriod, MerchantIntelForecast,
-    UtilityBehaviorSnapshot, CityImpactSnapshot, FinanceOffer
-)
 from app.models.while_you_charge import Merchant
+from app.models_demo import DemoSeedLog
+from app.models_extra import (
+    CityImpactSnapshot,
+    CommunityPeriod,
+    FinanceOffer,
+    Follow,
+    FollowerShare,
+    MerchantIntelForecast,
+    RewardEvent,
+    UtilityBehaviorSnapshot,
+)
+
 # Utility model doesn't exist - will skip Utility creation if needed
 Utility = None  # Placeholder to prevent NameError
 

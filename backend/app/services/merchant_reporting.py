@@ -2,12 +2,14 @@
 Merchant Reporting Service
 Provides merchant summary statistics and shareable social content.
 """
-from typing import Dict, Any, List
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
 from datetime import datetime, timedelta
+from typing import Any, Dict, List
 
-from ..models.domain import MerchantRedemption, DomainMerchant
+from sqlalchemy import and_, func
+from sqlalchemy.orm import Session
+
+from ..models.domain import DomainMerchant, MerchantRedemption
+
 
 def get_merchant_summary(db: Session, merchant_id: str) -> Dict[str, Any]:
     """
@@ -95,7 +97,7 @@ def get_shareable_stats(db: Session, merchant_id: str) -> List[str]:
     if summary["last_7d_redemptions"] > 0:
         count = summary["last_7d_redemptions"]
         if count == 1:
-            lines.append(f"We supported 1 EV driver reward with Nerava this week.")
+            lines.append("We supported 1 EV driver reward with Nerava this week.")
         else:
             lines.append(f"We supported {count} EV driver rewards with Nerava this week.")
     

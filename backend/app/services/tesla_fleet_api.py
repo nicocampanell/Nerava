@@ -5,9 +5,9 @@ Provides methods to interact with Tesla Fleet API for vehicle pairing,
 telemetry data retrieval, and vehicle commands.
 """
 import logging
+from typing import Any, Dict, Optional
+
 import httpx
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
 
 from app.core.config import settings
 

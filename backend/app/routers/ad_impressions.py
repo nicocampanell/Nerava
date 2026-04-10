@@ -6,17 +6,17 @@ Records driver-side ad impressions and provides merchant-facing stats.
 import logging
 import uuid
 from datetime import datetime
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from typing import List
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies.domain import require_merchant_admin
+from app.dependencies_domain import get_current_user
 from app.models import User
 from app.models.ad_impression import AdImpression
-from app.dependencies_domain import get_current_user
-from app.dependencies.domain import require_merchant_admin
-from app.services.merchant_onboarding_service import create_or_get_merchant_account
 from app.services.ad_billing_service import get_impression_stats
 from app.services.auth_service import AuthService
 

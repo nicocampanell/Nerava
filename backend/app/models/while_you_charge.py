@@ -6,11 +6,24 @@ Models for "While You Charge" feature
 - MerchantPerks (active rewards/offers)
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index, UniqueConstraint
-from sqlalchemy.orm import relationship
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+from sqlalchemy.orm import relationship
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON

@@ -3,8 +3,10 @@ Models for Merchant Caching
 - MerchantCache: Caches Google Places merchant data with geo cells
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, Index
+
+from sqlalchemy import Column, DateTime, Float, Index, Integer, String
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
+
 from ..db import Base
 
 try:

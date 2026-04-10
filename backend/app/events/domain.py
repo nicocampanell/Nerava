@@ -1,10 +1,11 @@
 """
 Domain events for the Nerava application
 """
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Any, Optional
-import uuid
+from typing import Optional
+
 
 @dataclass
 class DomainEvent:

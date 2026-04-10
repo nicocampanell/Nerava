@@ -1,11 +1,12 @@
 """
 Fault injection for chaos engineering and resilience testing
 """
+import logging
 import random
 import time
-import logging
-from typing import Dict, Any, Optional, List
 from enum import Enum
+from typing import Any, Dict, List
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)

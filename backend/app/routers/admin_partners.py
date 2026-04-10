@@ -4,6 +4,7 @@ Admin Partner Management Router — JWT-authenticated admin endpoints.
 Allows admins to register partners, manage API keys, and view partner details.
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -11,12 +12,11 @@ from app.dependencies import get_db
 from app.dependencies_domain import require_admin
 from app.models.user import User
 from app.schemas.partner import (
-    PartnerCreateRequest,
-    PartnerUpdateRequest,
-    PartnerResponse,
     PartnerAPIKeyCreateRequest,
     PartnerAPIKeyCreateResponse,
-    PartnerAPIKeyResponse,
+    PartnerCreateRequest,
+    PartnerResponse,
+    PartnerUpdateRequest,
 )
 from app.services.partner_service import PartnerService
 

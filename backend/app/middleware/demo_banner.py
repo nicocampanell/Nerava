@@ -1,13 +1,14 @@
 """
 Demo banner middleware to add scenario headers.
 """
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from app.core.config import is_demo
-from app.models_demo import DemoState
-from app.dependencies import get_db
-from sqlalchemy.orm import Session
 import json
+
+from app.core.config import is_demo
+from app.dependencies import get_db
+from app.models_demo import DemoState
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+
 
 class DemoBannerMiddleware(BaseHTTPMiddleware):
     """Add demo scenario headers when in demo mode."""

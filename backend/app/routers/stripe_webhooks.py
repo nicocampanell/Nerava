@@ -9,7 +9,7 @@ Existing per-service webhook endpoints remain for backward compatibility.
 import logging
 
 import stripe
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -126,8 +126,8 @@ def _handle_checkout_completed(db: Session, data_object: dict, event) -> dict:
 def _handle_subscription_event(db: Session, event_type: str, data_object: dict) -> dict:
     """Handle merchant subscription lifecycle events."""
     from app.services.merchant_subscription_service import (
-        handle_subscription_updated,
         handle_subscription_deleted,
+        handle_subscription_updated,
     )
 
     if event_type == "customer.subscription.updated":

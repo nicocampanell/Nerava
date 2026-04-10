@@ -4,24 +4,25 @@ Demo Square Endpoints
 Swagger-driven demo endpoints for creating Square sandbox orders and payments.
 Only enabled when DEMO_MODE=true and requires X-Demo-Admin-Key header.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
+import logging
+from typing import Optional
+
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
-import logging
-import httpx
 
+from ..core.config import settings
 from ..db import get_db
 from ..models.domain import DomainMerchant
 from ..services.square_orders import (
+    SquareError,
+    SquareNotConnectedError,
+    _get_square_base_url,
     create_order,
     create_payment_for_order,
-    SquareNotConnectedError,
-    SquareError,
     get_square_token_for_merchant,
-    _get_square_base_url
 )
-from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 

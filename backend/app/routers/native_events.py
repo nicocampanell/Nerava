@@ -3,21 +3,21 @@ Native App Events Router
 Receives session events from iOS native app.
 """
 import logging
-import uuid
 import time
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+import uuid
 from collections import defaultdict
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import get_db
+from app.dependencies.driver import get_current_driver
 from app.models import User
 from app.models.exclusive_session import ExclusiveSession
-from app.dependencies.driver import get_current_driver
 from app.services.analytics import get_analytics_client
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/native", tags=["native"])

@@ -3,12 +3,11 @@ Merchant acquisition funnel endpoints.
 
 Flow: Landing CTA -> /find (search) -> /preview (personalized page) -> Loom -> CTAs
 """
-import hmac
 import hashlib
+import hmac
 import logging
 import time
 import uuid
-from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db import get_db
-from app.models.while_you_charge import Merchant, ChargerMerchant, Charger
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
 from app.services.analytics import get_analytics_client
 
 logger = logging.getLogger(__name__)
@@ -122,7 +121,7 @@ async def search_businesses(
     lng: Optional[float] = Query(None),
 ):
     """Google Places text search wrapper (max 10 results)."""
-    from app.services.google_places_new import search_text, get_photo_url
+    from app.services.google_places_new import get_photo_url, search_text
 
     location_bias = None
     if lat is not None and lng is not None:

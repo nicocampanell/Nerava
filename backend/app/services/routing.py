@@ -1,6 +1,8 @@
-from typing import Dict, List, Tuple, Optional
 from math import hypot
+from typing import Dict, List, Optional, Tuple
+
 from app.services.places_google import search_nearby
+
 
 def _distance_m(a: Tuple[float,float], b: Tuple[float,float]) -> float:
     return hypot((a[0]-b[0])*111_000, (a[1]-b[1])*96_000)

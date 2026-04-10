@@ -5,7 +5,8 @@ Tracks and calculates CPM-based billing for Nerava Ads impressions.
 """
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 

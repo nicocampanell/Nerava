@@ -1,5 +1,6 @@
-from fastapi import Request, HTTPException
 from typing import Optional
+
+from fastapi import HTTPException, Request
 
 
 def resolve_user_id(request: Request, body_user_id: Optional[int]) -> int:

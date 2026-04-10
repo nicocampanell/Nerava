@@ -4,7 +4,7 @@ Domain Hub Configuration
 Single source of truth for The Domain hub in Austin.
 Defines chargers and pilot merchant IDs for the Domain pilot.
 """
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Hub identifiers
 HUB_ID = "domain"

@@ -6,9 +6,10 @@ Supports mock mode for local development.
 """
 import logging
 import secrets
-import httpx
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urlencode
+
+import httpx
 
 from app.core.config import settings
 

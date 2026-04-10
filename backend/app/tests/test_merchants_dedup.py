@@ -1,6 +1,5 @@
 """Tests for merchant deduplication logic."""
 
-import pytest
 from app.utils.names import normalize_merchant_name
 
 

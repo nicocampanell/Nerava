@@ -1,12 +1,14 @@
 # app/routers/incentives.py
-from fastapi import APIRouter, Query, Depends
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from app.services.wallet import credit_wallet  # existing wallet service
-from app.services.rewards_engine import record_reward_event
-from app.services.nova import cents_to_nova
+
 from app.db import get_db
+from app.services.nova import cents_to_nova
+from app.services.rewards_engine import record_reward_event
+from app.services.wallet import credit_wallet  # existing wallet service
 
 router = APIRouter(prefix="/v1/incentives", tags=["incentives"])
 

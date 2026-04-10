@@ -5,10 +5,11 @@ Provides decorator and helper functions for retrying failed API calls
 with exponential backoff and jitter.
 """
 import asyncio
-import random
 import logging
-from typing import Callable, TypeVar, Optional, Tuple
+import random
 from functools import wraps
+from typing import Callable, TypeVar
+
 import httpx
 
 logger = logging.getLogger(__name__)

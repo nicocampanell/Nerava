@@ -1,10 +1,11 @@
 """
 Structured logging utility for reward flows
 """
-import logging
 import json
+import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 
 def get_logger(name: str) -> logging.Logger:
     """Get a logger with JSON-like structured output"""

@@ -1,11 +1,13 @@
 """Pool API router."""
 
-from fastapi import APIRouter, Query, Depends
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
-from datetime import datetime, timedelta, time, timezone
 from zoneinfo import ZoneInfo
-from sqlalchemy.orm import Session
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.db import get_db
 from app.utils.log import get_logger
 

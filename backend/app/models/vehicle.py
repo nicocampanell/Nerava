@@ -2,11 +2,13 @@
 Vehicle models for Smartcar integration
 """
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Float, Text
-from sqlalchemy.orm import relationship
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+from sqlalchemy.orm import relationship
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON  # for non-sqlite engines

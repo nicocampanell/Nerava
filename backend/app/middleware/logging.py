@@ -1,8 +1,9 @@
-import time
-import uuid
 import json
 import logging
-from fastapi import Request, HTTPException
+import time
+import uuid
+
+from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)

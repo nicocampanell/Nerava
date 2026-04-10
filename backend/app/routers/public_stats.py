@@ -1,8 +1,8 @@
 """Public stats endpoint for social proof (no auth required)."""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User

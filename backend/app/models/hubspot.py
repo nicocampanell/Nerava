@@ -4,10 +4,12 @@ HubSpot Outbox Model
 P3: Stores HubSpot events for dry-run and replay.
 """
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Index
+
+from sqlalchemy import Column, DateTime, Index, Integer, String, Text
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON  # for non-sqlite engines

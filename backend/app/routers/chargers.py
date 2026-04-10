@@ -1,22 +1,24 @@
 # app/routers/chargers.py
+import json
+import logging
+import math
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Query, HTTPException, Header
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from app.services.chargers_openmap import fetch_chargers
+
 from app.db import SessionLocal, get_db
+from app.dependencies.driver import get_current_driver
 from app.models import User
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
+from app.models.campaign import Campaign
 from app.models.favorite_charger import FavoriteCharger
 from app.models.session_event import SessionEvent
-from app.models.campaign import Campaign
-from app.dependencies.driver import get_current_driver
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
+from app.services.chargers_openmap import fetch_chargers
 from app.services.google_places_new import _haversine_distance
-import math
-import json
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -604,6 +606,7 @@ async def search_chargers(
     Uses Google Geocoding to resolve the query, then finds nearby chargers.
     """
     import os
+
     import httpx
 
     db = SessionLocal()
@@ -774,6 +777,7 @@ async def trigger_seed(
 
     def _run_seed():
         import asyncio
+
         from scripts.seed_chargers_bulk import seed_chargers
         from scripts.seed_merchants_city import seed_city
 
@@ -861,7 +865,8 @@ async def trigger_grid_seed(
 
     def _run_grid_seed():
         import asyncio
-        from scripts.seed_chargers_grid import seed_chargers_grid, PROGRESS_FILE
+
+        from scripts.seed_chargers_grid import PROGRESS_FILE, seed_chargers_grid
 
         _grid_seed_status["running"] = True
         _grid_seed_status["started_at"] = datetime.utcnow().isoformat()

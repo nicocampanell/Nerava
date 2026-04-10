@@ -10,13 +10,13 @@ Endpoints for the Phase 0 flow:
 - Promo code redemption
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.while_you_charge import Merchant
-from app.utils.ev_browser import require_ev_browser
 from app.services import arrival_service_v2 as service
 
 logger = logging.getLogger(__name__)

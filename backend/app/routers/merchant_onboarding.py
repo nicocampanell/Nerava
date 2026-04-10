@@ -9,44 +9,41 @@ Handles merchant onboarding endpoints:
 """
 import logging
 import secrets
-import uuid
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import get_db
-from app.models import User, MerchantAccount
 from app.dependencies_domain import get_current_user
+from app.models import User
 from app.schemas.merchant_onboarding import (
-    GoogleAuthStartResponse,
-    GoogleAuthCallbackResponse,
-    LocationsListResponse,
-    LocationSummary,
     ClaimLocationRequest,
     ClaimLocationResponse,
-    SetupIntentRequest,
+    GoogleAuthStartResponse,
+    LocationsListResponse,
+    LocationSummary,
     SetupIntentResponse,
     UpdatePlacementRequest,
     UpdatePlacementResponse,
 )
 from app.services.google_business_profile import (
-    get_oauth_authorize_url,
     exchange_oauth_code,
-    list_locations,
+    get_oauth_authorize_url,
     get_user_info,
+    list_locations,
 )
 from app.services.merchant_onboarding_service import (
+    claim_location,
     create_or_get_merchant_account,
-    store_oauth_state,
-    validate_oauth_state,
-    store_oauth_tokens,
+    create_setup_intent,
     get_valid_access_token,
     link_location_to_merchant,
-    claim_location,
-    create_setup_intent,
+    store_oauth_state,
+    store_oauth_tokens,
     update_placement_rule,
+    validate_oauth_state,
 )
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +99,7 @@ async def google_auth_callback(
         # Validate state (best-effort — in-memory store doesn't survive across instances)
         state_data = validate_oauth_state(state)
         if not state_data:
-            logger.warning(f"OAuth state not found (likely cross-instance). Proceeding with config redirect_uri.")
+            logger.warning("OAuth state not found (likely cross-instance). Proceeding with config redirect_uri.")
 
         redirect_uri = (state_data or {}).get("redirect_uri", "")
         if not redirect_uri:

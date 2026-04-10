@@ -1,12 +1,13 @@
 """
 Twilio Verify OTP provider implementation
 """
-import logging
 import asyncio
-from typing import Optional
-from twilio.rest import Client
-from twilio.http.http_client import TwilioHttpClient
+import logging
+
 from twilio.base.exceptions import TwilioException
+from twilio.http.http_client import TwilioHttpClient
+from twilio.rest import Client
+
 from ...core.config import settings
 from .otp_provider import OTPProvider
 

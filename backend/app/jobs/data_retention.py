@@ -9,21 +9,22 @@ Run command:
 Or via script:
     cd backend && python -m app.jobs.data_retention
 """
-import sys
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
-from app.models import IntentSession, ExclusiveSession
-from app.models.otp_challenge import OTPChallenge
-from app.models.claim_session import ClaimSession
-from app.models.vehicle_onboarding import VehicleOnboarding
-from app.models.merchant_cache import MerchantCache
 import logging
+
+from app.db import SessionLocal
+from app.models import ExclusiveSession, IntentSession
+from app.models.claim_session import ClaimSession
+from app.models.merchant_cache import MerchantCache
+from app.models.otp_challenge import OTPChallenge
+from app.models.vehicle_onboarding import VehicleOnboarding
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

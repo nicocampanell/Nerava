@@ -4,10 +4,10 @@ Falls back to in-memory rate limiting if Redis is unavailable (local dev only).
 """
 import os
 import time
-from typing import Optional, Dict, Tuple
-from fastapi import HTTPException
-from threading import Lock
 from collections import defaultdict
+from threading import Lock
+
+from fastapi import HTTPException
 
 logger = None
 try:
@@ -35,8 +35,9 @@ def _get_redis_client():
         return _redis_client if _redis_available else None
     
     try:
-        from app.config import settings
         import redis
+
+        from app.config import settings
         
         redis_url = os.getenv("REDIS_URL", settings.redis_url)
         if not redis_url or redis_url.startswith("redis://localhost") and "REDIS_URL" not in os.getenv("DATABASE_URL", ""):

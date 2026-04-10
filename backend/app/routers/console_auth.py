@@ -8,13 +8,13 @@ POST /v1/console/auth/email-otp/verify  → verify code, return JWT
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
+from ..core.security import create_access_token
 from ..db import get_db
 from ..models import User, UserPreferences
-from ..core.security import create_access_token
 from ..services.email_otp_service import EmailOTPService
 from ..services.refresh_token_service import RefreshTokenService
 

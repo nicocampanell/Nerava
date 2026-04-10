@@ -1,16 +1,24 @@
 """
 Service for fetching merchant details
 """
-import os
-import math
 import logging
-from typing import Optional, Dict, Any
+import math
+import os
 from datetime import datetime
-from sqlalchemy.orm import Session
+from typing import Any, Dict, Optional
+
 from sqlalchemy import func
-from app.models.while_you_charge import Merchant, MerchantPerk, ChargerMerchant, AmenityVote
-from app.models.intent import IntentSession
-from app.schemas.merchants import MerchantDetailsResponse, MerchantInfo, MomentInfo, PerkInfo, WalletInfo, ActionsInfo
+from sqlalchemy.orm import Session
+
+from app.models.while_you_charge import AmenityVote, ChargerMerchant, Merchant, MerchantPerk
+from app.schemas.merchants import (
+    ActionsInfo,
+    MerchantDetailsResponse,
+    MerchantInfo,
+    MomentInfo,
+    PerkInfo,
+    WalletInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -351,8 +359,9 @@ async def get_merchant_details(
     can_add = perk_info is not None
     if session_id and merchant.id and not merchant.id.startswith("m_mock_"):
         # Check if wallet pass already exists
-        from app.models.wallet_pass import WalletPassActivation, WalletPassStateEnum
         from datetime import datetime
+
+        from app.models.wallet_pass import WalletPassActivation, WalletPassStateEnum
         existing_pass = db.query(WalletPassActivation).filter(
             WalletPassActivation.session_id == session_id,
             WalletPassActivation.merchant_id == merchant.id,
@@ -394,8 +403,8 @@ async def get_merchant_details(
     # Build reward state (for CTA logic in frontend)
     reward_state_data = None
     try:
-        from app.services.merchant_reward_service import get_merchant_reward_state
         from app.schemas.merchants import MerchantRewardStateInfo
+        from app.services.merchant_reward_service import get_merchant_reward_state
         raw_state = get_merchant_reward_state(
             db=db,
             place_id=getattr(merchant, 'place_id', None),

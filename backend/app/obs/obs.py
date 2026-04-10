@@ -1,13 +1,13 @@
 """
 Observability core utilities for structured logging and metrics.
 """
-import uuid
-import time
 import logging
-from typing import Dict, Any, Optional
-from fastapi import Request
+import uuid
 from collections import defaultdict
 from threading import Lock
+from typing import Any, Dict
+
+from fastapi import Request
 
 logger = logging.getLogger(__name__)
 

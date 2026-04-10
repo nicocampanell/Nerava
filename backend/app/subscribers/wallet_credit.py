@@ -2,9 +2,8 @@
 Wallet credit event subscriber
 """
 import logging
-from typing import Dict, Any
+
 from app.events.domain import ChargeStoppedEvent, WalletCreditedEvent
-from app.services.wallet_service import wallet_service
 from app.services.circuit_breaker import wallet_circuit_breaker
 
 logger = logging.getLogger(__name__)
@@ -34,8 +33,8 @@ async def handle_charge_stopped(event: ChargeStoppedEvent):
                 logger.info(f"Successfully credited {reward_cents} cents to {event.user_id}. New balance: {new_balance}")
                 
                 # Publish wallet credited event
-                from app.events.domain import WalletCreditedEvent
                 from app.events.bus import event_bus
+                from app.events.domain import WalletCreditedEvent
                 
                 wallet_event = WalletCreditedEvent(
                     user_id=event.user_id,
