@@ -1,3 +1,4 @@
+import os
 """
 Google Distance Matrix API client
 https://developers.google.com/maps/documentation/distance-matrix
@@ -10,7 +11,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Hardcoded API key (same as Places API)
-GOOGLE_DISTANCE_MATRIX_API_KEY = "AIzaSyAs0PVYXj3-ztRXCjdd0ztUGUSjQR73FFg"
+GOOGLE_DISTANCE_MATRIX_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 GOOGLE_DISTANCE_MATRIX_BASE_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
 

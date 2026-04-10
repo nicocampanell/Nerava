@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import requests
 
 # Hardcoded API key (no longer reads from environment variables)
-API_KEY = "AIzaSyAs0PVYXj3-ztRXCjdd0ztUGUSjQR73FFg"
+API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 # ---------- Local SQLite (sidecar used by merchants_local) ----------
 DB_PATH = os.getenv(

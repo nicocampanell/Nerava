@@ -1,3 +1,4 @@
+import os
 """
 PWA Response Shaping Utilities
 
@@ -24,7 +25,7 @@ def google_photo_url(photo_reference: Optional[str], max_width: int = 160) -> Op
         return None
     
     # Hardcoded API key (matches other Google Places integrations)
-    API_KEY = "AIzaSyAs0PVYXj3-ztRXCjdd0ztUGUSjQR73FFg"
+    API_KEY = os.getenv("GOOGLE_API_KEY", "")
     
     return (
         "https://maps.googleapis.com/maps/api/place/photo"

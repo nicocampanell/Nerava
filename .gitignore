@@ -115,3 +115,4 @@ nerava-backend-v9/nerava.db*
 /ui-mobile/playwright-report/
 /ui-mobile/videos/
 /ui-mobile/traces/
+backend/logs/
