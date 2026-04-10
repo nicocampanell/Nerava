@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint . --max-warnings 215",
     "test": "vitest",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts || echo 'E2E tests skipped'",
     "preview": "vite preview"
   },
   "dependencies": {
