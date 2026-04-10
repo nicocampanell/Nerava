@@ -380,3 +380,4 @@ class IncentiveEngine:
             # Overnight window
             return time_str >= start or time_str <= end
 # Audit: round 6 review trigger
+# Round 6 audit trigger - all CI green
