@@ -191,6 +191,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
             db.commit()
         except Exception as e:
             # Don't fail registration if HubSpot tracking fails
+            db.rollback()
             import logging
 
             logging.getLogger(__name__).warning(f"HubSpot tracking failed: {e}")
@@ -302,12 +303,14 @@ async def request_magic_link(
 
         if not user:
             try:
-                # Create new user with placeholder password (magic-link only)
-                # Use a dummy password hash - user can set real password later if needed
-                placeholder_password = "magic-link-user-no-password"
+                # Create new user with unguessable random password (magic-link only)
+                # User can set real password later if needed
+                import secrets
+
+                random_password = secrets.token_urlsafe(32)
                 user = User(
                     email=email,
-                    password_hash=hash_password(placeholder_password),
+                    password_hash=hash_password(random_password),
                     is_active=True,
                     auth_provider="local",  # Required field with default, but explicit is safer
                 )
@@ -354,22 +357,18 @@ async def request_magic_link(
             """,
         )
 
-        # In dev/staging or when DEBUG_RETURN_MAGIC_LINK is enabled, log and return the link
-        if not settings.is_prod or settings.DEBUG_RETURN_MAGIC_LINK:
-            # CRITICAL: Log the magic link URL so it appears in Railway logs for easy copy-paste
+        # In dev/staging, log and return the link for debugging
+        if not settings.is_prod and settings.DEBUG_RETURN_MAGIC_LINK:
             logger.info("MAGIC_LINK DEBUG URL for %s: %s", email, magic_link_url)
-            print(f"MAGIC_LINK DEBUG URL for {email}: {magic_link_url}", flush=True)
             return {
                 "message": "Magic link generated (DEBUG MODE)",
                 "email": email,
                 "magic_link_url": magic_link_url,
             }
 
-        # Production behavior: don't expose token in response
-        # But still log it in non-prod for debugging
+        # Non-prod: log the link for debugging but don't return it in response
         if not settings.is_prod:
             logger.info("MAGIC_LINK DEBUG URL for %s: %s", email, magic_link_url)
-            print(f"MAGIC_LINK DEBUG URL for {email}: {magic_link_url}", flush=True)
 
         return {"message": "Magic link sent to your email", "email": email}
     except HTTPException:
@@ -564,30 +563,34 @@ async def merchant_google_auth(
         user = db.query(User).filter(User.email == email, User.auth_provider == "google").first()
 
         is_new_user = False
-        if not user:
-            # Create new merchant user
-            import uuid
+        try:
+            if not user:
+                # Create new merchant user
+                import uuid
 
-            user = User(
-                public_id=str(uuid.uuid4()),
-                email=email,
-                auth_provider="google",
-                provider_sub=provider_sub,
-                role_flags="merchant_admin",
-                is_active=True,
-            )
-            db.add(user)
-            db.flush()
-            db.add(UserPreferences(user_id=user.id))
-            db.commit()
-            db.refresh(user)
-            is_new_user = True
-            logger.info(f"[Auth][Merchant] Created new merchant user_id={user.public_id}")
-        else:
-            # Update provider_sub if changed
-            if user.provider_sub != provider_sub:
-                user.provider_sub = provider_sub
+                user = User(
+                    public_id=str(uuid.uuid4()),
+                    email=email,
+                    auth_provider="google",
+                    provider_sub=provider_sub,
+                    role_flags="merchant_admin",
+                    is_active=True,
+                )
+                db.add(user)
+                db.flush()
+                db.add(UserPreferences(user_id=user.id))
                 db.commit()
+                db.refresh(user)
+                is_new_user = True
+                logger.info(f"[Auth][Merchant] Created new merchant user_id={user.public_id}")
+            else:
+                # Update provider_sub if changed
+                if user.provider_sub != provider_sub:
+                    user.provider_sub = provider_sub
+                    db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
         # Create access token with role=merchant
         access_token = create_access_token(

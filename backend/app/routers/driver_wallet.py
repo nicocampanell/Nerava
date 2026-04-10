@@ -326,6 +326,7 @@ async def create_dwolla_account(
             "payout_provider": "dwolla",
         }
     except Exception as e:
+        db.rollback()
         logger.error(f"Failed to create Dwolla account for driver {current_user.id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to create payout account")
 

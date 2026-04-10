@@ -1,50 +1,35 @@
-# CRITICAL: Early startup logging BEFORE any other imports
-# This helps diagnose container startup issues in App Runner
-import sys
-
-print("=" * 60, flush=True)
-print("[STARTUP] Nerava Backend - Python interpreter started", flush=True)
-print(f"[STARTUP] Python version: {sys.version}", flush=True)
-print(f"[STARTUP] sys.path: {sys.path[:3]}...", flush=True)
-print("=" * 60, flush=True)
-
-import os
-
-print(f"[STARTUP] ENV={os.getenv('ENV', 'not set')}", flush=True)
-print(f"[STARTUP] PORT={os.getenv('PORT', 'not set')}", flush=True)
-print(f"[STARTUP] DATABASE_URL set: {bool(os.getenv('DATABASE_URL'))}", flush=True)
-print("[STARTUP] Importing FastAPI...", flush=True)
-
 import asyncio
 import logging
+import os
+import sys
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 
-print("[STARTUP] FastAPI imported successfully", flush=True)
-
 # Load environment variables from .env file
 load_dotenv()
 
-print("[STARTUP] Loading config...", flush=True)
-from .config import settings
+from .config import settings  # noqa: E402
+from .db import get_engine  # noqa: E402
 
-print(
-    f"[STARTUP] Config loaded. database_url starts with: {settings.database_url[:20]}...",
-    flush=True,
-)
 
-print("[STARTUP] Loading database module (lazy init)...", flush=True)
-try:
-    from .db import get_engine
+def _log_startup_diagnostics():
+    """Log startup diagnostics after logger is configured."""
+    logger.info("=" * 60)
+    logger.info("Nerava Backend - Python interpreter started")
+    logger.info("Python version: %s", sys.version)
+    logger.info("ENV=%s", os.getenv("ENV", "not set"))
+    logger.info("PORT=%s", os.getenv("PORT", "not set"))
+    logger.info("DATABASE_URL set: %s", bool(os.getenv("DATABASE_URL")))
+    try:
+        from urllib.parse import urlparse
 
-    print("[STARTUP] Database module loaded (engine not yet created)", flush=True)
-except Exception as e:
-    print(f"[STARTUP ERROR] Failed to import database module: {e}", flush=True)
-    import traceback
-
-    traceback.print_exc()
-    raise
+        parsed = urlparse(settings.database_url)
+        db_safe = f"{parsed.scheme}://{parsed.hostname or 'unknown'}/**"
+    except Exception:
+        db_safe = "(unparseable)"
+    logger.info("Config loaded. database_url: %s", db_safe)
+    logger.info("=" * 60)
 
 
 # Configure logging for production visibility
@@ -57,8 +42,7 @@ logging.basicConfig(
 # Use a consistent logger name for all app logs
 logger = logging.getLogger("nerava")
 logger.info("Starting Nerava Backend v9")
-
-print("[STARTUP] Logging configured, continuing initialization...", flush=True)
+_log_startup_diagnostics()
 
 # Initialize Sentry error tracking (only in non-local environments when SENTRY_DSN is set)
 sentry_dsn = os.getenv("SENTRY_DSN")
@@ -454,14 +438,11 @@ from .services.nova_accrual import nova_accrual_service
 
 app = FastAPI(title="Nerava Backend v9", version="0.9.0")
 
-# CRITICAL DEBUG: Confirm app object is created
-print("=" * 60, flush=True)
-print("[STARTUP] FastAPI app object created", flush=True)
-print("[STARTUP] App title: Nerava Backend v9", flush=True)
-print("[STARTUP] App version: 0.9.0", flush=True)
-print("=" * 60, flush=True)
 logger.info("=" * 60)
 logger.info("[STARTUP] FastAPI app object created")
+logger.info("[STARTUP] App title: Nerava Backend v9")
+logger.info("[STARTUP] App version: 0.9.0")
+logger.info("=" * 60)
 logger.info("[STARTUP] App title: Nerava Backend v9")
 logger.info("[STARTUP] App version: 0.9.0")
 logger.info("=" * 60)
@@ -577,12 +558,15 @@ async def root_readyz():
         """Check database connectivity with timeout"""
         try:
             engine = get_engine()
+
+            def _ping_db():
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1")).fetchone()
+
             # Run in thread pool since SQLAlchemy is synchronous
             loop = asyncio.get_event_loop()
             await asyncio.wait_for(
-                loop.run_in_executor(
-                    None, lambda: engine.connect().execute(text("SELECT 1")).fetchone()
-                ),
+                loop.run_in_executor(None, _ping_db),
                 timeout=2.0,
             )
             checks["database"]["status"] = "ok"
@@ -1222,8 +1206,9 @@ async def ops_seed_merchants_city(city: str = "", key: str = ""):
     def _run_city_seed(jid, city_name):
         import asyncio
 
-        from app.db import SessionLocal
         from scripts.seed_merchants_city import seed_city
+
+        from app.db import SessionLocal
 
         _seed_jobs[jid]["status"] = "running"
         db = SessionLocal()
@@ -1516,10 +1501,10 @@ register_exception_handlers(app)
 @app.on_event("startup")
 async def start_nova_accrual():
     """Start Nova accrual service for demo mode - non-blocking startup"""
-    print("[STARTUP] Startup event entered", flush=True)
     logger.info("[STARTUP] Startup event entered")
 
     # One-time exclusive title update (safe to remove after deploy)
+    _db = None
     try:
         from sqlalchemy import func as _func
 
@@ -1550,10 +1535,7 @@ async def start_nova_accrual():
             _db.query(_WYCMerchant).filter(_WYCMerchant.id.in_(_mids)).update(
                 {_WYCMerchant.perk_label: _new_title}, synchronize_session=False
             )
-            print(
-                f"[STARTUP] Updated {_n} CM links + {len(_mids)} WYC merchants → {_new_title}",
-                flush=True,
-            )
+            logger.info("Updated %d CM links + %d WYC merchants -> %s", _n, len(_mids), _new_title)
         # Also update DomainMerchant perk_label
         _dm_n = (
             _db.query(_DM)
@@ -1564,11 +1546,15 @@ async def start_nova_accrual():
             .update({_DM.perk_label: _new_title}, synchronize_session=False)
         )
         if _dm_n:
-            print(f"[STARTUP] Updated {_dm_n} DomainMerchants → {_new_title}", flush=True)
+            logger.info("Updated %d DomainMerchants -> %s", _dm_n, _new_title)
         _db.commit()
-        _db.close()
     except Exception as _e:
-        print(f"[STARTUP] Exclusive fix skipped: {_e}", flush=True)
+        if _db is not None:
+            _db.rollback()
+        logger.warning("Exclusive fix skipped: %s", _e)
+    finally:
+        if _db is not None:
+            _db.close()
 
     # Check startup mode (light mode skips optional workers for faster startup)
     startup_mode = os.getenv("APP_STARTUP_MODE", "light").lower()

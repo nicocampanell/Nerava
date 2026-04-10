@@ -487,11 +487,10 @@ def validate_config():
     # Validate Google OAuth configuration if merchant SSO is enabled
     # Note: We check if Google client ID is set as a proxy for merchant SSO being enabled
     if settings.is_prod and settings.GOOGLE_OAUTH_CLIENT_ID:
+        # Require client secret for code exchange flow
         missing = []
-        if not settings.GOOGLE_OAUTH_CLIENT_ID:
-            missing.append("GOOGLE_OAUTH_CLIENT_ID")
-        # Note: GOOGLE_OAUTH_CLIENT_SECRET may not be required if using ID token flow only
-        # But we'll require it for code exchange flow
+        if not settings.GOOGLE_OAUTH_CLIENT_SECRET:
+            missing.append("GOOGLE_OAUTH_CLIENT_SECRET")
         if missing:
             error_msg = f"Google OAuth enabled in production but missing required configuration: {', '.join(missing)}"
             logger.error(error_msg)

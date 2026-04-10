@@ -96,8 +96,9 @@ export function useSessionPolling() {
                 if (!cancelled) schedulePoll(pollIntervalRef.current)
               } catch (err) {
                 if (isAuthError(err)) {
-                  // Auth failed — stop polling entirely, don't retry
+                  // Auth failed — stop polling entirely, broadcast session-expired
                   console.warn('[SessionPolling] Auth error, stopping poll', err)
+                  window.dispatchEvent(new CustomEvent('nerava:session-expired'))
                   return
                 }
                 // Transient error — retry after 30s
@@ -136,6 +137,7 @@ export function useSessionPolling() {
       } catch (err) {
         if (isAuthError(err)) {
           console.warn('[SessionPolling] Auth error, stopping poll', err)
+          window.dispatchEvent(new CustomEvent('nerava:session-expired'))
           return
         }
         // On transient error, retry after 30s

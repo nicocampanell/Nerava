@@ -139,15 +139,27 @@ class TeslaOAuthState(Base):
         if not row:
             return None
         if row.expires_at < datetime.utcnow():
-            db.delete(row)
-            db.commit()
+            try:
+                db.delete(row)
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
             return None
         data = json.loads(row.data_json)
-        db.delete(row)
-        db.commit()
+        try:
+            db.delete(row)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         return data
 
     @classmethod
     def cleanup_expired(cls, db: Session):
-        db.query(cls).filter(cls.expires_at < datetime.utcnow()).delete()
-        db.commit()
+        try:
+            db.query(cls).filter(cls.expires_at < datetime.utcnow()).delete()
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise

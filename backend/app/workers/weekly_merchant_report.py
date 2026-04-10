@@ -194,10 +194,17 @@ class WeeklyMerchantReportWorker:
                     </div>
                     """
 
-                    email_sender.send(
-                        to=owner.email,
+                    body_text = (
+                        f"Your Nerava Weekly Report\n\n"
+                        f"This week: {this_total} EV sessions\n"
+                        f"{change_str} vs last week\n\n"
+                        f"View your dashboard: {portal_url}"
+                    )
+                    email_sender.send_email(
+                        to_email=owner.email,
                         subject=f"Your Nerava Weekly Report — {this_total} EV sessions",
-                        html=html,
+                        body_text=body_text,
+                        body_html=html,
                     )
                     logger.info(f"Sent weekly report to {owner.email} for merchant {merchant.id}")
 

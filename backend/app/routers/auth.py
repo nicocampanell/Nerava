@@ -181,16 +181,20 @@ async def logout(
     If refresh_token is provided, revoke that specific token.
     Otherwise, revoke all tokens for the current user.
     """
-    if payload.refresh_token:
-        # Revoke specific token
-        token = RefreshTokenService.validate_refresh_token(db, payload.refresh_token)
-        if token:
-            RefreshTokenService.revoke_refresh_token(db, token)
+    try:
+        if payload.refresh_token:
+            # Revoke specific token
+            token = RefreshTokenService.validate_refresh_token(db, payload.refresh_token)
+            if token:
+                RefreshTokenService.revoke_refresh_token(db, token)
+                db.commit()
+        elif current_user:
+            # Revoke all tokens for current user
+            RefreshTokenService.revoke_all_user_tokens(db, current_user.id)
             db.commit()
-    elif current_user:
-        # Revoke all tokens for current user
-        RefreshTokenService.revoke_all_user_tokens(db, current_user.id)
-        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return LogoutResponse(ok=True)
 
@@ -290,6 +294,7 @@ async def auth_google(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Google auth error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -385,6 +390,7 @@ async def auth_apple(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Apple auth error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -602,6 +608,7 @@ async def otp_verify(
                 "error": str(e),
             },
         )
+        db.rollback()
         logger.error(f"[Auth][OTP] OTP verify exception: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

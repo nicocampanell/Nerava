@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.env import is_local_env
 from app.db import get_db
+from app.dependencies.domain import get_current_user
 from app.dependencies.driver import get_current_driver, get_current_driver_optional
 from app.models import User
 from app.models.domain import DomainMerchant
@@ -60,17 +61,6 @@ def _verify_merchant_ownership(db: Session, user: User, wyc_merchant_id: str) ->
         if wyc_merchant.external_id
         else None
     )
-
-    if not domain_merchant:
-        # Fallback: match by name (case-insensitive)
-        domain_merchant = (
-            db.query(DomainMerchant)
-            .filter(
-                DomainMerchant.owner_user_id == user.id,
-                DomainMerchant.name.ilike(wyc_merchant.name),
-            )
-            .first()
-        )
 
     if not domain_merchant:
         raise HTTPException(
@@ -550,6 +540,17 @@ async def activate_exclusive(
                 visit_number = (latest.visit_number if latest else 0) + 1
                 verification_code = f"{region_code}-{wyc_m.short_code}-{str(visit_number).zfill(3)}"
 
+                # Reserve the visit number atomically in the same transaction
+                reserved_visit = VerifiedVisit(
+                    merchant_id=wyc_m.id,
+                    visit_number=visit_number,
+                    verification_code=verification_code,
+                    verified_at=now,
+                    status="reserved",
+                )
+                db.add(reserved_visit)
+                db.flush()
+
         session = ExclusiveSession(
             id=generate_session_id(),
             driver_id=driver.id,
@@ -963,7 +964,11 @@ async def get_active_exclusive(
         # Mark as expired
         active_session.status = ExclusiveSessionStatus.EXPIRED
         active_session.updated_at = datetime.now(timezone.utc)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
         log_event(
             "exclusive_expired",
@@ -980,7 +985,11 @@ async def get_active_exclusive(
             return ActiveExclusiveResponse(exclusive_session=None)
     else:
         remaining_seconds = int((effective_expiry - datetime.now(timezone.utc)).total_seconds())
-        db.commit()  # Persist any expiry extension from _compute_effective_expiry
+        try:
+            db.commit()  # Persist any expiry extension from _compute_effective_expiry
+        except Exception:
+            db.rollback()
+            raise
 
     return ActiveExclusiveResponse(
         exclusive_session=_enrich_session_response(db, active_session, remaining_seconds)
@@ -1326,7 +1335,7 @@ async def get_merchant_visits(
     merchant_id: str,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    user: User = Depends(get_current_driver),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -1409,7 +1418,7 @@ class VisitLookupResponse(BaseModel):
 @router.get("/visits/lookup/{verification_code}", response_model=VisitLookupResponse)
 async def lookup_visit(
     verification_code: str,
-    user: User = Depends(get_current_driver),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -1463,7 +1472,7 @@ class MarkRedeemedRequest(BaseModel):
 async def mark_visit_redeemed(
     verification_code: str,
     request: MarkRedeemedRequest,
-    user: User = Depends(get_current_driver),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -1502,7 +1511,22 @@ async def mark_visit_redeemed(
     visit.redeemed_at = datetime.now(timezone.utc)
     visit.order_reference = request.order_reference
     visit.redemption_notes = request.notes
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            "visit_redeem_failed",
+            extra={
+                "verification_code": verification_code.upper(),
+                "merchant_id": visit.merchant_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to redeem visit",
+        ) from None
 
     logger.info(
         f"[Exclusive][Redeem] Visit {verification_code} marked as redeemed, "

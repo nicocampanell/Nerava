@@ -98,6 +98,12 @@ if (typeof document !== 'undefined' && !_tokenRefreshListenersBound) {
   }
 }
 
+const API_DEBUG = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG === 'true'
+
+function apiDebug(...args: unknown[]) {
+  if (API_DEBUG) console.debug(...args)
+}
+
 // Check if mock mode is enabled - default to backend mode unless explicitly set
 export function isMockMode(): boolean {
   return import.meta.env.VITE_MOCK_MODE === 'true'
@@ -135,7 +141,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  console.log('[API] Fetching:', url, options)
+  apiDebug('[API] Fetching:', url, { method: options?.method })
 
   try {
     const response = await fetch(url, {
@@ -143,7 +149,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
       headers,
     })
 
-    console.log('[API] Response status:', response.status, response.statusText)
+    apiDebug('[API] Response status:', response.status, response.statusText)
 
     // Handle 401 Unauthorized - try token refresh
     if (response.status === 401 && retryOn401) {
@@ -183,7 +189,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
             }
 
             const retryData = await retryResponse.json()
-            console.log('[API] Retry response data:', retryData)
+            apiDebug('[API] Retry response received')
             return retryData
           } else {
             // Refresh failed, clear tokens
@@ -226,7 +232,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
           errorData = { message: response.statusText }
         }
       }
-      console.error('[API] Error response:', errorData)
+      apiDebug('[API] Error response:', { status: response.status })
       // Handle FastAPI's standard error format: {detail: "..."} or {error: "...", message: "..."}
       const errorMessage = errorData.message || errorData.detail || response.statusText
       const errorCode = errorData.error || (response.status >= 500 ? 'server_error' : undefined)
@@ -238,7 +244,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
     }
 
     const data = await response.json()
-    console.log('[API] Response data:', data)
+    apiDebug('[API] Response received')
     return data
   } catch (error) {
     // Don't log 401 errors when retryOn401 is false (expected for anonymous users)
@@ -327,9 +333,8 @@ export function useIntentCapture(request: CaptureIntentRequest | null) {
         }, hasToken) // Only retry token refresh if user has a token
 
         // Debug: Log raw API response before validation
-        console.log('[API] Raw intent capture response:', {
+        apiDebug('[API] Raw intent capture response:', {
           merchants_count: Array.isArray((data as any)?.merchants) ? (data as any).merchants.length : 'not array',
-          merchants: (data as any)?.merchants,
           charger_summary: (data as any)?.charger_summary,
           confidence_tier: (data as any)?.confidence_tier,
         })
@@ -338,9 +343,8 @@ export function useIntentCapture(request: CaptureIntentRequest | null) {
         const validated = validateResponse(CaptureIntentResponseSchema, data, '/v1/intent/capture') as unknown as CaptureIntentResponse
 
         // Debug: Log validated response
-        console.log('[API] Validated intent capture response:', {
+        apiDebug('[API] Validated intent capture response:', {
           merchants_count: validated.merchants?.length || 0,
-          merchants: validated.merchants,
           charger_summary: validated.charger_summary,
           confidence_tier: validated.confidence_tier,
         })

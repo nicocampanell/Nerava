@@ -3,7 +3,7 @@ Google OAuth service with GBP (Google Business Profile) access verification
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from fastapi import HTTPException, status
@@ -171,7 +171,7 @@ class GoogleOAuthService:
     @staticmethod
     async def verify_and_check_gbp(
         id_token: str, access_token: Optional[str] = None
-    ) -> tuple[Dict[str, Any], List[Dict[str, str]]]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """
         Verify ID token and check GBP access in one call.
 

@@ -6,30 +6,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - run: pip install -r requirements.txt
-      - run: pip install pytest
-      - run: pytest -q
+        with: { python-version: '3.10' }
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+      - name: Run ruff check
+        run: ruff check backend/app/
+      - name: Run tests
+        working-directory: backend
+        run: pytest -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-pytest-artifacts
           path: |
             .pytest_cache
-  ui:
+  driver:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/driver
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - working-directory: ui-mobile
-        run: npm ci || npm install
-      - working-directory: ui-mobile
-        run: npx playwright install --with-deps
-      - working-directory: ui-mobile
-        run: npx playwright test
-      - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: ui-playwright-artifacts
-          path: ui-mobile/test-artifacts
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/driver/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
