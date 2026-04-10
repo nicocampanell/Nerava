@@ -3,14 +3,14 @@ Admin Tesla Fleet API tooling.
 
 Temporary admin endpoint for one-off Tesla Fleet API inspection calls
 (e.g. verifying `nearby_charging_sites` response shape for a specific
-admin user's own Tesla). Requires admin role.
+user's Tesla). Requires admin role.
 """
 
 import logging
 from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
@@ -18,6 +18,7 @@ from app.dependencies_domain import require_admin
 from app.models.tesla_connection import TeslaConnection
 from app.models.user import User
 from app.services.tesla_oauth import get_tesla_oauth_service, get_valid_access_token
+from app.utils.phone import normalize_phone
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["admin-tesla"])
@@ -25,20 +26,55 @@ router = APIRouter(tags=["admin-tesla"])
 
 @router.get("/v1/admin/tesla/nearby-charging-sites")
 async def admin_nearby_charging_sites(
+    user_id: Optional[str] = Query(
+        None,
+        description="Target user UUID whose Tesla connection to use. Defaults to admin caller's own.",
+    ),
+    phone: Optional[str] = Query(
+        None,
+        description="Target user phone (any format). Used only if user_id is not provided.",
+    ),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
-    Call Tesla Fleet API `nearby_charging_sites` for the admin user's own Tesla.
+    Call Tesla Fleet API `nearby_charging_sites` for a target user's Tesla.
 
-    Uses the admin caller's TeslaConnection (no user_id param — intentionally
-    limited to self-service to avoid cross-user data exposure). Returns the
-    raw Tesla response unfiltered so we can verify field shapes.
+    Precedence: `user_id` query param > `phone` query param > admin caller's own.
+    Admin-only endpoint; cross-user lookup is intentional for multi-account
+    owners (e.g. admin email account + separate driver phone account on the
+    same physical Tesla).
     """
+    # Resolve the target user
+    target_user: Optional[User] = None
+    if user_id:
+        target_user = db.query(User).filter(User.id == user_id).first()
+        if not target_user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No user found with id {user_id}",
+            )
+    elif phone:
+        try:
+            normalized = normalize_phone(phone)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not parse phone number: {exc}",
+            ) from exc
+        target_user = db.query(User).filter(User.phone == normalized).first()
+        if not target_user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No user found with phone {normalized}",
+            )
+    else:
+        target_user = current_user
+
     connection = (
         db.query(TeslaConnection)
         .filter(
-            TeslaConnection.user_id == current_user.id,
+            TeslaConnection.user_id == target_user.id,
             TeslaConnection.is_active == True,  # noqa: E712
         )
         .first()
@@ -47,7 +83,7 @@ async def admin_nearby_charging_sites(
     if not connection:
         raise HTTPException(
             status_code=404,
-            detail="No active Tesla connection for admin user",
+            detail=f"No active Tesla connection for user {target_user.id}",
         )
     if not connection.vehicle_id:
         raise HTTPException(
