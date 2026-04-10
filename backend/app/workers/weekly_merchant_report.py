@@ -71,14 +71,13 @@ class WeeklyMerchantReportWorker:
 
     async def _send_all_reports(self):
         """Query all claimed merchants and send individual reports."""
-        from math import asin, cos, radians, sin, sqrt
-
         from app.core.email_sender import get_email_sender
         from app.db import SessionLocal
         from app.models import User
         from app.models.domain import DomainMerchant
         from app.models.session_event import SessionEvent
         from app.models.while_you_charge import Charger
+        from app.services.geo import haversine_m
         from sqlalchemy import func
 
         db = SessionLocal()
@@ -119,17 +118,9 @@ class WeeklyMerchantReportWorker:
                         .all()
                     )
 
-                    R = 6371000.0
                     nearby_ids = []
                     for cid, clat, clng in chargers:
-                        dlat = radians(clat - merchant.lat)
-                        dlon = radians(clng - merchant.lng)
-                        a = (
-                            sin(dlat / 2) ** 2
-                            + cos(radians(merchant.lat)) * cos(radians(clat)) * sin(dlon / 2) ** 2
-                        )
-                        d = R * 2 * asin(sqrt(a))
-                        if d <= 500:
+                        if haversine_m(merchant.lat, merchant.lng, clat, clng) <= 500:
                             nearby_ids.append(cid)
 
                     if not nearby_ids:

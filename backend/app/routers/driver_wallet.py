@@ -3,18 +3,20 @@ Driver Wallet Router - Stripe Express Payouts
 
 Endpoints for driver wallet management, balance checks, and withdrawals.
 """
+
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from pydantic import BaseModel, Field
 from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..dependencies.domain import get_current_user
-from ..services.payout_service import PayoutService, calculate_withdrawal_fee
-from ..models.driver_wallet import WalletLedger, DriverWallet
-from ..models.session_event import IncentiveGrant
 from ..models.campaign import Campaign
+from ..models.driver_wallet import DriverWallet, WalletLedger
+from ..models.session_event import IncentiveGrant
+from ..services.payout_service import PayoutService, calculate_withdrawal_fee
 
 logger = logging.getLogger(__name__)
 
@@ -92,16 +94,18 @@ async def get_wallet_ledger(
                     campaign_name = campaign.name
                     sponsor_name = campaign.sponsor_name
 
-        results.append({
-            "id": e.id,
-            "amount_cents": e.amount_cents,
-            "balance_after_cents": e.balance_after_cents,
-            "transaction_type": e.transaction_type,
-            "description": e.description,
-            "created_at": e.created_at.isoformat() if e.created_at else None,
-            "campaign_name": campaign_name,
-            "sponsor_name": sponsor_name,
-        })
+        results.append(
+            {
+                "id": e.id,
+                "amount_cents": e.amount_cents,
+                "balance_after_cents": e.balance_after_cents,
+                "transaction_type": e.transaction_type,
+                "description": e.description,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "campaign_name": campaign_name,
+                "sponsor_name": sponsor_name,
+            }
+        )
 
     return {"entries": results, "count": len(results)}
 
@@ -192,8 +196,9 @@ async def handle_stripe_webhook(
     db: Session = Depends(get_db),
 ):
     """Handle Stripe webhook events for payouts"""
-    import os
-    if os.getenv("ENV", "dev") == "prod" and not stripe_signature:
+    from ..core.config import settings as core_settings
+
+    if core_settings.is_prod and not stripe_signature:
         raise HTTPException(status_code=401, detail="Missing webhook signature")
     try:
         payload = await request.body()
@@ -209,6 +214,7 @@ async def handle_stripe_webhook(
 # --- Dwolla Endpoints (gated behind ENABLE_DWOLLA_PAYOUTS) ---
 
 import os as _os
+
 _ENABLE_DWOLLA = _os.getenv("ENABLE_DWOLLA_PAYOUTS", "false").lower() == "true"
 
 
@@ -222,13 +228,16 @@ async def handle_dwolla_webhook(
         return {"status": "ignored", "reason": "dwolla_disabled"}
 
     import json
+
     from ..services.dwolla_webhook_service import DwollaWebhookService
 
     payload = await request.body()
 
     # Verify signature in production
     dwolla_secret = _os.getenv("DWOLLA_WEBHOOK_SECRET", "")
-    if _os.getenv("ENV", "dev") == "prod":
+    from ..core.config import settings as core_settings
+
+    if core_settings.is_prod:
         signature = request.headers.get("X-Request-Signature-SHA-256", "")
         if not DwollaWebhookService.verify_signature(payload, signature, dwolla_secret):
             logger.warning("Invalid Dwolla webhook signature")
@@ -263,16 +272,17 @@ async def create_dwolla_account(
 ):
     """Create or retrieve Dwolla receive-only customer for driver."""
     if not _ENABLE_DWOLLA:
-        raise HTTPException(status_code=400, detail="Dwolla payouts are not enabled. Use Stripe Connect instead.")
+        raise HTTPException(
+            status_code=400, detail="Dwolla payouts are not enabled. Use Stripe Connect instead."
+        )
 
     from ..services.dwolla_payout_provider import DwollaPayoutProvider
 
-    wallet = db.query(DriverWallet).filter(
-        DriverWallet.driver_id == current_user.id
-    ).first()
+    wallet = db.query(DriverWallet).filter(DriverWallet.driver_id == current_user.id).first()
 
     if not wallet:
         import uuid
+
         wallet = DriverWallet(
             id=str(uuid.uuid4()),
             driver_id=current_user.id,
@@ -291,7 +301,11 @@ async def create_dwolla_account(
 
     try:
         provider = DwollaPayoutProvider()
-        email = request.email or getattr(current_user, "email", "") or f"driver-{current_user.id}@nerava.network"
+        email = (
+            request.email
+            or getattr(current_user, "email", "")
+            or f"driver-{current_user.id}@nerava.network"
+        )
         customer_url = provider.create_account(
             current_user.id,
             email,
@@ -301,6 +315,7 @@ async def create_dwolla_account(
         wallet.external_account_id = customer_url
         wallet.payout_provider = "dwolla"
         from datetime import datetime as dt
+
         wallet.updated_at = dt.utcnow()
         db.commit()
 
@@ -333,12 +348,12 @@ async def admin_credit_wallet(
     # Item 37: Max single-credit limit of $500 (50000 cents)
     if amount_cents > 50000:
         raise HTTPException(
-            status_code=400,
-            detail="Single credit cannot exceed $500 (50000 cents)"
+            status_code=400, detail="Single credit cannot exceed $500 (50000 cents)"
         )
 
     try:
         import uuid
+
         result = PayoutService.credit_wallet(
             db, driver_id, amount_cents, reference_type, str(uuid.uuid4()), description
         )

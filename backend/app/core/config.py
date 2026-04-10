@@ -147,6 +147,10 @@ class Settings(BaseModel):
     TESTING: bool = os.getenv("TESTING", "false").lower() == "true"
 
     @property
+    def is_prod(self) -> bool:
+        return (self.ENV or "").lower() in ("prod", "production")
+
+    @property
     def smartcar_enabled(self) -> bool:
         """
         Check if Smartcar integration is fully configured and enabled.
@@ -406,10 +410,6 @@ def is_demo() -> bool:
 def validate_config():
     """Validate configuration at startup. Raises ValueError if invalid."""
 
-    # Normalize ENV to lowercase once for consistent checking
-    _normalized_env = (settings.ENV or "").lower()
-    _is_prod = _normalized_env in ("prod", "production")
-
     # Validate Apple Wallet configuration if signing is enabled
     if settings.APPLE_WALLET_SIGNING_ENABLED:
         missing = []
@@ -458,7 +458,7 @@ def validate_config():
         logger.info("HubSpot configuration validated")
 
     # Validate OTP configuration in production
-    if _is_prod:
+    if settings.is_prod:
         if settings.OTP_PROVIDER == "stub":
             error_msg = "OTP_PROVIDER=stub is not allowed in production"
             logger.error(error_msg)
@@ -486,7 +486,7 @@ def validate_config():
 
     # Validate Google OAuth configuration if merchant SSO is enabled
     # Note: We check if Google client ID is set as a proxy for merchant SSO being enabled
-    if _is_prod and settings.GOOGLE_OAUTH_CLIENT_ID:
+    if settings.is_prod and settings.GOOGLE_OAUTH_CLIENT_ID:
         missing = []
         if not settings.GOOGLE_OAUTH_CLIENT_ID:
             missing.append("GOOGLE_OAUTH_CLIENT_ID")
@@ -499,7 +499,7 @@ def validate_config():
         logger.info("Google OAuth configuration validated")
 
     # Production safety gates
-    if _is_prod:
+    if settings.is_prod:
         # Validate MERCHANT_AUTH_MOCK is disabled
         if settings.MERCHANT_AUTH_MOCK:
             error_msg = "MERCHANT_AUTH_MOCK=true is not allowed in production"

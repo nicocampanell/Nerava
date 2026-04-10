@@ -1,6 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useActiveChargingSession, pollChargingSession, type PollSessionResponse } from '../services/api'
+import { useActiveChargingSession, pollChargingSession, ApiError, type PollSessionResponse } from '../services/api'
+
+/** Returns true for auth errors that should stop polling (no retry). */
+function isAuthError(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return true
+    if (err.code === 'refresh_failed' || err.code === 'no_refresh_token') return true
+  }
+  return false
+}
 
 interface SessionPollingState {
   isActive: boolean
@@ -72,41 +81,46 @@ export function useSessionPolling() {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
               if (cancelled) { inFlightRef.current = false; return }
-              let errored = false
               try {
                 const speed = pos.coords.speed
                 if (speed !== null && speed > 5) {
                   console.log(`[SessionPolling] Skipping poll — moving at ${speed.toFixed(1)} m/s`)
                   // Moving = not charging, slow down polls
                   updateInterval(300000)
+                  if (!cancelled) schedulePoll(pollIntervalRef.current)
                   return
                 }
                 const result = await pollChargingSession(pos.coords.latitude, pos.coords.longitude)
                 queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
                 adjustInterval(result)
-              } catch {
-                // Use shorter retry (30s) on transient errors instead of 5min backoff
-                errored = true
-                schedulePoll(30000)
+                if (!cancelled) schedulePoll(pollIntervalRef.current)
+              } catch (err) {
+                if (isAuthError(err)) {
+                  // Auth failed — stop polling entirely, don't retry
+                  console.warn('[SessionPolling] Auth error, stopping poll', err)
+                  return
+                }
+                // Transient error — retry after 30s
+                if (!cancelled) schedulePoll(30000)
               } finally {
                 inFlightRef.current = false
-                if (!cancelled && !errored) schedulePoll(pollIntervalRef.current)
               }
             },
             async () => {
               if (cancelled) { inFlightRef.current = false; return }
-              let errored = false
               try {
                 const result = await pollChargingSession()
                 queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
                 adjustInterval(result)
-              } catch {
-                // Use shorter retry (30s) on transient errors instead of 5min backoff
-                errored = true
-                schedulePoll(30000)
+                if (!cancelled) schedulePoll(pollIntervalRef.current)
+              } catch (err) {
+                if (isAuthError(err)) {
+                  console.warn('[SessionPolling] Auth error, stopping poll', err)
+                  return
+                }
+                if (!cancelled) schedulePoll(30000)
               } finally {
                 inFlightRef.current = false
-                if (!cancelled && !errored) schedulePoll(pollIntervalRef.current)
               }
             },
             { timeout: 5000, maximumAge: 30000 }
@@ -117,15 +131,18 @@ export function useSessionPolling() {
           const result = await pollChargingSession()
           queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
           adjustInterval(result)
+          if (!cancelled) schedulePoll(pollIntervalRef.current)
         }
-      } catch {
-        // On transient error, retry after 30s instead of 5min full backoff
+      } catch (err) {
+        if (isAuthError(err)) {
+          console.warn('[SessionPolling] Auth error, stopping poll', err)
+          return
+        }
+        // On transient error, retry after 30s
+        if (!cancelled) schedulePoll(30000)
+      } finally {
         inFlightRef.current = false
-        schedulePoll(30000)
-        return
       }
-      inFlightRef.current = false
-      schedulePoll(pollIntervalRef.current)
     }
 
     const adjustInterval = (result: PollSessionResponse | undefined) => {

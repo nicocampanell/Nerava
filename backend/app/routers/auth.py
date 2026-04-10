@@ -402,12 +402,9 @@ async def otp_start(
     Start phone OTP flow: generate and send OTP code.
     Includes rate limiting per phone + IP and audit logging.
     """
-    import logging
-
     from ..services.analytics import get_analytics_client
     from ..services.otp_service_v2 import OTPServiceV2
 
-    logger = logging.getLogger(__name__)
     client_ip = request.client.host if request.client else "unknown"
     request_id = getattr(request.state, "request_id", None)
 
@@ -492,13 +489,10 @@ async def otp_verify(
     Creates user if phone number is new.
     Includes audit logging and role-based token creation.
     """
-    import logging
-
     from ..services.analytics import get_analytics_client
     from ..services.otp_service_v2 import OTPServiceV2
     from ..utils.phone import get_phone_last4
 
-    logger = logging.getLogger(__name__)
     client_ip = request.client.host if request.client else "unknown"
     request_id = getattr(request.state, "request_id", None)
 
@@ -630,11 +624,7 @@ async def email_otp_start(
     Start email OTP flow: generate and send OTP code via email.
     Uses AWS SES (free tier: 62K emails/month from App Runner).
     """
-    import logging
-
     from ..services.email_otp_service import EmailOTPService
-
-    logger = logging.getLogger(__name__)
 
     try:
         EmailOTPService.send_code(db, payload.email)
@@ -660,11 +650,7 @@ async def email_otp_verify(
     Verify email OTP code and authenticate user.
     Creates user if email is new.
     """
-    import logging
-
     from ..services.email_otp_service import EmailOTPService
-
-    logger = logging.getLogger(__name__)
 
     try:
         EmailOTPService.verify_code(db, payload.email, payload.code)
@@ -759,10 +745,6 @@ async def dev_login(
     Only available when ENV is explicitly set to dev/local, or DEMO_MODE is enabled.
     NEVER accessible in production.
     """
-    import logging
-
-    logger = logging.getLogger("nerava")
-
     env_lower = settings.ENV.lower() if settings.ENV else ""
 
     # SECURITY: Block dev login in production — no exceptions

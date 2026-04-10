@@ -5,11 +5,12 @@ The database engine is created lazily on first access to avoid blocking
 during module import. This is critical for containerized deployments
 where the database might not be immediately available.
 """
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
+
 from .config import settings
-import sys
 
 # Global engine instance (lazily initialized)
 _engine = None
@@ -28,12 +29,12 @@ def get_engine():
     global _engine
     if _engine is None:
         # Production safety: Require DATABASE_URL and reject SQLite
-        if settings.ENV == "prod":
+        if settings.is_prod:
             if not settings.database_url:
                 error_msg = "CRITICAL: DATABASE_URL is required in production"
                 print(f"[DB] {error_msg}", flush=True)
                 raise ValueError(error_msg)
-            
+
             if settings.database_url.startswith("sqlite"):
                 error_msg = (
                     "CRITICAL: SQLite database is not supported in production. "
@@ -41,11 +42,15 @@ def get_engine():
                 )
                 print(f"[DB] {error_msg}", flush=True)
                 raise ValueError(error_msg)
-        
+
         # Log database URL safely (only scheme and first few chars, not full connection string)
-        db_url_safe = settings.database_url[:30] + "..." if len(settings.database_url) > 30 else settings.database_url
+        db_url_safe = (
+            settings.database_url[:30] + "..."
+            if len(settings.database_url) > 30
+            else settings.database_url
+        )
         print(f"[DB] Creating database engine for: {db_url_safe}", flush=True)
-        
+
         try:
             # Configure pooling for production (Postgres)
             # For SQLite (dev only), use different settings
@@ -56,7 +61,7 @@ def get_engine():
                     poolclass=QueuePool,
                     pool_size=5,
                     max_overflow=0,
-                    connect_args={"check_same_thread": False}
+                    connect_args={"check_same_thread": False},
                 )
             else:
                 # PostgreSQL: Production-ready pooling
@@ -89,6 +94,7 @@ class SessionLocal:
     Wrapper class that provides backwards-compatible SessionLocal behavior
     while using lazy engine initialization.
     """
+
     _instance = None
 
     def __new__(cls):

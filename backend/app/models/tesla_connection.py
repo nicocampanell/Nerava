@@ -126,8 +126,12 @@ class TeslaOAuthState(Base):
             created_at=now,
             expires_at=now + timedelta(minutes=ttl_minutes),
         )
-        db.merge(row)
-        db.commit()
+        try:
+            db.merge(row)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
     @classmethod
     def pop(cls, db: Session, state: str) -> Optional[dict]:

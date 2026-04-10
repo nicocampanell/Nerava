@@ -332,18 +332,23 @@ async def activate_exclusive(
                 status_code=status.HTTP_428_PRECONDITION_REQUIRED, detail="OTP_REQUIRED"
             )
 
-        # Idempotency check (P0 fix) — scoped to current driver
+        # Idempotency check — idempotency_key has a global unique constraint
         idempotency_key = http_request.headers.get("X-Idempotency-Key")
         if idempotency_key:
             existing_session = (
                 db.query(ExclusiveSession)
                 .filter(
                     ExclusiveSession.idempotency_key == idempotency_key,
-                    ExclusiveSession.driver_id == driver.id,
                 )
                 .first()
             )
             if existing_session:
+                # Guard against idempotency key collision across drivers
+                if existing_session.driver_id != driver.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Idempotency key already used by another driver",
+                    )
                 remaining_seconds = max(
                     0,
                     int((existing_session.expires_at - datetime.now(timezone.utc)).total_seconds()),
@@ -531,18 +536,18 @@ async def activate_exclusive(
                 region_code = wyc_m.region_code or "ATX"
                 from datetime import date
 
-                from sqlalchemy import func as sa_func
-
                 today_start = datetime.combine(date.today(), datetime.min.time())
-                max_visit = (
-                    db.query(sa_func.max(VerifiedVisit.visit_number))
+                latest = (
+                    db.query(VerifiedVisit)
                     .filter(
                         VerifiedVisit.merchant_id == wyc_m.id,
                         VerifiedVisit.verified_at >= today_start,
                     )
-                    .scalar()
+                    .order_by(VerifiedVisit.visit_number.desc())
+                    .with_for_update()
+                    .first()
                 )
-                visit_number = (max_visit or 0) + 1
+                visit_number = (latest.visit_number if latest else 0) + 1
                 verification_code = f"{region_code}-{wyc_m.short_code}-{str(visit_number).zfill(3)}"
 
         session = ExclusiveSession(
@@ -785,19 +790,24 @@ async def complete_exclusive(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    # Idempotency check (P0 fix) — scoped to current driver
+    # Idempotency check — idempotency_key has a global unique constraint
     idempotency_key = http_request.headers.get("X-Idempotency-Key")
     if idempotency_key:
         existing_completed = (
             db.query(ExclusiveSession)
             .filter(
                 ExclusiveSession.idempotency_key == idempotency_key,
-                ExclusiveSession.driver_id == driver.id,
                 ExclusiveSession.status == ExclusiveSessionStatus.COMPLETED,
             )
             .first()
         )
         if existing_completed:
+            # Guard against idempotency key collision across drivers
+            if existing_completed.driver_id != driver.id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Idempotency key already used by another driver",
+                )
             return CompleteExclusiveResponse(
                 status=existing_completed.status.value,
                 idempotent=True,
@@ -1120,22 +1130,21 @@ async def verify_visit(
             )
 
         # Get the next visit number for this merchant TODAY (resets daily)
-        # Uses SELECT ... FOR UPDATE to prevent race conditions on concurrent requests
+        # Locks only the latest row instead of all matching rows
         from datetime import date
-
-        from sqlalchemy import func
 
         today_start = datetime.combine(date.today(), datetime.min.time())
 
-        max_visit_today = (
-            db.query(func.max(VerifiedVisit.visit_number))
+        latest = (
+            db.query(VerifiedVisit)
             .filter(
                 VerifiedVisit.merchant_id == merchant.id, VerifiedVisit.verified_at >= today_start
             )
+            .order_by(VerifiedVisit.visit_number.desc())
             .with_for_update()
-            .scalar()
+            .first()
         )
-        visit_number = (max_visit_today or 0) + 1
+        visit_number = (latest.visit_number if latest else 0) + 1
 
         # Generate verification code
         verification_code = VerifiedVisit.generate_verification_code(
@@ -1188,16 +1197,17 @@ async def verify_visit(
                     verified_at=existing.verified_at.isoformat(),
                 )
             # No existing visit — get a fresh visit_number and retry
-            fresh_max = (
-                db.query(func.max(VerifiedVisit.visit_number))
+            fresh_latest = (
+                db.query(VerifiedVisit)
                 .filter(
                     VerifiedVisit.merchant_id == merchant.id,
                     VerifiedVisit.verified_at >= today_start,
                 )
+                .order_by(VerifiedVisit.visit_number.desc())
                 .with_for_update()
-                .scalar()
+                .first()
             )
-            visit_number = (fresh_max or 0) + 1
+            visit_number = (fresh_latest.visit_number if fresh_latest else 0) + 1
             verification_code = VerifiedVisit.generate_verification_code(
                 region_code, merchant_code, visit_number
             )
@@ -1208,8 +1218,24 @@ async def verify_visit(
                 session.status = ExclusiveSessionStatus.COMPLETED
                 session.completed_at = now
                 session.updated_at = now
-            db.commit()
-            db.refresh(verified_visit)
+            try:
+                db.commit()
+                db.refresh(verified_visit)
+            except Exception as retry_err:
+                db.rollback()
+                logger.error(
+                    "visit_retry_commit_failed",
+                    extra={
+                        "merchant_id": merchant.id,
+                        "visit_number": visit_number,
+                        "verification_code": verification_code,
+                        "error": str(retry_err),
+                    },
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to record visit after retry",
+                ) from None
 
         # Log the verification event
         log_event(
