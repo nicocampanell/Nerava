@@ -379,3 +379,4 @@ class IncentiveEngine:
         else:
             # Overnight window
             return time_str >= start or time_str <= end
+# Audit: round 6 review trigger
