@@ -72,6 +72,7 @@ export function useSessionPolling() {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
               if (cancelled) { inFlightRef.current = false; return }
+              let errored = false
               try {
                 const speed = pos.coords.speed
                 if (speed !== null && speed > 5) {
@@ -85,24 +86,27 @@ export function useSessionPolling() {
                 adjustInterval(result)
               } catch {
                 // Use shorter retry (30s) on transient errors instead of 5min backoff
+                errored = true
                 schedulePoll(30000)
               } finally {
                 inFlightRef.current = false
-                if (!cancelled) schedulePoll(pollIntervalRef.current)
+                if (!cancelled && !errored) schedulePoll(pollIntervalRef.current)
               }
             },
             async () => {
               if (cancelled) { inFlightRef.current = false; return }
+              let errored = false
               try {
                 const result = await pollChargingSession()
                 queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
                 adjustInterval(result)
               } catch {
                 // Use shorter retry (30s) on transient errors instead of 5min backoff
+                errored = true
                 schedulePoll(30000)
               } finally {
                 inFlightRef.current = false
-                if (!cancelled) schedulePoll(pollIntervalRef.current)
+                if (!cancelled && !errored) schedulePoll(pollIntervalRef.current)
               }
             },
             { timeout: 5000, maximumAge: 30000 }
@@ -116,7 +120,9 @@ export function useSessionPolling() {
         }
       } catch {
         // On transient error, retry after 30s instead of 5min full backoff
+        inFlightRef.current = false
         schedulePoll(30000)
+        return
       }
       inFlightRef.current = false
       schedulePoll(pollIntervalRef.current)

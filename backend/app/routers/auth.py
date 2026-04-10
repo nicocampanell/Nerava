@@ -143,17 +143,27 @@ async def refresh_token(
         )
 
     # Rotate token: revoke old, create new
-    new_plain_token, new_refresh_token = RefreshTokenService.rotate_refresh_token(db, old_token)
+    try:
+        new_plain_token, new_refresh_token = RefreshTokenService.rotate_refresh_token(db, old_token)
 
-    # Get user
-    user = db.query(User).filter(User.id == old_token.user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        # Get user
+        user = db.query(User).filter(User.id == old_token.user_id).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Create new access token
-    access_token = create_access_token(user.public_id, auth_provider=user.auth_provider)
+        # Create new access token
+        access_token = create_access_token(user.public_id, auth_provider=user.auth_provider)
 
-    db.commit()
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Refresh token rotation failed: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Token refresh failed",
+        ) from None
 
     return RefreshResponse(
         access_token=access_token, refresh_token=new_plain_token, token_type="bearer"
@@ -284,7 +294,7 @@ async def auth_google(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Google authentication failed",
-        )
+        ) from None
 
 
 @router.post("/apple", response_model=TokenResponse)
@@ -379,7 +389,7 @@ async def auth_apple(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Apple authentication failed",
-        )
+        ) from None
 
 
 @router.post("/otp/start", response_model=OTPStartResponse)
@@ -468,7 +478,7 @@ async def otp_start(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unable to send code. Try again later.",
-        )
+        ) from None
 
 
 @router.post("/otp/verify", response_model=TokenResponse)
@@ -602,7 +612,7 @@ async def otp_verify(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Verification service error. Please request a new code.",
-        )
+        ) from None
 
 
 # ============================================
@@ -637,7 +647,7 @@ async def email_otp_start(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unable to send code. Try again later.",
-        )
+        ) from None
 
 
 @router.post("/email-otp/verify", response_model=TokenResponse)
@@ -665,7 +675,7 @@ async def email_otp_verify(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Verification service error. Please request a new code.",
-        )
+        ) from None
 
     # Find or create user by email
     email = payload.email.strip().lower()
@@ -840,8 +850,8 @@ async def dev_login(
         logger.error(f"Dev login error: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Dev login failed: {str(e)}"
-        )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Dev login failed"
+        ) from None
 
 
 # ============================================

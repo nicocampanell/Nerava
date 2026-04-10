@@ -3,9 +3,13 @@ Token encryption utilities using Fernet symmetric encryption.
 
 Uses TOKEN_ENCRYPTION_KEY from environment (validated at startup).
 """
+
 from __future__ import annotations
+
 import logging
 import os
+from typing import Optional
+
 from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
@@ -13,7 +17,7 @@ logger = logging.getLogger(__name__)
 _fernet = None
 
 
-def _get_fernet() -> Fernet | None:
+def _get_fernet() -> Optional[Fernet]:
     """Get or create Fernet instance from TOKEN_ENCRYPTION_KEY."""
     global _fernet
     if _fernet is not None:

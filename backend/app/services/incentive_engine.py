@@ -10,7 +10,6 @@ Key design decisions per review:
 """
 
 import logging
-import math
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -20,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.models.campaign import Campaign
 from app.models.session_event import IncentiveGrant, SessionEvent
 from app.services.campaign_service import CampaignService
+from app.services.geo import haversine_m
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class IncentiveEngine:
         ):
             if session.lat is None or session.lng is None:
                 return _reject("geo_radius (no session lat/lng)")
-            dist = IncentiveEngine._haversine_m(
+            dist = haversine_m(
                 campaign.rule_geo_center_lat,
                 campaign.rule_geo_center_lng,
                 session.lat,
@@ -353,6 +353,13 @@ class IncentiveEngine:
                 cam.sessions_granted = max(0, cam.sessions_granted - 1)
                 cam.updated_at = datetime.utcnow()
                 db.flush()
+                try:
+                    db.commit()
+                except Exception as commit_err:
+                    logger.error(
+                        f"Failed to commit budget restore for campaign {campaign.id}: {commit_err}"
+                    )
+                    db.rollback()
             return None
 
         logger.info(
@@ -360,17 +367,6 @@ class IncentiveEngine:
             f"for session {session.id} ({session.duration_minutes}min)"
         )
         return grant
-
-    @staticmethod
-    def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-        """Calculate distance in meters between two lat/lng points."""
-        R = 6371000  # Earth radius in meters
-        phi1 = math.radians(lat1)
-        phi2 = math.radians(lat2)
-        dphi = math.radians(lat2 - lat1)
-        dlambda = math.radians(lng2 - lng1)
-        a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
-        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     @staticmethod
     def _time_in_window(time_str: str, start: str, end: str) -> bool:

@@ -17,6 +17,7 @@ from app.core.env import is_local_env
 from app.db import get_db
 from app.dependencies.driver import get_current_driver, get_current_driver_optional
 from app.models import User
+from app.models.domain import DomainMerchant
 from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
 from app.models.session_event import SessionEvent
 from app.models.verified_visit import VerifiedVisit
@@ -33,6 +34,49 @@ router = APIRouter(prefix="/v1/exclusive", tags=["exclusive"])
 # Constants
 CHARGER_RADIUS_M = settings.CHARGER_RADIUS_M
 EXCLUSIVE_DURATION_MIN = settings.EXCLUSIVE_DURATION_MIN
+
+
+def _verify_merchant_ownership(db: Session, user: User, wyc_merchant_id: str) -> None:
+    """
+    Verify that a merchant-role user owns the WYC merchant being accessed.
+    Admin users bypass this check. Raises 403 if ownership cannot be verified.
+    """
+    user_roles = (user.role_flags or "").split(",")
+    if "admin" in user_roles:
+        return  # Admins can access any merchant
+
+    # Look up the WYC merchant to get its external_id (Google Place ID)
+    wyc_merchant = db.query(Merchant).filter(Merchant.id == wyc_merchant_id).first()
+    if not wyc_merchant:
+        return  # Let the caller handle 404
+
+    # Check if user owns a DomainMerchant linked to this WYC merchant
+    ownership_query = db.query(DomainMerchant).filter(
+        DomainMerchant.owner_user_id == user.id,
+    )
+    # Match by Google Place ID or by name
+    domain_merchant = (
+        ownership_query.filter(DomainMerchant.google_place_id == wyc_merchant.external_id).first()
+        if wyc_merchant.external_id
+        else None
+    )
+
+    if not domain_merchant:
+        # Fallback: match by name (case-insensitive)
+        domain_merchant = (
+            db.query(DomainMerchant)
+            .filter(
+                DomainMerchant.owner_user_id == user.id,
+                DomainMerchant.name.ilike(wyc_merchant.name),
+            )
+            .first()
+        )
+
+    if not domain_merchant:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this merchant",
+        )
 
 
 # Request/Response Models
@@ -288,12 +332,15 @@ async def activate_exclusive(
                 status_code=status.HTTP_428_PRECONDITION_REQUIRED, detail="OTP_REQUIRED"
             )
 
-        # Idempotency check (P0 fix)
+        # Idempotency check (P0 fix) — scoped to current driver
         idempotency_key = http_request.headers.get("X-Idempotency-Key")
         if idempotency_key:
             existing_session = (
                 db.query(ExclusiveSession)
-                .filter(ExclusiveSession.idempotency_key == idempotency_key)
+                .filter(
+                    ExclusiveSession.idempotency_key == idempotency_key,
+                    ExclusiveSession.driver_id == driver.id,
+                )
                 .first()
             )
             if existing_session:
@@ -546,7 +593,7 @@ async def activate_exclusive(
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
                             detail="Idempotency key already used by another driver",
-                        )
+                        ) from None
                     # Return idempotent response
                     remaining_seconds = max(
                         0,
@@ -583,7 +630,7 @@ async def activate_exclusive(
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to activate exclusive session",
-            )
+            ) from None
 
         # Log activation event (both structured log and standard logger)
         log_event(
@@ -692,7 +739,7 @@ async def activate_exclusive(
                 "message": "Exclusive activation failed due to an unexpected error",
                 "request_id": getattr(http_request.state, "request_id", None),
             },
-        )
+        ) from None
 
 
 @router.post("/complete", response_model=CompleteExclusiveResponse)
@@ -738,13 +785,14 @@ async def complete_exclusive(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    # Idempotency check (P0 fix)
+    # Idempotency check (P0 fix) — scoped to current driver
     idempotency_key = http_request.headers.get("X-Idempotency-Key")
     if idempotency_key:
         existing_completed = (
             db.query(ExclusiveSession)
             .filter(
                 ExclusiveSession.idempotency_key == idempotency_key,
+                ExclusiveSession.driver_id == driver.id,
                 ExclusiveSession.status == ExclusiveSessionStatus.COMPLETED,
             )
             .first()
@@ -800,7 +848,7 @@ async def complete_exclusive(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to complete exclusive session",
-        )
+        ) from None
 
     # Calculate duration
     duration_seconds = int((now - session.activated_at).total_seconds())
@@ -949,7 +997,7 @@ async def get_exclusive_session(session_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID format"
-        )
+        ) from None
 
     session = db.query(ExclusiveSession).filter(ExclusiveSession.id == session_uuid).first()
 
@@ -1072,6 +1120,7 @@ async def verify_visit(
             )
 
         # Get the next visit number for this merchant TODAY (resets daily)
+        # Uses SELECT ... FOR UPDATE to prevent race conditions on concurrent requests
         from datetime import date
 
         from sqlalchemy import func
@@ -1083,6 +1132,7 @@ async def verify_visit(
             .filter(
                 VerifiedVisit.merchant_id == merchant.id, VerifiedVisit.verified_at >= today_start
             )
+            .with_for_update()
             .scalar()
         )
         visit_number = (max_visit_today or 0) + 1
@@ -1137,11 +1187,21 @@ async def verify_visit(
                     merchant_name=merchant.name,
                     verified_at=existing.verified_at.isoformat(),
                 )
-            # No existing visit — retry with unique suffix
-            import random
-
-            retry_code = f"{verification_code}-{random.randint(10,99)}"
-            verified_visit.verification_code = retry_code
+            # No existing visit — get a fresh visit_number and retry
+            fresh_max = (
+                db.query(func.max(VerifiedVisit.visit_number))
+                .filter(
+                    VerifiedVisit.merchant_id == merchant.id,
+                    VerifiedVisit.verified_at >= today_start,
+                )
+                .with_for_update()
+                .scalar()
+            )
+            visit_number = (fresh_max or 0) + 1
+            verification_code = VerifiedVisit.generate_verification_code(
+                region_code, merchant_code, visit_number
+            )
+            verified_visit.verification_code = verification_code
             verified_visit.visit_number = visit_number
             db.add(verified_visit)
             if session.status == ExclusiveSessionStatus.ACTIVE:
@@ -1150,7 +1210,6 @@ async def verify_visit(
                 session.updated_at = now
             db.commit()
             db.refresh(verified_visit)
-            verification_code = retry_code
 
         # Log the verification event
         log_event(
@@ -1216,7 +1275,7 @@ async def verify_visit(
                 "message": "Visit verification failed due to an unexpected error",
                 "request_id": getattr(http_request.state, "request_id", None),
             },
-        )
+        ) from None
 
 
 class VisitListItem(BaseModel):
@@ -1261,6 +1320,10 @@ async def get_merchant_visits(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Merchant role required to view visits",
         )
+
+    # Verify the user owns this merchant (admin bypasses)
+    _verify_merchant_ownership(db, user, merchant_id)
+
     # Get the merchant
     merchant = db.query(Merchant).filter(Merchant.id == merchant_id).first()
     if not merchant:
@@ -1350,6 +1413,9 @@ async def lookup_visit(
             status_code=status.HTTP_404_NOT_FOUND, detail="Verification code not found"
         )
 
+    # Verify the user owns the merchant this visit belongs to (admin bypasses)
+    _verify_merchant_ownership(db, user, visit.merchant_id)
+
     merchant = db.query(Merchant).filter(Merchant.id == visit.merchant_id).first()
 
     return VisitLookupResponse(
@@ -1400,6 +1466,9 @@ async def mark_visit_redeemed(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Verification code not found"
         )
+
+    # Verify the user owns the merchant this visit belongs to (admin bypasses)
+    _verify_merchant_ownership(db, user, visit.merchant_id)
 
     if visit.redeemed_at:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Visit already redeemed")

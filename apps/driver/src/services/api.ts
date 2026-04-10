@@ -73,23 +73,26 @@ async function proactiveTokenRefresh(): Promise<void> {
 }
 
 // Refresh token when app becomes visible (user returns from background)
+// Named callbacks so we can properly remove them on HMR dispose
+const _onVisibilityChange = () => {
+  if (document.visibilityState === 'visible') proactiveTokenRefresh()
+}
+const _onFocus = () => {
+  proactiveTokenRefresh()
+}
+
 // Guard prevents duplicate listeners on HMR re-execution
 let _tokenRefreshListenersBound = false
 if (typeof document !== 'undefined' && !_tokenRefreshListenersBound) {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      proactiveTokenRefresh()
-    }
-  })
+  document.addEventListener('visibilitychange', _onVisibilityChange)
   // Also refresh on app focus (covers WKWebView resume)
-  window.addEventListener('focus', () => {
-    proactiveTokenRefresh()
-  })
+  window.addEventListener('focus', _onFocus)
   _tokenRefreshListenersBound = true
 
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
-      // listeners will be re-added on module re-evaluation
+      document.removeEventListener('visibilitychange', _onVisibilityChange)
+      window.removeEventListener('focus', _onFocus)
       _tokenRefreshListenersBound = false
     })
   }

@@ -9,15 +9,16 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 
+_env = os.getenv("ENV", "dev").lower()
+_dev_fallback = "dev-secret-change-me" if _env in ("dev", "development", "test") else ""
+
+
 class Settings(BaseModel):
     # JWT Secret (supports both JWT_SECRET and NERAVA_SECRET_KEY env vars for backward compatibility)
-    JWT_SECRET: str = os.getenv(
-        "JWT_SECRET", os.getenv("NERAVA_SECRET_KEY", "dev-secret-change-me")
-    )
+    # Fail closed: only use dev fallback in dev/test environments; empty string triggers validate_config() error otherwise
+    JWT_SECRET: str = os.getenv("JWT_SECRET", os.getenv("NERAVA_SECRET_KEY", _dev_fallback))
     # SECRET_KEY is an alias for JWT_SECRET (used by JWT encoding code)
-    SECRET_KEY: str = os.getenv(
-        "JWT_SECRET", os.getenv("NERAVA_SECRET_KEY", "dev-secret-change-me")
-    )
+    SECRET_KEY: str = os.getenv("JWT_SECRET", os.getenv("NERAVA_SECRET_KEY", _dev_fallback))
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
     )  # 7 days; mobile app needs long-lived tokens
@@ -405,6 +406,10 @@ def is_demo() -> bool:
 def validate_config():
     """Validate configuration at startup. Raises ValueError if invalid."""
 
+    # Normalize ENV to lowercase once for consistent checking
+    _normalized_env = (settings.ENV or "").lower()
+    _is_prod = _normalized_env in ("prod", "production")
+
     # Validate Apple Wallet configuration if signing is enabled
     if settings.APPLE_WALLET_SIGNING_ENABLED:
         missing = []
@@ -453,7 +458,7 @@ def validate_config():
         logger.info("HubSpot configuration validated")
 
     # Validate OTP configuration in production
-    if settings.ENV == "prod":
+    if _is_prod:
         if settings.OTP_PROVIDER == "stub":
             error_msg = "OTP_PROVIDER=stub is not allowed in production"
             logger.error(error_msg)
@@ -481,7 +486,7 @@ def validate_config():
 
     # Validate Google OAuth configuration if merchant SSO is enabled
     # Note: We check if Google client ID is set as a proxy for merchant SSO being enabled
-    if settings.ENV == "prod" and settings.GOOGLE_OAUTH_CLIENT_ID:
+    if _is_prod and settings.GOOGLE_OAUTH_CLIENT_ID:
         missing = []
         if not settings.GOOGLE_OAUTH_CLIENT_ID:
             missing.append("GOOGLE_OAUTH_CLIENT_ID")
@@ -494,7 +499,7 @@ def validate_config():
         logger.info("Google OAuth configuration validated")
 
     # Production safety gates
-    if settings.ENV == "prod":
+    if _is_prod:
         # Validate MERCHANT_AUTH_MOCK is disabled
         if settings.MERCHANT_AUTH_MOCK:
             error_msg = "MERCHANT_AUTH_MOCK=true is not allowed in production"

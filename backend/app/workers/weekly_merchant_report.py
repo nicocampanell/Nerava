@@ -3,9 +3,15 @@ Weekly Merchant Report Worker
 
 Sends weekly email reports to claimed merchants every Monday at 8am CT.
 """
+
+from __future__ import annotations
+
 import asyncio
+import contextlib
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
+
 import pytz
 
 logger = logging.getLogger(__name__)
@@ -16,9 +22,9 @@ CHECK_INTERVAL = 3600  # Check every hour
 
 class WeeklyMerchantReportWorker:
     def __init__(self):
-        self._task: asyncio.Task | None = None
+        self._task: Optional[asyncio.Task] = None
         self._running = False
-        self._last_sent_week: int | None = None
+        self._last_sent_week: Optional[int] = None
 
     async def start(self):
         self._running = True
@@ -29,10 +35,8 @@ class WeeklyMerchantReportWorker:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("Weekly merchant report worker stopped")
 
     async def _loop(self):
@@ -67,14 +71,15 @@ class WeeklyMerchantReportWorker:
 
     async def _send_all_reports(self):
         """Query all claimed merchants and send individual reports."""
+        from math import asin, cos, radians, sin, sqrt
+
+        from app.core.email_sender import get_email_sender
         from app.db import SessionLocal
-        from app.models.domain import DomainMerchant
         from app.models import User
+        from app.models.domain import DomainMerchant
         from app.models.session_event import SessionEvent
         from app.models.while_you_charge import Charger
-        from app.core.email_sender import get_email_sender
-        from sqlalchemy import func, and_
-        from math import radians, sin, cos, asin, sqrt
+        from sqlalchemy import func
 
         db = SessionLocal()
         try:
@@ -105,17 +110,24 @@ class WeeklyMerchantReportWorker:
 
                     # Find nearby chargers
                     delta = 0.006
-                    chargers = db.query(Charger.id, Charger.lat, Charger.lng).filter(
-                        Charger.lat.between(merchant.lat - delta, merchant.lat + delta),
-                        Charger.lng.between(merchant.lng - delta, merchant.lng + delta),
-                    ).all()
+                    chargers = (
+                        db.query(Charger.id, Charger.lat, Charger.lng)
+                        .filter(
+                            Charger.lat.between(merchant.lat - delta, merchant.lat + delta),
+                            Charger.lng.between(merchant.lng - delta, merchant.lng + delta),
+                        )
+                        .all()
+                    )
 
                     R = 6371000.0
                     nearby_ids = []
                     for cid, clat, clng in chargers:
                         dlat = radians(clat - merchant.lat)
                         dlon = radians(clng - merchant.lng)
-                        a = sin(dlat / 2) ** 2 + cos(radians(merchant.lat)) * cos(radians(clat)) * sin(dlon / 2) ** 2
+                        a = (
+                            sin(dlat / 2) ** 2
+                            + cos(radians(merchant.lat)) * cos(radians(clat)) * sin(dlon / 2) ** 2
+                        )
                         d = R * 2 * asin(sqrt(a))
                         if d <= 500:
                             nearby_ids.append(cid)
@@ -124,23 +136,31 @@ class WeeklyMerchantReportWorker:
                         continue
 
                     # This week stats
-                    this_week = db.query(
-                        func.count(SessionEvent.id).label("total"),
-                    ).filter(
-                        SessionEvent.charger_id.in_(nearby_ids),
-                        SessionEvent.session_start >= week_start,
-                        SessionEvent.session_end.isnot(None),
-                    ).first()
+                    this_week = (
+                        db.query(
+                            func.count(SessionEvent.id).label("total"),
+                        )
+                        .filter(
+                            SessionEvent.charger_id.in_(nearby_ids),
+                            SessionEvent.session_start >= week_start,
+                            SessionEvent.session_end.isnot(None),
+                        )
+                        .first()
+                    )
 
                     # Last week stats
-                    last_week = db.query(
-                        func.count(SessionEvent.id).label("total"),
-                    ).filter(
-                        SessionEvent.charger_id.in_(nearby_ids),
-                        SessionEvent.session_start >= prev_week_start,
-                        SessionEvent.session_start < week_start,
-                        SessionEvent.session_end.isnot(None),
-                    ).first()
+                    last_week = (
+                        db.query(
+                            func.count(SessionEvent.id).label("total"),
+                        )
+                        .filter(
+                            SessionEvent.charger_id.in_(nearby_ids),
+                            SessionEvent.session_start >= prev_week_start,
+                            SessionEvent.session_start < week_start,
+                            SessionEvent.session_end.isnot(None),
+                        )
+                        .first()
+                    )
 
                     this_total = this_week.total or 0
                     last_total = last_week.total or 0
@@ -150,7 +170,7 @@ class WeeklyMerchantReportWorker:
                     # Daily breakdown
                     avg_per_day = round(this_total / 7, 1) if this_total else 0
 
-                    portal_url = f"https://merchant.nerava.network/insights"
+                    portal_url = "https://merchant.nerava.network/insights"
 
                     html = f"""
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
