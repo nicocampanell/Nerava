@@ -1,32 +1,39 @@
 from datetime import datetime
-from math import asin, cos, radians, sin, sqrt
 
 from sqlalchemy.orm import Session
 
 from app.models_extra import DualZoneSession
+from app.services.geo import haversine_m
 
 
-def haversine_m(lat1, lon1, lat2, lon2):
-    """Calculate distance between two points in meters using Haversine formula"""
-    R = 6371000.0
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = sin(dlat/2)**2 + cos(radians(lat1))*cos(radians(lat2))*sin(dlon/2)**2
-    c = 2*asin(sqrt(a))
-    return R*c
-
-def start_session(db: Session, user_id: str, charger_id: str, merchant_id: str,
-                  charger_radius_m: int = 40, merchant_radius_m: int = 100, dwell_threshold_s: int = 300):
+def start_session(
+    db: Session,
+    user_id: str,
+    charger_id: str,
+    merchant_id: str,
+    charger_radius_m: int = 40,
+    merchant_radius_m: int = 100,
+    dwell_threshold_s: int = 300,
+):
     """Start a new dual-zone verification session"""
     s = DualZoneSession(
-        user_id=user_id, charger_id=charger_id, merchant_id=merchant_id,
-        charger_radius_m=charger_radius_m, merchant_radius_m=merchant_radius_m,
-        dwell_threshold_s=dwell_threshold_s, status="pending"
+        user_id=user_id,
+        charger_id=charger_id,
+        merchant_id=merchant_id,
+        charger_radius_m=charger_radius_m,
+        merchant_radius_m=merchant_radius_m,
+        dwell_threshold_s=dwell_threshold_s,
+        status="pending",
     )
-    db.add(s); db.commit(); db.refresh(s)
+    db.add(s)
+    db.commit()
+    db.refresh(s)
     return s
 
-def update_positions_and_verify(db: Session, sess_id: int, now_pos: dict, charger_pos: dict, merchant_pos: dict):
+
+def update_positions_and_verify(
+    db: Session, sess_id: int, now_pos: dict, charger_pos: dict, merchant_pos: dict
+):
     """Update session with current positions and verify if conditions are met"""
     s: DualZoneSession = db.query(DualZoneSession).get(sess_id)
     if not s or s.status != "pending":
@@ -50,5 +57,6 @@ def update_positions_and_verify(db: Session, sess_id: int, now_pos: dict, charge
                 s.verified_at = now
                 s.status = "verified"
 
-    db.commit(); db.refresh(s)
+    db.commit()
+    db.refresh(s)
     return s

@@ -2,6 +2,7 @@
 Domain Charge Party MVP Admin Router
 Admin endpoints for overview, merchant management, and manual Nova grants
 """
+
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -68,12 +69,10 @@ class AdminOverviewResponse(BaseModel):
 
 
 @router.get("/health")
-def get_admin_health(
-    admin: User = Depends(require_admin)
-):
+def get_admin_health(admin: User = Depends(require_admin)):
     """
     Get system health status for admin console.
-    
+
     Returns /readyz status to surface system health in admin UI.
     """
     from urllib.parse import urlparse
@@ -84,13 +83,13 @@ def get_admin_health(
 
     from app.config import settings
     from app.db import get_engine
-    
+
     checks = {
         "startup_validation": {"status": "ok", "error": None},
         "database": {"status": "unknown", "error": None},
-        "redis": {"status": "unknown", "error": None}
+        "redis": {"status": "unknown", "error": None},
     }
-    
+
     # Check database with timeout
     try:
         engine = get_engine()
@@ -100,7 +99,7 @@ def get_admin_health(
     except Exception as e:
         checks["database"]["status"] = "error"
         checks["database"]["error"] = str(e)
-    
+
     # Check Redis with timeout
     try:
         redis_url = settings.redis_url
@@ -108,43 +107,33 @@ def get_admin_health(
         r = redis.Redis(
             host=parsed.hostname or "localhost",
             port=parsed.port or 6379,
-            db=int(parsed.path.lstrip('/')) if parsed.path else 0,
+            db=int(parsed.path.lstrip("/")) if parsed.path else 0,
             socket_connect_timeout=1,
-            socket_timeout=1
+            socket_timeout=1,
         )
         r.ping()
         checks["redis"]["status"] = "ok"
     except Exception as e:
         checks["redis"]["status"] = "error"
         checks["redis"]["error"] = str(e)
-    
+
     # Determine overall ready status
     all_ok = all(check["status"] == "ok" for check in checks.values())
     status_code = 200 if all_ok else 503
-    
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "ready": all_ok,
-            "checks": checks
-        }
-    )
+
+    return JSONResponse(status_code=status_code, content={"ready": all_ok, "checks": checks})
 
 
 @router.get("/overview", response_model=AdminOverviewResponse)
-async def get_overview(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
+async def get_overview(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Get admin overview statistics"""
     # Count drivers (users with driver role)
-    total_drivers = db.query(User).filter(
-        User.role_flags.contains("driver")
-    ).count()
-    
+    total_drivers = db.query(User).filter(User.role_flags.contains("driver")).count()
+
     # Count merchants (While You Charge merchants — the real ones with perks)
     from app.models.while_you_charge import Charger as WYCCharger
     from app.models.while_you_charge import Merchant as WYCMerchant
+
     total_merchants = db.query(WYCMerchant).count()
 
     # Count chargers
@@ -152,30 +141,36 @@ async def get_overview(
 
     # Count total charging sessions
     from app.models.session_event import SessionEvent
+
     total_charging_sessions = db.query(SessionEvent).count()
 
     # Count active campaigns
     from datetime import datetime as dt
 
     from app.models.campaign import Campaign
+
     now = dt.utcnow()
-    active_campaigns = db.query(Campaign).filter(
-        Campaign.status == "active",
-        Campaign.start_date <= now,
-        Campaign.spent_cents < Campaign.budget_cents,
-    ).count()
-    
+    active_campaigns = (
+        db.query(Campaign)
+        .filter(
+            Campaign.status == "active",
+            Campaign.start_date <= now,
+            Campaign.spent_cents < Campaign.budget_cents,
+        )
+        .count()
+    )
+
     # Sum driver Nova balances
     driver_nova_result = db.query(func.sum(DriverWallet.nova_balance)).scalar()
     total_driver_nova = int(driver_nova_result) if driver_nova_result else 0
-    
+
     # Sum merchant Nova balances
     merchant_nova_result = db.query(func.sum(DomainMerchant.nova_balance)).scalar()
     total_merchant_nova = int(merchant_nova_result) if merchant_nova_result else 0
-    
+
     # Total outstanding Nova
     total_nova_outstanding = total_driver_nova + total_merchant_nova
-    
+
     # --- Revenue breakdown ---
     from app.core.config import settings
     from app.models.campaign import Campaign
@@ -183,18 +178,22 @@ async def get_overview(
     # 1. Campaign revenue — ALL campaigns that have been active (not just funding_status='funded')
     # Some campaigns may have been activated without going through Stripe checkout
     active_statuses = ("active", "paused", "exhausted", "completed")
-    campaigns_with_revenue = db.query(Campaign).filter(
-        or_(
-            Campaign.funding_status == "funded",
-            Campaign.status.in_(active_statuses),
-            Campaign.spent_cents > 0,
+    campaigns_with_revenue = (
+        db.query(Campaign)
+        .filter(
+            or_(
+                Campaign.funding_status == "funded",
+                Campaign.status.in_(active_statuses),
+                Campaign.spent_cents > 0,
+            )
         )
-    ).all()
+        .all()
+    )
 
     campaign_gross = 0
     campaign_fees = 0
     campaign_driver_rewards = 0
-    fee_bps = getattr(settings, 'PLATFORM_FEE_BPS', 2000)
+    fee_bps = getattr(settings, "PLATFORM_FEE_BPS", 2000)
 
     for c in campaigns_with_revenue:
         # Use stored values if available, otherwise calculate from budget
@@ -213,9 +212,13 @@ async def get_overview(
 
     from app.models.merchant_subscription import MerchantSubscription
 
-    active_subs = db.query(MerchantSubscription).filter(
-        MerchantSubscription.status == "active",
-    ).all()
+    active_subs = (
+        db.query(MerchantSubscription)
+        .filter(
+            MerchantSubscription.status == "active",
+        )
+        .all()
+    )
 
     subscription_revenue = 0
     for sub in active_subs:
@@ -232,32 +235,53 @@ async def get_overview(
                 logger.debug("Stripe invoice fetch failed for %s: %s", sub.stripe_customer_id, e)
 
     # 3. Legacy Nova sales (merchant Stripe checkout for Nova)
-    nova_sales = db.query(func.sum(StripePayment.amount_usd)).filter(
-        StripePayment.status == "paid",
-    ).scalar()
+    nova_sales = (
+        db.query(func.sum(StripePayment.amount_usd))
+        .filter(
+            StripePayment.status == "paid",
+        )
+        .scalar()
+    )
     nova_sales = int(nova_sales) if nova_sales else 0
 
     # 4. Merchant redemption fees (15% of Nova redeemed)
     from app.models_domain import MerchantFeeLedger
-    merchant_fees = db.query(func.sum(MerchantFeeLedger.fee_cents)).filter(
-        MerchantFeeLedger.status.in_(["invoiced", "paid"]),
-    ).scalar()
+
+    merchant_fees = (
+        db.query(func.sum(MerchantFeeLedger.fee_cents))
+        .filter(
+            MerchantFeeLedger.status.in_(["invoiced", "paid"]),
+        )
+        .scalar()
+    )
     merchant_fees = int(merchant_fees) if merchant_fees else 0
 
     # 5. Arrival billing fees
     from app.models.billing_event import BillingEvent
-    arrival_billing = db.query(func.sum(BillingEvent.billable_cents)).filter(
-        BillingEvent.status == "paid",
-    ).scalar()
+
+    arrival_billing = (
+        db.query(func.sum(BillingEvent.billable_cents))
+        .filter(
+            BillingEvent.status == "paid",
+        )
+        .scalar()
+    )
     arrival_billing = int(arrival_billing) if arrival_billing else 0
 
-    total_realized = campaign_gross + subscription_revenue + nova_sales + merchant_fees + arrival_billing
+    total_realized = (
+        campaign_gross + subscription_revenue + nova_sales + merchant_fees + arrival_billing
+    )
 
     # Driver payouts (outflow)
     from app.models.driver_wallet import Payout
-    driver_payouts = db.query(func.sum(Payout.amount_cents)).filter(
-        Payout.status.in_(["paid", "processing"]),
-    ).scalar()
+
+    driver_payouts = (
+        db.query(func.sum(Payout.amount_cents))
+        .filter(
+            Payout.status.in_(["paid", "processing"]),
+        )
+        .scalar()
+    )
     driver_payouts = int(driver_payouts) if driver_payouts else 0
 
     revenue = RevenueBreakdown(
@@ -275,18 +299,23 @@ async def get_overview(
 
     # Keep legacy field populated with total for backward compat
     total_stripe_usd = total_realized
-    
+
     # Count active Tesla connections (cars on the network)
     from app.models.tesla_connection import TeslaConnection
-    total_tesla_connections = db.query(TeslaConnection).filter(
-        TeslaConnection.is_active == True
-    ).count()
+
+    total_tesla_connections = (
+        db.query(TeslaConnection).filter(TeslaConnection.is_active == True).count()
+    )
 
     # Count completed Stripe Express onboardings
-    total_stripe_express = db.query(DriverWallet).filter(
-        DriverWallet.stripe_account_id.isnot(None),
-        DriverWallet.stripe_onboarding_complete == True,
-    ).count()
+    total_stripe_express = (
+        db.query(DriverWallet)
+        .filter(
+            DriverWallet.stripe_account_id.isnot(None),
+            DriverWallet.stripe_onboarding_complete == True,
+        )
+        .count()
+    )
 
     return AdminOverviewResponse(
         total_drivers=total_drivers,
@@ -329,7 +358,9 @@ def list_session_history(
             pass
     if end_date:
         try:
-            ed = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+            ed = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(
+                days=1
+            )
             q = q.filter(SessionEvent.session_start < ed)
         except ValueError:
             pass
@@ -348,7 +379,9 @@ def list_session_history(
 
     grants_map = {}
     if session_ids:
-        grants = db.query(IncentiveGrant).filter(IncentiveGrant.session_event_id.in_(session_ids)).all()
+        grants = (
+            db.query(IncentiveGrant).filter(IncentiveGrant.session_event_id.in_(session_ids)).all()
+        )
         grants_map = {g.session_event_id: g for g in grants}
 
     rows = []
@@ -363,24 +396,26 @@ def list_session_history(
             elif driver.phone:
                 driver_name = f"***{driver.phone[-4:]}"
 
-        rows.append({
-            "id": s.id,
-            "driver_id": s.driver_user_id,
-            "driver_name": driver_name,
-            "session_start": s.session_start.isoformat() if s.session_start else None,
-            "session_end": s.session_end.isoformat() if s.session_end else None,
-            "duration_minutes": s.duration_minutes,
-            "kwh_delivered": s.kwh_delivered,
-            "charger_id": s.charger_id,
-            "charger_network": s.charger_network,
-            "quality_score": s.quality_score,
-            "ended_reason": s.ended_reason,
-            "source": s.source,
-            "has_reward": grant is not None,
-            "reward_cents": grant.amount_cents if grant else None,
-            "reward_status": grant.status if grant else None,
-            "campaign_id": grant.campaign_id if grant else None,
-        })
+        rows.append(
+            {
+                "id": s.id,
+                "driver_id": s.driver_user_id,
+                "driver_name": driver_name,
+                "session_start": s.session_start.isoformat() if s.session_start else None,
+                "session_end": s.session_end.isoformat() if s.session_end else None,
+                "duration_minutes": s.duration_minutes,
+                "kwh_delivered": s.kwh_delivered,
+                "charger_id": s.charger_id,
+                "charger_network": s.charger_network,
+                "quality_score": s.quality_score,
+                "ended_reason": s.ended_reason,
+                "source": s.source,
+                "has_reward": grant is not None,
+                "reward_cents": grant.amount_cents if grant else None,
+                "reward_status": grant.status if grant else None,
+                "campaign_id": grant.campaign_id if grant else None,
+            }
+        )
 
     return {"sessions": rows, "total": total, "limit": limit, "offset": offset}
 
@@ -392,36 +427,46 @@ def list_merchants(
     limit: int = Query(50, ge=1, le=500, description="Number of merchants per page"),
     offset: int = Query(0, ge=0, description="Number of merchants to skip"),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """List merchants with filters and pagination"""
     # Fix N+1 query: Use subquery join for last activity
     from sqlalchemy import func
-    last_activity_subq = db.query(
-        NovaTransaction.merchant_id,
-        func.max(NovaTransaction.created_at).label('last_active_at')
-    ).group_by(NovaTransaction.merchant_id).subquery()
-    
+
+    last_activity_subq = (
+        db.query(
+            NovaTransaction.merchant_id,
+            func.max(NovaTransaction.created_at).label("last_active_at"),
+        )
+        .group_by(NovaTransaction.merchant_id)
+        .subquery()
+    )
+
     # Join with merchants query and select both merchant and last_active_at
     merchants_with_activity = db.query(
-        DomainMerchant,
-        last_activity_subq.c.last_active_at
-    ).outerjoin(
-        last_activity_subq,
-        DomainMerchant.id == last_activity_subq.c.merchant_id
-    )
-    
+        DomainMerchant, last_activity_subq.c.last_active_at
+    ).outerjoin(last_activity_subq, DomainMerchant.id == last_activity_subq.c.merchant_id)
+
     if zone_slug:
-        merchants_with_activity = merchants_with_activity.filter(DomainMerchant.zone_slug == zone_slug)
+        merchants_with_activity = merchants_with_activity.filter(
+            DomainMerchant.zone_slug == zone_slug
+        )
     if status_filter:
-        merchants_with_activity = merchants_with_activity.filter(DomainMerchant.status == status_filter)
-    
+        merchants_with_activity = merchants_with_activity.filter(
+            DomainMerchant.status == status_filter
+        )
+
     # Get total count before pagination
     total_count = merchants_with_activity.count()
-    
+
     # Apply pagination
-    merchants_with_activity = merchants_with_activity.order_by(DomainMerchant.created_at.desc()).offset(offset).limit(limit).all()
-    
+    merchants_with_activity = (
+        merchants_with_activity.order_by(DomainMerchant.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
     # Build response
     merchant_list = []
     for row in merchants_with_activity:
@@ -432,29 +477,24 @@ def list_merchants(
         else:
             merchant = row
             last_active_at = None
-        merchant_list.append({
-            "id": merchant.id,
-            "name": merchant.name,
-            "zone_slug": merchant.zone_slug,
-            "status": merchant.status,
-            "nova_balance": merchant.nova_balance,
-            "last_active_at": last_active_at.isoformat() if last_active_at else None,
-            "created_at": merchant.created_at.isoformat()
-        })
-    
-    return {
-        "merchants": merchant_list,
-        "total": total_count,
-        "limit": limit,
-        "offset": offset
-    }
+        merchant_list.append(
+            {
+                "id": merchant.id,
+                "name": merchant.name,
+                "zone_slug": merchant.zone_slug,
+                "status": merchant.status,
+                "nova_balance": merchant.nova_balance,
+                "last_active_at": last_active_at.isoformat() if last_active_at else None,
+                "created_at": merchant.created_at.isoformat(),
+            }
+        )
+
+    return {"merchants": merchant_list, "total": total_count, "limit": limit, "offset": offset}
 
 
 @router.post("/nova/grant")
 def grant_nova(
-    request: GrantNovaRequest,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    request: GrantNovaRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
     """Manually grant Nova to driver or merchant (admin only)"""
     try:
@@ -462,41 +502,50 @@ def grant_nova(
             if not request.driver_user_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="driver_user_id required for driver target"
+                    detail="driver_user_id required for driver target",
                 )
-            
+
             # Require idempotency key in non-local environments
             from app.core.env import is_local_env
-            
+
             idempotency_key = request.idempotency_key
             if not idempotency_key:
                 if not is_local_env():
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="idempotency_key is required in non-local environment"
+                        detail="idempotency_key is required in non-local environment",
                     )
                 # In local, generate deterministic fallback for dev only
                 idempotency_key = f"grant_driver_{request.driver_user_id}_{request.amount}"
-            
+
             # Get wallet before grant
             from app.models_domain import DriverWallet
-            wallet_before = db.query(DriverWallet).filter(DriverWallet.user_id == request.driver_user_id).first()
+
+            wallet_before = (
+                db.query(DriverWallet)
+                .filter(DriverWallet.user_id == request.driver_user_id)
+                .first()
+            )
             before_balance = wallet_before.nova_balance if wallet_before else 0
-            
+
             transaction = NovaService.grant_to_driver(
                 db=db,
                 driver_id=request.driver_user_id,
                 amount=request.amount,
                 type="admin_grant",
                 idempotency_key=idempotency_key,
-                metadata={"reason": request.reason, "granted_by": admin.id}
+                metadata={"reason": request.reason, "granted_by": admin.id},
             )
-            
+
             # Get wallet after grant
             db.refresh(wallet_before) if wallet_before else None
-            wallet_after = db.query(DriverWallet).filter(DriverWallet.user_id == request.driver_user_id).first()
+            wallet_after = (
+                db.query(DriverWallet)
+                .filter(DriverWallet.user_id == request.driver_user_id)
+                .first()
+            )
             after_balance = wallet_after.nova_balance if wallet_after else 0
-            
+
             # P1-1: Admin audit log
             log_admin_action(
                 db=db,
@@ -506,57 +555,66 @@ def grant_nova(
                 target_id=str(request.driver_user_id),
                 before_json={"nova_balance": before_balance},
                 after_json={"nova_balance": after_balance},
-                metadata={"reason": request.reason, "amount": request.amount, "transaction_id": transaction.id}
+                metadata={
+                    "reason": request.reason,
+                    "amount": request.amount,
+                    "transaction_id": transaction.id,
+                },
             )
             db.commit()  # Commit audit log
-            
+
             return {
                 "success": True,
                 "transaction_id": transaction.id,
                 "target": "driver",
                 "driver_user_id": request.driver_user_id,
-                "amount": request.amount
+                "amount": request.amount,
             }
-        
+
         elif request.target == "merchant":
             if not request.merchant_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="merchant_id required for merchant target"
+                    detail="merchant_id required for merchant target",
                 )
-            
+
             # Require idempotency key in non-local environments
             from app.core.env import is_local_env
-            
+
             idempotency_key = request.idempotency_key
             if not idempotency_key:
                 if not is_local_env():
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="idempotency_key is required in non-local environment"
+                        detail="idempotency_key is required in non-local environment",
                     )
                 # In local, generate deterministic fallback for dev only
                 idempotency_key = f"grant_merchant_{request.merchant_id}_{request.amount}"
-            
+
             # Get merchant balance before grant
             from app.models_domain import DomainMerchant
-            merchant_before = db.query(DomainMerchant).filter(DomainMerchant.id == request.merchant_id).first()
+
+            merchant_before = (
+                db.query(DomainMerchant).filter(DomainMerchant.id == request.merchant_id).first()
+            )
             before_balance = merchant_before.nova_balance if merchant_before else 0
-            
+
             transaction = NovaService.grant_to_merchant(
                 db=db,
                 merchant_id=request.merchant_id,
                 amount=request.amount,
                 type="admin_grant",
                 idempotency_key=idempotency_key,
-                metadata={"reason": request.reason, "granted_by": admin.id}
+                metadata={"reason": request.reason, "granted_by": admin.id},
             )
-            
+
             # Get merchant balance after grant
             db.refresh(merchant_before) if merchant_before else None
-            merchant_after = db.query(DomainMerchant).filter(DomainMerchant.id == request.merchant_id).first()
+            merchant_after = (
+                db.query(DomainMerchant).filter(DomainMerchant.id == request.merchant_id).first()
+            )
             after_balance = merchant_after.nova_balance if merchant_after else 0
-            
+
             # P1-1: Admin audit log
             log_admin_action(
                 db=db,
@@ -566,62 +624,67 @@ def grant_nova(
                 target_id=request.merchant_id,
                 before_json={"nova_balance": before_balance},
                 after_json={"nova_balance": after_balance},
-                metadata={"reason": request.reason, "amount": request.amount, "transaction_id": transaction.id}
+                metadata={
+                    "reason": request.reason,
+                    "amount": request.amount,
+                    "transaction_id": transaction.id,
+                },
             )
             db.commit()  # Commit audit log
-            
+
             return {
                 "success": True,
                 "transaction_id": transaction.id,
                 "target": "merchant",
                 "merchant_id": request.merchant_id,
-                "amount": request.amount
+                "amount": request.amount,
             }
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="target must be 'driver' or 'merchant'"
+                detail="target must be 'driver' or 'merchant'",
             )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/payments/{payment_id}/reconcile")
 async def reconcile_payment(
-    payment_id: str,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    payment_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
     """
     Admin endpoint to reconcile a payment with status 'unknown'.
-    
+
     If payment status is not 'unknown', returns current payment summary (no-op).
     If payment is 'unknown', calls Stripe to check transfer status and updates accordingly.
     """
     try:
         # Call reconciliation logic (async wrapper for sync Stripe calls)
         result = await StripeService.reconcile_payment_async(db, payment_id)
-        
+
         # Fetch full payment details for response
-        payment_row = db.execute(text("""
-            SELECT id, status, stripe_transfer_id, stripe_status, 
+        payment_row = db.execute(
+            text(
+                """
+            SELECT id, status, stripe_transfer_id, stripe_status,
                    error_code, error_message, reconciled_at, no_transfer_confirmed
             FROM payments
             WHERE id = :payment_id
-        """), {"payment_id": payment_id}).first()
-        
+        """
+            ),
+            {"payment_id": payment_id},
+        ).first()
+
         if not payment_row:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Payment {payment_id} not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Payment {payment_id} not found"
             )
-        
+
         # Audit log
-        logger.info(f"Admin reconciliation triggered: payment_id={payment_id}, admin_id={admin.id}, result_status={result.get('status')}")
-        
+        logger.info(
+            f"Admin reconciliation triggered: payment_id={payment_id}, admin_id={admin.id}, result_status={result.get('status')}"
+        )
+
         # Build response with all required fields
         response = {
             "payment_id": payment_row[0] or payment_id,
@@ -631,44 +694,41 @@ async def reconcile_payment(
             "error_code": payment_row[4],
             "error_message": payment_row[5],
             "reconciled_at": payment_row[6].isoformat() if payment_row[6] else None,
-            "no_transfer_confirmed": bool(payment_row[7]) if payment_row[7] is not None else None
+            "no_transfer_confirmed": bool(payment_row[7]) if payment_row[7] is not None else None,
         }
-        
+
         # Add message from reconciliation result if present
         if "message" in result:
             response["message"] = result["message"]
-        
+
         return response
-        
+
     except ValueError as e:
         # Payment not found
         if "not found" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=str(e)
-            )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error in admin reconcile endpoint: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Reconciliation failed: {str(e)}"
+            detail=f"Reconciliation failed: {str(e)}",
         )
 
 
 # P1-2: Admin API endpoints
 
+
 class WalletAdjustRequest(BaseModel):
     """Request to manually adjust user wallet"""
+
     amount_cents: int  # Positive for credit, negative for debit
     reason: str
 
 
 class UserResponse(BaseModel):
     """User response model"""
+
     id: int
     public_id: str
     email: str
@@ -679,6 +739,7 @@ class UserResponse(BaseModel):
 
 class UserWalletResponse(BaseModel):
     """User wallet response model"""
+
     user_id: int
     balance_cents: int
     nova_balance: int
@@ -687,6 +748,7 @@ class UserWalletResponse(BaseModel):
 
 class MerchantStatusResponse(BaseModel):
     """Merchant status response model"""
+
     merchant_id: str
     name: str
     status: str
@@ -697,11 +759,13 @@ class MerchantStatusResponse(BaseModel):
 
 class GooglePlaceCandidatesResponse(BaseModel):
     """Google Places candidates response"""
+
     candidates: List[dict]
 
 
 class GooglePlaceResolveRequest(BaseModel):
     """Request to resolve Google Place ID"""
+
     place_id: str
 
 
@@ -709,32 +773,29 @@ class GooglePlaceResolveRequest(BaseModel):
 def search_users(
     query: Optional[str] = Query(None, description="Search by name, email, or public_id"),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Search users by name, email, or public_id.
-    
+
     P1-2: Admin API endpoint for user search.
     """
     q = db.query(User)
-    
+
     if query:
         # Search by email, public_id, or name (if name column exists)
-        search_filter = or_(
-            User.email.ilike(f"%{query}%"),
-            User.public_id.ilike(f"%{query}%")
-        )
+        search_filter = or_(User.email.ilike(f"%{query}%"), User.public_id.ilike(f"%{query}%"))
         # Try to search by name if column exists
         try:
-            if hasattr(User, 'name'):
+            if hasattr(User, "name"):
                 search_filter = or_(search_filter, User.name.ilike(f"%{query}%"))
         except Exception as e:
             logger.debug(f"Error checking User.name attribute: {e}")
             pass
         q = q.filter(search_filter)
-    
+
     users = q.order_by(User.created_at.desc()).limit(50).all()
-    
+
     return [
         UserResponse(
             id=user.id,
@@ -742,7 +803,7 @@ def search_users(
             email=user.email,
             role_flags=user.role_flags or "",
             is_active=user.is_active,
-            created_at=user.created_at.isoformat() if user.created_at else ""
+            created_at=user.created_at.isoformat() if user.created_at else "",
         )
         for user in users
     ]
@@ -752,52 +813,55 @@ def search_users(
 def get_user_wallet(
     user_id: int = Path(..., description="User ID"),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get user wallet balance and transaction history.
-    
+
     P1-2: Admin API endpoint for viewing user wallet.
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
-    
+
     # Get wallet balance from credit_ledger
     balance_cents = _balance(db, str(user_id))
-    
+
     # Get Nova balance from DriverWallet
     wallet = db.query(DriverWallet).filter(DriverWallet.user_id == user_id).first()
     nova_balance = wallet.nova_balance if wallet else 0
-    
+
     # Get transaction history
     transactions = []
     try:
-        ledger_entries = db.query(CreditLedger).filter(
-            CreditLedger.user_ref == str(user_id)
-        ).order_by(CreditLedger.id.desc()).limit(50).all()
-        
+        ledger_entries = (
+            db.query(CreditLedger)
+            .filter(CreditLedger.user_ref == str(user_id))
+            .order_by(CreditLedger.id.desc())
+            .limit(50)
+            .all()
+        )
+
         transactions = [
             {
                 "id": entry.id,
                 "cents": entry.cents,
                 "reason": entry.reason,
                 "meta": entry.meta or {},
-                "created_at": entry.created_at.isoformat() if entry.created_at else ""
+                "created_at": entry.created_at.isoformat() if entry.created_at else "",
             }
             for entry in ledger_entries
         ]
     except Exception as e:
         logger.warning(f"Could not fetch transaction history: {e}")
-    
+
     return UserWalletResponse(
         user_id=user_id,
         balance_cents=balance_cents,
         nova_balance=nova_balance,
-        transactions=transactions
+        transactions=transactions,
     )
 
 
@@ -806,32 +870,31 @@ def adjust_user_wallet(
     user_id: int = Path(..., description="User ID"),
     request: WalletAdjustRequest = Body(...),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Manually adjust user wallet balance (creates ledger entry + audit log).
-    
+
     P1-2: Admin API endpoint for manual wallet adjustments.
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found"
         )
-    
+
     # Get balance before adjustment
     before_balance = _balance(db, str(user_id))
-    
+
     # Add ledger entry
     new_balance = _add_ledger(
         db,
         str(user_id),
         request.amount_cents,
         "ADMIN_ADJUST",
-        {"reason": request.reason, "admin_id": admin.id}
+        {"reason": request.reason, "admin_id": admin.id},
     )
-    
+
     # P1-1: Admin audit log
     log_wallet_mutation(
         db=db,
@@ -841,16 +904,16 @@ def adjust_user_wallet(
         before_balance=before_balance,
         after_balance=new_balance,
         amount=request.amount_cents,
-        metadata={"reason": request.reason, "admin_id": admin.id}
+        metadata={"reason": request.reason, "admin_id": admin.id},
     )
     db.commit()
-    
+
     return {
         "success": True,
         "user_id": user_id,
         "amount_cents": request.amount_cents,
         "before_balance_cents": before_balance,
-        "after_balance_cents": new_balance
+        "after_balance_cents": new_balance,
     }
 
 
@@ -858,25 +921,22 @@ def adjust_user_wallet(
 def search_merchants(
     query: Optional[str] = Query(None, description="Search by merchant name or ID"),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Search merchants by name or ID.
-    
+
     P1-2: Admin API endpoint for merchant search.
     """
     q = db.query(DomainMerchant)
-    
+
     if query:
         q = q.filter(
-            or_(
-                DomainMerchant.name.ilike(f"%{query}%"),
-                DomainMerchant.id.ilike(f"%{query}%")
-            )
+            or_(DomainMerchant.name.ilike(f"%{query}%"), DomainMerchant.id.ilike(f"%{query}%"))
         )
-    
+
     merchants = q.order_by(DomainMerchant.created_at.desc()).limit(50).all()
-    
+
     return {
         "merchants": [
             {
@@ -885,7 +945,7 @@ def search_merchants(
                 "status": merchant.status,
                 "zone_slug": merchant.zone_slug,
                 "nova_balance": merchant.nova_balance,
-                "created_at": merchant.created_at.isoformat() if merchant.created_at else ""
+                "created_at": merchant.created_at.isoformat() if merchant.created_at else "",
             }
             for merchant in merchants
         ]
@@ -896,87 +956,91 @@ def search_merchants(
 def get_merchant_status(
     merchant_id: str = Path(..., description="Merchant ID"),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get merchant status including Square token status and last error.
-    
+
     P1-2: Admin API endpoint for merchant status.
     """
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == merchant_id).first()
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Merchant {merchant_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Merchant {merchant_id} not found"
         )
-    
+
     # Check Square connection status
     square_connected = bool(merchant.square_access_token and merchant.square_connected_at)
-    
+
     # Get last error from recent transactions or payments
     square_last_error = None
     try:
         # Check for failed Stripe payments (if any)
-        last_payment = db.query(StripePayment).filter(
-            StripePayment.merchant_id == merchant_id,
-            StripePayment.status == "failed"
-        ).order_by(StripePayment.created_at.desc()).first()
-        
+        last_payment = (
+            db.query(StripePayment)
+            .filter(StripePayment.merchant_id == merchant_id, StripePayment.status == "failed")
+            .order_by(StripePayment.created_at.desc())
+            .first()
+        )
+
         if last_payment and last_payment.error_message:
             square_last_error = last_payment.error_message
     except Exception:
         pass
-    
+
     return MerchantStatusResponse(
         merchant_id=merchant.id,
         name=merchant.name,
         status=merchant.status,
         square_connected=square_connected,
         square_last_error=square_last_error,
-        nova_balance=merchant.nova_balance
+        nova_balance=merchant.nova_balance,
     )
 
 
-@router.get("/locations/{location_id}/google-place/candidates", response_model=GooglePlaceCandidatesResponse)
+@router.get(
+    "/locations/{location_id}/google-place/candidates", response_model=GooglePlaceCandidatesResponse
+)
 def get_google_place_candidates(
     location_id: str = Path(..., description="Location ID (merchant ID)"),
     query: Optional[str] = Query(None, description="Search query for Google Places"),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get Google Places candidates for a merchant location.
-    
+
     P1-2: Admin API endpoint for Google Places mapping.
     """
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == location_id).first()
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Merchant {location_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Merchant {location_id} not found"
         )
-    
+
     # Use merchant name and location for search
     search_query = query or merchant.name
     lat = merchant.lat
     lng = merchant.lng
-    
+
     # Call Google Places API (if configured)
     candidates = []
     try:
         import os
+
         google_places_api_key = os.getenv("GOOGLE_PLACES_API_KEY")
         if google_places_api_key:
             import httpx
+
             # Use Places API Text Search
             url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
             params = {
                 "query": search_query,
                 "location": f"{lat},{lng}",
                 "radius": 5000,  # 5km radius
-                "key": google_places_api_key
+                "key": google_places_api_key,
             }
-            
+
             response = httpx.get(url, params=params, timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
@@ -987,7 +1051,7 @@ def get_google_place_candidates(
                         "formatted_address": result.get("formatted_address"),
                         "geometry": result.get("geometry", {}),
                         "rating": result.get("rating"),
-                        "types": result.get("types", [])
+                        "types": result.get("types", []),
                     }
                     for result in data.get("results", [])[:10]  # Limit to 10
                 ]
@@ -995,7 +1059,7 @@ def get_google_place_candidates(
             logger.warning("GOOGLE_PLACES_API_KEY not configured")
     except Exception as e:
         logger.error(f"Error fetching Google Places candidates: {e}")
-    
+
     return GooglePlaceCandidatesResponse(candidates=candidates)
 
 
@@ -1004,34 +1068,35 @@ def resolve_google_place(
     location_id: str = Path(..., description="Location ID (merchant ID)"),
     request: GooglePlaceResolveRequest = Body(...),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Resolve Google Place ID for a merchant location.
-    
+
     P1-2: Admin API endpoint for resolving Google Place ID.
     """
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == location_id).first()
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Merchant {location_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Merchant {location_id} not found"
         )
-    
+
     # Fetch place details from Google Places API
     place_details = None
     try:
         import os
+
         google_places_api_key = os.getenv("GOOGLE_PLACES_API_KEY")
         if google_places_api_key:
             import httpx
+
             url = "https://maps.googleapis.com/maps/api/place/details/json"
             params = {
                 "place_id": request.place_id,
                 "fields": "place_id,name,formatted_address,geometry,rating,types,website,international_phone_number",
-                "key": google_places_api_key
+                "key": google_places_api_key,
             }
-            
+
             response = httpx.get(url, params=params, timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
@@ -1040,30 +1105,33 @@ def resolve_google_place(
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="GOOGLE_PLACES_API_KEY not configured"
+                detail="GOOGLE_PLACES_API_KEY not configured",
             )
     except Exception as e:
         logger.error(f"Error fetching Google Place details: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch place details: {str(e)}"
+            detail=f"Failed to fetch place details: {str(e)}",
         )
-    
+
     if not place_details:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Place ID {request.place_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Place ID {request.place_id} not found"
         )
-    
+
     # Update merchant with Google Place ID
     merchant.google_place_id = request.place_id
     # Optionally update other fields from place_details
     if place_details.get("formatted_address"):
         # Parse address if needed (simplified)
-        merchant.addr_line1 = place_details.get("formatted_address", "").split(",")[0] if place_details.get("formatted_address") else None
-    
+        merchant.addr_line1 = (
+            place_details.get("formatted_address", "").split(",")[0]
+            if place_details.get("formatted_address")
+            else None
+        )
+
     db.commit()
-    
+
     # P1-1: Admin audit log
     log_admin_action(
         db=db,
@@ -1073,15 +1141,15 @@ def resolve_google_place(
         target_id=location_id,
         before_json={"google_place_id": merchant.google_place_id},
         after_json={"google_place_id": request.place_id},
-        metadata={"place_id": request.place_id, "place_name": place_details.get("name")}
+        metadata={"place_id": request.place_id, "place_name": place_details.get("name")},
     )
     db.commit()
-    
+
     return {
         "success": True,
         "merchant_id": location_id,
         "google_place_id": request.place_id,
-        "place_details": place_details
+        "place_details": place_details,
     }
 
 
@@ -1090,7 +1158,7 @@ def resolve_google_place(
 def list_all_exclusives(
     merchant_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """
     List all exclusives (optionally filtered by merchant_id).
@@ -1098,63 +1166,68 @@ def list_all_exclusives(
     import json
 
     from app.models.while_you_charge import MerchantPerk
-    
+
     query = db.query(MerchantPerk)
     if merchant_id:
         query = query.filter(MerchantPerk.merchant_id == merchant_id)
-    
+
     perks = query.all()
     exclusives = []
-    
+
     for perk in perks:
         try:
             metadata = json.loads(perk.description or "{}")
             if metadata.get("is_exclusive"):
-                exclusives.append({
-                    "id": str(perk.id),
-                    "merchant_id": perk.merchant_id,
-                    "title": perk.title,
-                    "description": metadata.get("description") or perk.description,
-                    "daily_cap": metadata.get("daily_cap"),
-                    "session_cap": metadata.get("session_cap"),
-                    "eligibility": metadata.get("eligibility", "charging_only"),
-                    "is_active": perk.is_active,
-                    "created_at": perk.created_at.isoformat(),
-                    "updated_at": perk.updated_at.isoformat()
-                })
+                exclusives.append(
+                    {
+                        "id": str(perk.id),
+                        "merchant_id": perk.merchant_id,
+                        "title": perk.title,
+                        "description": metadata.get("description") or perk.description,
+                        "daily_cap": metadata.get("daily_cap"),
+                        "session_cap": metadata.get("session_cap"),
+                        "eligibility": metadata.get("eligibility", "charging_only"),
+                        "is_active": perk.is_active,
+                        "created_at": perk.created_at.isoformat(),
+                        "updated_at": perk.updated_at.isoformat(),
+                    }
+                )
         except Exception as e:
             logger.debug(f"Error processing perk {perk.id}: {e}")
             continue
-    
+
     # Enrich with merchant names
     from app.models.while_you_charge import Merchant
+
     merchant_ids = list(set(e["merchant_id"] for e in exclusives if e.get("merchant_id")))
     merchants_map = {}
     if merchant_ids:
         merchants = db.query(Merchant).filter(Merchant.id.in_(merchant_ids)).all()
         merchants_map = {m.id: m.name for m in merchants}
-    
+
     # Count today's activations per merchant (since ExclusiveSession doesn't have perk_id)
     from datetime import datetime, timezone
 
     from app.models.exclusive_session import ExclusiveSession
+
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     activation_counts = {}
     try:
         # Count sessions by merchant_id activated today
-        active_sessions = db.query(
-            ExclusiveSession.merchant_id, func.count(ExclusiveSession.id)
-        ).filter(
-            ExclusiveSession.activated_at >= today_start
-        ).group_by(ExclusiveSession.merchant_id).all()
+        active_sessions = (
+            db.query(ExclusiveSession.merchant_id, func.count(ExclusiveSession.id))
+            .filter(ExclusiveSession.activated_at >= today_start)
+            .group_by(ExclusiveSession.merchant_id)
+            .all()
+        )
         for merchant_id, count in active_sessions:
             if merchant_id:
                 activation_counts[merchant_id] = count
     except Exception:
         # If query fails, leave counts as 0
         pass
-    
+
     # Enrich exclusives with merchant_name and activations_today
     for ex in exclusives:
         ex["merchant_name"] = merchants_map.get(ex["merchant_id"], "Unknown")
@@ -1162,8 +1235,13 @@ def list_all_exclusives(
         ex["activations_today"] = activation_counts.get(ex["merchant_id"], 0)
         ex["activations_this_month"] = 0  # placeholder
         ex["nova_reward"] = 0  # placeholder
-    
-    return {"exclusives": exclusives, "total": len(exclusives), "limit": len(exclusives), "offset": 0}
+
+    return {
+        "exclusives": exclusives,
+        "total": len(exclusives),
+        "limit": len(exclusives),
+        "offset": 0,
+    }
 
 
 class ToggleExclusiveRequest(BaseModel):
@@ -1174,10 +1252,12 @@ class ToggleExclusiveRequest(BaseModel):
 def toggle_exclusive_flag(
     http_request: Request,
     exclusive_id: str = Path(...),
-    enabled: Optional[bool] = Query(None, description="Enable or disable (optional, toggles if not provided)"),
+    enabled: Optional[bool] = Query(
+        None, description="Enable or disable (optional, toggles if not provided)"
+    ),
     body: Optional[ToggleExclusiveRequest] = None,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """
     Admin toggle exclusive flag (enable/disable).
@@ -1185,28 +1265,25 @@ def toggle_exclusive_flag(
     If enabled query param is not provided, toggles current state.
     """
     from app.models.while_you_charge import MerchantPerk
-    
+
     perk = db.query(MerchantPerk).filter(MerchantPerk.id == int(exclusive_id)).first()
     if not perk:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Exclusive not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exclusive not found")
+
     # Determine new state: use query param if provided, otherwise toggle
     if enabled is not None:
         new_state = enabled
     else:
         new_state = not perk.is_active
-    
+
     prev_state = perk.is_active
     perk.is_active = new_state
     db.commit()
-    
+
     # Store reason in metadata if provided
     reason = body.reason if body and body.reason else ""
     metadata = {"reason": reason} if reason else {}
-    
+
     log_admin_action(
         db=db,
         actor_id=admin.id,
@@ -1217,7 +1294,7 @@ def toggle_exclusive_flag(
         after_json={"is_active": new_state, **metadata},
     )
     db.commit()
-    
+
     # Analytics: Capture admin exclusive toggle
     request_id = getattr(http_request.state, "request_id", None)
     analytics = get_analytics_client()
@@ -1231,9 +1308,9 @@ def toggle_exclusive_flag(
         properties={
             "exclusive_id": exclusive_id,
             "enabled": enabled,
-        }
+        },
     )
-    
+
     return {"ok": True, "is_active": enabled}
 
 
@@ -1250,46 +1327,46 @@ def set_demo_location(
     http_request: Request,
     *,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """
     Set static demo driver location (for demos/testing).
-    
+
     Security requirements:
     - Requires admin authentication (enforced by require_admin)
     - Requires DEMO_STATIC_DRIVER_ENABLED=true (disabled by default in prod)
     - All actions are audited
-    
+
     Production safety: This endpoint is disabled unless explicitly enabled via env var.
     """
     import os
 
     from app.config import settings
-    
+
     # Check if demo mode is enabled (must be explicitly set to "true")
     demo_enabled = os.getenv("DEMO_STATIC_DRIVER_ENABLED", "false").lower() == "true"
-    
+
     # In production, also check ENV setting
     if settings.env == "production" and not demo_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Demo static driver mode is disabled in production"
+            detail="Demo static driver mode is disabled in production",
         )
-    
+
     if not demo_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Demo static driver mode is not enabled. Set DEMO_STATIC_DRIVER_ENABLED=true to enable."
+            detail="Demo static driver mode is not enabled. Set DEMO_STATIC_DRIVER_ENABLED=true to enable.",
         )
-    
+
     # Store in database table (more secure than env vars)
     # For MVP, we'll use a simple table or cache
     # In production, use Redis or database table with TTL
-    
+
     # Store demo location in audit metadata (for now)
     # TODO: Create dedicated DemoLocation table with TTL
     demo_location_key = f"demo_location_{admin.id}"
-    
+
     # Log admin action BEFORE setting location (audit trail)
     log_admin_action(
         db=db,
@@ -1298,32 +1375,28 @@ def set_demo_location(
         target_type="demo",
         target_id=demo_location_key,
         before_json={},  # Could store previous location if exists
-        after_json={
-            "lat": request.lat,
-            "lng": request.lng,
-            "charger_id": request.charger_id
-        },
+        after_json={"lat": request.lat, "lng": request.lng, "charger_id": request.charger_id},
         metadata={
             "lat": request.lat,
             "lng": request.lng,
             "charger_id": request.charger_id,
             "enabled": demo_enabled,
-            "env": settings.env
-        }
+            "env": settings.env,
+        },
     )
     db.commit()
-    
+
     # Store in environment for runtime access (temporary - should use DB/Redis)
     # This is acceptable for MVP but should be replaced with proper storage
     os.environ["DEMO_STATIC_LAT"] = str(request.lat)
     os.environ["DEMO_STATIC_LNG"] = str(request.lng)
     if request.charger_id:
         os.environ["DEMO_STATIC_CHARGER_ID"] = request.charger_id
-    
+
     logger.info(
         f"Demo location set by admin {admin.id}: lat={request.lat}, lng={request.lng}, charger_id={request.charger_id}"
     )
-    
+
     # Analytics: Capture demo location override
     request_id = getattr(http_request.state, "request_id", None)
     analytics = get_analytics_client()
@@ -1338,16 +1411,16 @@ def set_demo_location(
             "latitude": request.lat,
             "longitude": request.lng,
             "charger_id": request.charger_id,
-        }
+        },
     )
-    
+
     return {
         "ok": True,
         "lat": request.lat,
         "lng": request.lng,
         "charger_id": request.charger_id,
         "set_by": admin.id,
-        "set_at": datetime.utcnow().isoformat()
+        "set_at": datetime.utcnow().isoformat(),
     }
 
 
@@ -1360,22 +1433,22 @@ def get_audit_logs(
     action: Optional[str] = Query(None),
     target_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """
     Get audit logs (basic viewer).
     """
     from app.models_extra import AdminAuditLog
-    
+
     query = db.query(AdminAuditLog)
-    
+
     if action:
         query = query.filter(AdminAuditLog.action == action)
     if target_type:
         query = query.filter(AdminAuditLog.target_type == target_type)
-    
+
     logs = query.order_by(AdminAuditLog.created_at.desc()).limit(limit).offset(offset).all()
-    
+
     # Analytics: Capture audit log view
     request_id = getattr(http_request.state, "request_id", None)
     analytics = get_analytics_client()
@@ -1388,9 +1461,9 @@ def get_audit_logs(
         user_agent=http_request.headers.get("user-agent"),
         properties={
             "filter": action or target_type or None,
-        }
+        },
     )
-    
+
     return {
         "logs": [
             {
@@ -1400,48 +1473,51 @@ def get_audit_logs(
                 "target_type": log.target_type,
                 "target_id": log.target_id,
                 "created_at": log.created_at.isoformat() if log.created_at else None,
-                "metadata": log.metadata if hasattr(log, 'metadata') else {}
+                "metadata": log.metadata if hasattr(log, "metadata") else {},
             }
             for log in logs
         ],
         "total": query.count(),
         "limit": limit,
-        "offset": offset
+        "offset": offset,
     }
 
 
 @router.get("/sessions/active")
-def get_active_sessions(
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
-):
+def get_active_sessions(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     """Get all active exclusive sessions."""
     from datetime import datetime, timezone
 
     from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
-    
+
     now = datetime.now(timezone.utc)
-    sessions = db.query(ExclusiveSession).filter(
-        ExclusiveSession.status == ExclusiveSessionStatus.ACTIVE,
-        ExclusiveSession.expires_at > now
-    ).all()
-    
+    sessions = (
+        db.query(ExclusiveSession)
+        .filter(
+            ExclusiveSession.status == ExclusiveSessionStatus.ACTIVE,
+            ExclusiveSession.expires_at > now,
+        )
+        .all()
+    )
+
     result = []
     for s in sessions:
         remaining = (s.expires_at - now).total_seconds() / 60 if s.expires_at else 0
-        result.append({
-            "id": str(s.id),
-            "driver_id": s.driver_id,
-            "merchant_id": s.merchant_id,
-            "merchant_name": None,  # enrich later if needed
-            "charger_id": s.charger_id,
-            "charger_name": None,
-            "status": s.status.value if hasattr(s.status, 'value') else str(s.status),
-            "activated_at": s.activated_at.isoformat() if s.activated_at else None,
-            "expires_at": s.expires_at.isoformat() if s.expires_at else None,
-            "time_remaining_minutes": round(max(0, remaining), 1),
-        })
-    
+        result.append(
+            {
+                "id": str(s.id),
+                "driver_id": s.driver_id,
+                "merchant_id": s.merchant_id,
+                "merchant_name": None,  # enrich later if needed
+                "charger_id": s.charger_id,
+                "charger_name": None,
+                "status": s.status.value if hasattr(s.status, "value") else str(s.status),
+                "activated_at": s.activated_at.isoformat() if s.activated_at else None,
+                "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+                "time_remaining_minutes": round(max(0, remaining), 1),
+            }
+        )
+
     return {"sessions": result, "total_active": len(result)}
 
 
@@ -1452,41 +1528,43 @@ class ForceCloseRequest(BaseModel):
 
 @router.post("/sessions/force-close")
 def force_close_sessions(
-    request: ForceCloseRequest,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    request: ForceCloseRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)
 ):
     """Force close all active sessions at a specific charger location."""
     from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
-    
-    sessions = db.query(ExclusiveSession).filter(
-        ExclusiveSession.status == ExclusiveSessionStatus.ACTIVE,
-        ExclusiveSession.charger_id == request.location_id
-    ).all()
-    
+
+    sessions = (
+        db.query(ExclusiveSession)
+        .filter(
+            ExclusiveSession.status == ExclusiveSessionStatus.ACTIVE,
+            ExclusiveSession.charger_id == request.location_id,
+        )
+        .all()
+    )
+
     count = 0
     for s in sessions:
         s.status = ExclusiveSessionStatus.CANCELED
         count += 1
-    
+
     db.commit()
-    
+
     log_admin_action(
         db=db,
         actor_id=admin.id,
         action="force_close_sessions",
         target_type="location",
         target_id=request.location_id,
-        after_json={"sessions_closed": count, "reason": request.reason}
+        after_json={"sessions_closed": count, "reason": request.reason},
     )
     db.commit()
-    
+
     return {
         "location_id": request.location_id,
         "sessions_closed": count,
         "closed_by": admin.public_id,
         "reason": request.reason,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -1500,35 +1578,39 @@ class EmergencyPauseRequest(BaseModel):
 def emergency_pause(
     request: EmergencyPauseRequest,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Emergency pause/unpause all exclusives."""
     if request.action == "activate" and request.confirmation != "CONFIRM-EMERGENCY-PAUSE":
         raise HTTPException(status_code=400, detail="Invalid confirmation token")
-    
+
     from app.models.while_you_charge import MerchantPerk
-    
+
     if request.action == "activate":
-        updated = db.query(MerchantPerk).filter(MerchantPerk.is_active == True).update({"is_active": False})
+        updated = (
+            db.query(MerchantPerk)
+            .filter(MerchantPerk.is_active == True)
+            .update({"is_active": False})
+        )
         db.commit()
     else:
         updated = 0  # deactivation does not auto-reactivate; manual per-exclusive
-    
+
     log_admin_action(
         db=db,
         actor_id=admin.id,
         action=f"emergency_pause_{request.action}",
         target_type="system",
         target_id="all",
-        after_json={"reason": request.reason, "exclusives_affected": updated}
+        after_json={"reason": request.reason, "exclusives_affected": updated},
     )
     db.commit()
-    
+
     return {
         "action": request.action,
         "activated_by": admin.public_id,
         "reason": request.reason,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -1542,34 +1624,37 @@ def get_logs(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Get audit logs with enriched schema matching frontend expectations."""
     from app.models_extra import AdminAuditLog
-    
+
     query = db.query(AdminAuditLog)
-    
+
     if type:
         query = query.filter(AdminAuditLog.action.contains(type))
     if search:
         query = query.filter(
-            AdminAuditLog.action.contains(search) |
-            AdminAuditLog.target_id.contains(search)
+            AdminAuditLog.action.contains(search) | AdminAuditLog.target_id.contains(search)
         )
-    
+
     total = query.count()
     logs = query.order_by(AdminAuditLog.created_at.desc()).limit(limit).offset(offset).all()
-    
+
     # Enrich with user email lookup
     actor_ids = list(set(log.actor_id for log in logs if log.actor_id))
-    users = {u.id: u for u in db.query(User).filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
-    
+    users = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
+    )
+
     return {
         "logs": [
             {
                 "id": str(log.id),
                 "operator_id": log.actor_id,
-                "operator_email": users.get(log.actor_id).email if users.get(log.actor_id) else None,
+                "operator_email": (
+                    users.get(log.actor_id).email if users.get(log.actor_id) else None
+                ),
                 "action_type": log.action,
                 "target_type": log.target_type,
                 "target_id": log.target_id,
@@ -1581,7 +1666,7 @@ def get_logs(
         ],
         "total": total,
         "limit": limit,
-        "offset": offset
+        "offset": offset,
     }
 
 
@@ -1590,17 +1675,17 @@ def pause_merchant(
     merchant_id: str = Path(...),
     reason: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Pause a merchant."""
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == merchant_id).first()
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
-    
+
     prev = merchant.status
     merchant.status = "paused"
     db.commit()
-    
+
     log_admin_action(
         db=db,
         actor_id=admin.id,
@@ -1608,16 +1693,16 @@ def pause_merchant(
         target_type="merchant",
         target_id=merchant_id,
         before_json={"status": prev},
-        after_json={"status": "paused", "reason": reason}
+        after_json={"status": "paused", "reason": reason},
     )
     db.commit()
-    
+
     return {
         "merchant_id": merchant_id,
         "action": "pause",
         "previous_status": prev,
         "new_status": "paused",
-        "reason": reason
+        "reason": reason,
     }
 
 
@@ -1626,17 +1711,17 @@ def resume_merchant(
     merchant_id: str = Path(...),
     reason: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Resume a merchant."""
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == merchant_id).first()
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
-    
+
     prev = merchant.status
     merchant.status = "active"
     db.commit()
-    
+
     log_admin_action(
         db=db,
         actor_id=admin.id,
@@ -1644,16 +1729,16 @@ def resume_merchant(
         target_type="merchant",
         target_id=merchant_id,
         before_json={"status": prev},
-        after_json={"status": "active", "reason": reason}
+        after_json={"status": "active", "reason": reason},
     )
     db.commit()
-    
+
     return {
         "merchant_id": merchant_id,
         "action": "resume",
         "previous_status": prev,
         "new_status": "active",
-        "reason": reason
+        "reason": reason,
     }
 
 
@@ -1662,7 +1747,7 @@ def ban_merchant(
     merchant_id: str = Path(...),
     reason: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Ban a merchant."""
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == merchant_id).first()
@@ -1680,7 +1765,7 @@ def ban_merchant(
         target_type="merchant",
         target_id=merchant_id,
         before_json={"status": prev},
-        after_json={"status": "banned", "reason": reason}
+        after_json={"status": "banned", "reason": reason},
     )
     db.commit()
 
@@ -1689,7 +1774,7 @@ def ban_merchant(
         "action": "ban",
         "previous_status": prev,
         "new_status": "banned",
-        "reason": reason
+        "reason": reason,
     }
 
 
@@ -1698,7 +1783,7 @@ def verify_merchant(
     merchant_id: str = Path(...),
     reason: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Verify a merchant."""
     merchant = db.query(DomainMerchant).filter(DomainMerchant.id == merchant_id).first()
@@ -1716,7 +1801,7 @@ def verify_merchant(
         target_type="merchant",
         target_id=merchant_id,
         before_json={"status": prev},
-        after_json={"status": "verified", "reason": reason}
+        after_json={"status": "verified", "reason": reason},
     )
     db.commit()
 
@@ -1725,7 +1810,7 @@ def verify_merchant(
         "action": "verify",
         "previous_status": prev,
         "new_status": "verified",
-        "reason": reason
+        "reason": reason,
     }
 
 
@@ -1734,10 +1819,11 @@ def ban_exclusive(
     exclusive_id: str = Path(...),
     reason: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Permanently disable an exclusive."""
     from app.models.while_you_charge import MerchantPerk
+
     exclusive = db.query(MerchantPerk).filter(MerchantPerk.id == int(exclusive_id)).first()
     if not exclusive:
         raise HTTPException(status_code=404, detail="Exclusive not found")
@@ -1751,15 +1837,11 @@ def ban_exclusive(
         action="ban_exclusive",
         target_type="exclusive",
         target_id=exclusive_id,
-        after_json={"is_active": False, "reason": reason}
+        after_json={"is_active": False, "reason": reason},
     )
     db.commit()
 
-    return {
-        "exclusive_id": exclusive_id,
-        "action": "ban",
-        "reason": reason
-    }
+    return {"exclusive_id": exclusive_id, "action": "ban", "reason": reason}
 
 
 @router.post("/merchants/{merchant_id}/send-portal-link")
@@ -1767,11 +1849,11 @@ def send_portal_link(
     merchant_id: str = Path(...),
     email: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    admin: User = Depends(require_admin),
 ):
     """Send portal claim link to merchant email."""
     from app.core.config import settings
-    
+
     portal_url = f"{settings.FRONTEND_URL}/merchant/claim/{merchant_id}"
     # In production, send email via existing email service.
     # For now, log the action and return the link.
@@ -1781,10 +1863,10 @@ def send_portal_link(
         action="send_portal_link",
         target_type="merchant",
         target_id=merchant_id,
-        after_json={"email": email, "portal_url": portal_url}
+        after_json={"email": email, "portal_url": portal_url},
     )
     db.commit()
-    
+
     return {"success": True}
 
 
@@ -1863,67 +1945,55 @@ class DemoSimulateRequest(BaseModel):
 
 
 @router.post("/system/pause")
-def pause_system(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
+def pause_system(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """
     Pause the system (kill switch).
-    
+
     Sets Redis flag to pause all non-admin endpoints.
     Returns 503 for non-admin endpoints until resumed.
     """
     import redis
 
     from app.config import settings
-    
+
     try:
         redis_client = redis.from_url(settings.redis_url, decode_responses=True)
         redis_client.set("system:paused", "1")
-        
+
         logger.warning(f"System paused by admin {admin.id}")
-        
-        return {
-            "ok": True,
-            "message": "System paused. Non-admin endpoints will return 503."
-        }
+
+        return {"ok": True, "message": "System paused. Non-admin endpoints will return 503."}
     except Exception as e:
         logger.error(f"Failed to pause system: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to pause system: {str(e)}"
+            detail=f"Failed to pause system: {str(e)}",
         )
 
 
 @router.post("/system/resume")
-def resume_system(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
+def resume_system(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """
     Resume the system (disable kill switch).
-    
+
     Removes Redis flag to allow all endpoints again.
     """
     import redis
 
     from app.config import settings
-    
+
     try:
         redis_client = redis.from_url(settings.redis_url, decode_responses=True)
         redis_client.delete("system:paused")
-        
+
         logger.info(f"System resumed by admin {admin.id}")
-        
-        return {
-            "ok": True,
-            "message": "System resumed. All endpoints are active."
-        }
+
+        return {"ok": True, "message": "System resumed. All endpoints are active."}
     except Exception as e:
         logger.error(f"Failed to resume system: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to resume system: {str(e)}"
+            detail=f"Failed to resume system: {str(e)}",
         )
 
 
@@ -1983,7 +2053,7 @@ async def simulate_verified_visit(
 
     return {
         "session_id": str(session.id),
-        "driver_id": driver.public_id if hasattr(driver, 'public_id') else str(driver.id),
+        "driver_id": driver.public_id if hasattr(driver, "public_id") else str(driver.id),
         "status": "simulated",
     }
 
@@ -2009,6 +2079,7 @@ def _run_seed_chargers_job(job_id: str, states: Optional[List[str]]):
     _seed_jobs[job_id]["status"] = "running"
     db = SessionLocal()
     try:
+
         def on_progress(state, fetched, total):
             _seed_jobs[job_id]["progress"] = {
                 "current_state": state,
@@ -2039,6 +2110,7 @@ def _run_seed_merchants_job(job_id: str, max_cells: Optional[int]):
     _seed_jobs[job_id]["status"] = "running"
     db = SessionLocal()
     try:
+
         def on_progress(done, total):
             _seed_jobs[job_id]["progress"] = {
                 "cells_done": done,
@@ -2058,7 +2130,9 @@ def _run_seed_merchants_job(job_id: str, max_cells: Optional[int]):
 
 
 class SeedChargersRequest2(BaseModel):
-    states: Optional[List[str]] = Field(None, description="State codes to seed (default: all 50 + DC)")
+    states: Optional[List[str]] = Field(
+        None, description="State codes to seed (default: all 50 + DC)"
+    )
 
 
 class SeedMerchantsRequest(BaseModel):
@@ -2074,7 +2148,11 @@ def start_charger_seed(
     # Check for already running charger seed
     for jid, job in _seed_jobs.items():
         if job["type"] == "chargers" and job["status"] == "running":
-            return {"job_id": jid, "status": "already_running", "message": "A charger seed job is already running"}
+            return {
+                "job_id": jid,
+                "status": "already_running",
+                "message": "A charger seed job is already running",
+            }
 
     job_id = f"charger_seed_{uuid.uuid4().hex[:8]}"
     _seed_jobs[job_id] = {
@@ -2105,7 +2183,11 @@ def start_merchant_seed(
     """Start a background job to map merchants using Overpass API."""
     for jid, job in _seed_jobs.items():
         if job["type"] == "merchants" and job["status"] == "running":
-            return {"job_id": jid, "status": "already_running", "message": "A merchant seed job is already running"}
+            return {
+                "job_id": jid,
+                "status": "already_running",
+                "message": "A merchant seed job is already running",
+            }
 
     job_id = f"merchant_seed_{uuid.uuid4().hex[:8]}"
     _seed_jobs[job_id] = {
@@ -2138,6 +2220,7 @@ def get_seed_status(
 
 # --- Seed-key authenticated versions (no admin JWT needed) ---
 
+
 @router.post("/seed-key/chargers")
 def start_charger_seed_key(
     request: SeedChargersRequest2 = Body(default=SeedChargersRequest2()),
@@ -2145,14 +2228,25 @@ def start_charger_seed_key(
 ):
     """Start charger seed via seed key (no JWT needed)."""
     from app.core.config import settings as cfg
+
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     for jid, job in _seed_jobs.items():
         if job["type"] == "chargers" and job["status"] == "running":
             return {"job_id": jid, "status": "already_running"}
     job_id = f"charger_seed_{uuid.uuid4().hex[:8]}"
-    _seed_jobs[job_id] = {"type": "chargers", "status": "starting", "started_at": datetime.now(tz.utc).isoformat(), "started_by": 0, "progress": {}, "result": None, "error": None}
-    threading.Thread(target=_run_seed_chargers_job, args=(job_id, request.states), daemon=True).start()
+    _seed_jobs[job_id] = {
+        "type": "chargers",
+        "status": "starting",
+        "started_at": datetime.now(tz.utc).isoformat(),
+        "started_by": 0,
+        "progress": {},
+        "result": None,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_seed_chargers_job, args=(job_id, request.states), daemon=True
+    ).start()
     return {"job_id": job_id, "status": "started"}
 
 
@@ -2163,14 +2257,25 @@ def start_merchant_seed_key(
 ):
     """Start merchant seed via seed key (no JWT needed)."""
     from app.core.config import settings as cfg
+
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     for jid, job in _seed_jobs.items():
         if job["type"] == "merchants" and job["status"] == "running":
             return {"job_id": jid, "status": "already_running"}
     job_id = f"merchant_seed_{uuid.uuid4().hex[:8]}"
-    _seed_jobs[job_id] = {"type": "merchants", "status": "starting", "started_at": datetime.now(tz.utc).isoformat(), "started_by": 0, "progress": {}, "result": None, "error": None}
-    threading.Thread(target=_run_seed_merchants_job, args=(job_id, request.max_cells), daemon=True).start()
+    _seed_jobs[job_id] = {
+        "type": "merchants",
+        "status": "starting",
+        "started_at": datetime.now(tz.utc).isoformat(),
+        "started_by": 0,
+        "progress": {},
+        "result": None,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_seed_merchants_job, args=(job_id, request.max_cells), daemon=True
+    ).start()
     return {"job_id": job_id, "status": "started"}
 
 
@@ -2191,7 +2296,11 @@ def _run_seed_grid_job(job_id: str, states: Optional[List[str]], batch_size: int
 
     db = SessionLocal()
     try:
-        result = asyncio.run(seed_chargers_grid(db, states=states, batch_size=batch_size, progress_callback=on_progress))
+        result = asyncio.run(
+            seed_chargers_grid(
+                db, states=states, batch_size=batch_size, progress_callback=on_progress
+            )
+        )
         _seed_jobs[job_id]["status"] = "completed"
         _seed_jobs[job_id]["result"] = result
     except Exception as e:
@@ -2211,6 +2320,7 @@ def start_grid_seed_key(
 ):
     """Start grid-based charger seed (covers all US metros). No JWT needed."""
     from app.core.config import settings as cfg
+
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     # Check for running grid job
@@ -2219,13 +2329,24 @@ def start_grid_seed_key(
             return {"job_id": jid, "status": "already_running", "progress": job.get("progress")}
     if reset:
         import os
+
         progress_file = "/tmp/nrel_grid_progress.json"
         if os.path.exists(progress_file):
             os.remove(progress_file)
     job_id = f"grid_seed_{uuid.uuid4().hex[:8]}"
     state_list = states.split(",") if states else None
-    _seed_jobs[job_id] = {"type": "chargers_grid", "status": "running", "started_at": datetime.now(tz.utc).isoformat(), "started_by": 0, "progress": {}, "result": None, "error": None}
-    threading.Thread(target=_run_seed_grid_job, args=(job_id, state_list, batch_size), daemon=True).start()
+    _seed_jobs[job_id] = {
+        "type": "chargers_grid",
+        "status": "running",
+        "started_at": datetime.now(tz.utc).isoformat(),
+        "started_by": 0,
+        "progress": {},
+        "result": None,
+        "error": None,
+    }
+    threading.Thread(
+        target=_run_seed_grid_job, args=(job_id, state_list, batch_size), daemon=True
+    ).start()
     return {"job_id": job_id, "status": "started"}
 
 
@@ -2235,6 +2356,7 @@ def get_seed_status_key(
 ):
     """Get seed job status via seed key."""
     from app.core.config import settings as cfg
+
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     return {"jobs": _seed_jobs}
@@ -2249,12 +2371,24 @@ def admin_db_query(
     """Execute a read-only SQL query against the production DB. Protected by seed key.
     Only SELECT queries are allowed — no INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE."""
     from app.core.config import settings as cfg
+
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     # Block write operations
     q = query.strip().upper()
-    blocked = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "GRANT", "REVOKE", "EXEC"]
+    blocked = [
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "ALTER",
+        "TRUNCATE",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "EXEC",
+    ]
     for word in blocked:
         if q.startswith(word) or f" {word} " in q or f";{word}" in q:
             raise HTTPException(status_code=400, detail=f"Write operations not allowed: {word}")
@@ -2263,11 +2397,17 @@ def admin_db_query(
         raise HTTPException(status_code=400, detail="Only SELECT/WITH/EXPLAIN queries allowed")
 
     from sqlalchemy import text
+
     try:
         result = db.execute(text(query))
         columns = list(result.keys()) if result.returns_rows else []
         rows = [dict(zip(columns, row)) for row in result.fetchall()] if result.returns_rows else []
-        return {"columns": columns, "rows": rows[:1000], "row_count": len(rows), "truncated": len(rows) > 1000}
+        return {
+            "columns": columns,
+            "rows": rows[:1000],
+            "row_count": len(rows),
+            "truncated": len(rows) > 1000,
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Query error: {str(e)}")
 
@@ -2283,18 +2423,28 @@ def admin_force_close_session(
 ):
     """Force-close a zombie session. Sets quality_score=0, ended_reason=admin_force_close."""
     from app.models.session_event import SessionEvent
+
     session = db.query(SessionEvent).filter(SessionEvent.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.session_end:
         return {"ok": True, "action": "already_ended", "session_id": session_id}
     session.session_end = datetime.utcnow()
-    session.duration_minutes = int((session.session_end - session.session_start).total_seconds() / 60) if session.session_start else 0
+    session.duration_minutes = (
+        int((session.session_end - session.session_start).total_seconds() / 60)
+        if session.session_start
+        else 0
+    )
     session.quality_score = 0
     session.ended_reason = "admin_force_close"
     session.updated_at = datetime.utcnow()
     db.commit()
-    return {"ok": True, "action": "force_closed", "session_id": session_id, "duration_minutes": session.duration_minutes}
+    return {
+        "ok": True,
+        "action": "force_closed",
+        "session_id": session_id,
+        "duration_minutes": session.duration_minutes,
+    }
 
 
 @router.post("/payouts/{payout_id}/force-fail")
@@ -2306,6 +2456,7 @@ def admin_force_fail_payout(
     """Force-fail a stuck payout and restore the driver's wallet balance."""
     from app.models.driver_wallet import DriverWallet, Payout, WalletLedger
     from app.services.payout_service import calculate_withdrawal_fee
+
     payout = db.query(Payout).filter(Payout.id == payout_id).first()
     if not payout:
         raise HTTPException(status_code=404, detail="Payout not found")
@@ -2338,7 +2489,13 @@ def admin_force_fail_payout(
     )
     db.add(reversal)
     db.commit()
-    return {"ok": True, "action": "force_failed", "payout_id": payout_id, "restored_cents": payout.amount_cents + fee_cents, "new_balance": wallet.balance_cents}
+    return {
+        "ok": True,
+        "action": "force_failed",
+        "payout_id": payout_id,
+        "restored_cents": payout.amount_cents + fee_cents,
+        "new_balance": wallet.balance_cents,
+    }
 
 
 @router.post("/campaigns/reconcile")
@@ -2355,12 +2512,16 @@ def admin_reconcile_campaigns(
     campaigns = db.query(Campaign).all()
     fixed = []
     for c in campaigns:
-        actual_spent = db.query(func.coalesce(func.sum(IncentiveGrant.amount_cents), 0)).filter(
-            IncentiveGrant.campaign_id == c.id
-        ).scalar()
-        actual_count = db.query(func.count(IncentiveGrant.id)).filter(
-            IncentiveGrant.campaign_id == c.id
-        ).scalar()
+        actual_spent = (
+            db.query(func.coalesce(func.sum(IncentiveGrant.amount_cents), 0))
+            .filter(IncentiveGrant.campaign_id == c.id)
+            .scalar()
+        )
+        actual_count = (
+            db.query(func.count(IncentiveGrant.id))
+            .filter(IncentiveGrant.campaign_id == c.id)
+            .scalar()
+        )
 
         if c.spent_cents != actual_spent or c.sessions_granted != actual_count:
             old_spent = c.spent_cents
@@ -2371,15 +2532,17 @@ def admin_reconcile_campaigns(
             # Auto-exhaust if over budget
             if c.spent_cents >= c.budget_cents and c.status == "active":
                 c.status = "exhausted"
-            fixed.append({
-                "campaign_id": str(c.id),
-                "name": c.name,
-                "old_spent": old_spent,
-                "new_spent": actual_spent,
-                "old_sessions": old_count,
-                "new_sessions": actual_count,
-                "status": c.status,
-            })
+            fixed.append(
+                {
+                    "campaign_id": str(c.id),
+                    "name": c.name,
+                    "old_spent": old_spent,
+                    "new_spent": actual_spent,
+                    "old_sessions": old_count,
+                    "new_sessions": actual_count,
+                    "status": c.status,
+                }
+            )
 
     db.commit()
     return {"ok": True, "campaigns_fixed": len(fixed), "details": fixed}
@@ -2397,10 +2560,12 @@ def admin_reconcile_nova(
 
     # Check if nova_transactions table exists and has data
     try:
-        result = db.execute(text(
-            "SELECT driver_id, SUM(CASE WHEN type IN ('driver_earn','admin_grant') THEN amount ELSE -amount END) as balance "
-            "FROM nova_transactions GROUP BY driver_id"
-        ))
+        result = db.execute(
+            text(
+                "SELECT driver_id, SUM(CASE WHEN type IN ('driver_earn','admin_grant') THEN amount ELSE -amount END) as balance "
+                "FROM nova_transactions GROUP BY driver_id"
+            )
+        )
         nova_balances = {row[0]: int(row[1] or 0) for row in result}
     except Exception:
         nova_balances = {}
@@ -2426,9 +2591,11 @@ def get_seed_stats_key(
 ):
     """Get charger/merchant counts via seed key."""
     from app.core.config import settings as cfg
+
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
+
     charger_count = db.query(func.count(Charger.id)).scalar() or 0
     merchant_count = db.query(func.count(Merchant.id)).scalar() or 0
     junction_count = db.query(func.count(ChargerMerchant.id)).scalar() or 0
@@ -2483,7 +2650,11 @@ async def otp_diagnostics(
         "twilio_account_sid_set": bool(core_settings.TWILIO_ACCOUNT_SID),
         "twilio_auth_token_set": bool(core_settings.TWILIO_AUTH_TOKEN),
         "twilio_verify_service_sid_set": bool(core_settings.TWILIO_VERIFY_SERVICE_SID),
-        "twilio_verify_service_sid_prefix": core_settings.TWILIO_VERIFY_SERVICE_SID[:8] + "..." if core_settings.TWILIO_VERIFY_SERVICE_SID else "NOT SET",
+        "twilio_verify_service_sid_prefix": (
+            core_settings.TWILIO_VERIFY_SERVICE_SID[:8] + "..."
+            if core_settings.TWILIO_VERIFY_SERVICE_SID
+            else "NOT SET"
+        ),
         "twilio_timeout_seconds": core_settings.TWILIO_TIMEOUT_SECONDS,
         "provider_instantiation": "unknown",
         "twilio_verify_service_check": "unknown",
@@ -2521,7 +2692,9 @@ async def otp_diagnostics(
                 asyncio.to_thread(_fetch_service),
                 timeout=15,
             )
-            result["twilio_verify_service_check"] = f"ok (friendly_name={service.friendly_name}, sid={service.sid})"
+            result["twilio_verify_service_check"] = (
+                f"ok (friendly_name={service.friendly_name}, sid={service.sid})"
+            )
         except Exception as e:
             result["twilio_verify_service_check"] = f"FAILED: {str(e)}"
             diag_logger.error(f"[OTP Diagnostics] Twilio Verify service check failed: {e}")
@@ -2540,10 +2713,10 @@ async def otp_diagnostics(
 # Charger Seeding Endpoints
 # ==============================================================================
 
+
 class SeedChargersRequest(BaseModel):
     charger_ids: Optional[List[str]] = Field(
-        None,
-        description="List of charger IDs to seed. If empty, seeds all 5 Austin chargers."
+        None, description="List of charger IDs to seed. If empty, seeds all 5 Austin chargers."
     )
 
 
@@ -2558,9 +2731,7 @@ class SeedChargersResponse(BaseModel):
 
 
 @router.get("/seed-chargers/available")
-async def get_available_chargers(
-    admin: User = Depends(require_admin)
-):
+async def get_available_chargers(admin: User = Depends(require_admin)):
     """
     Get list of chargers available for seeding.
 
@@ -2570,16 +2741,14 @@ async def get_available_chargers(
 
     # Just use the static list, no DB needed
     seeder = ChargerSeederService(None)
-    return {
-        "chargers": seeder.get_charger_list()
-    }
+    return {"chargers": seeder.get_charger_list()}
 
 
 @router.post("/seed-chargers", response_model=SeedChargersResponse)
 async def seed_chargers(
     request: SeedChargersRequest = Body(default=SeedChargersRequest()),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Seed chargers with nearby merchants from Google Places API.
@@ -2602,7 +2771,7 @@ async def seed_chargers(
     if not settings.GOOGLE_PLACES_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="GOOGLE_PLACES_API_KEY not configured"
+            detail="GOOGLE_PLACES_API_KEY not configured",
         )
 
     logger.info(f"Admin {admin.id} triggered charger seeding")
@@ -2621,21 +2790,17 @@ async def seed_chargers(
             merchants_created=results["merchants_created"],
             merchants_updated=results["merchants_updated"],
             links_created=results["links_created"],
-            errors=results["errors"]
+            errors=results["errors"],
         )
     except Exception as e:
         logger.error(f"Charger seeding failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Seeding failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Seeding failed: {str(e)}"
         )
 
 
 @router.get("/chargers")
-async def list_chargers(
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
+async def list_chargers(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """
     List all chargers in the database with merchant counts.
     """
@@ -2644,12 +2809,12 @@ async def list_chargers(
     from app.models.while_you_charge import Charger, ChargerMerchant
 
     # Query chargers with merchant count
-    chargers_with_counts = db.query(
-        Charger,
-        func.count(ChargerMerchant.merchant_id).label("merchant_count")
-    ).outerjoin(
-        ChargerMerchant, Charger.id == ChargerMerchant.charger_id
-    ).group_by(Charger.id).all()
+    chargers_with_counts = (
+        db.query(Charger, func.count(ChargerMerchant.merchant_id).label("merchant_count"))
+        .outerjoin(ChargerMerchant, Charger.id == ChargerMerchant.charger_id)
+        .group_by(Charger.id)
+        .all()
+    )
 
     return {
         "chargers": [
@@ -2662,7 +2827,7 @@ async def list_chargers(
                 "network": charger.network_name,
                 "power_kw": charger.power_kw,
                 "status": charger.status,
-                "merchant_count": count
+                "merchant_count": count,
             }
             for charger, count in chargers_with_counts
         ]
@@ -2780,7 +2945,7 @@ async def debug_driver_sessions(
     """Temporary debug endpoint to inspect session trail data."""
     from app.core.config import settings as cfg
     from app.models.session_event import SessionEvent
-    from app.services.intent_service import haversine_distance
+    from app.services.geo import haversine_m
 
     if not x_seed_key or x_seed_key != cfg.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -2803,29 +2968,33 @@ async def debug_driver_sessions(
         for pt in trail:
             dist = None
             if s.lat and s.lng and pt.get("lat") and pt.get("lng"):
-                dist = round(haversine_distance(pt["lat"], pt["lng"], s.lat, s.lng), 1)
-            trail_with_distance.append({
-                "lat": pt.get("lat"),
-                "lng": pt.get("lng"),
-                "ts": pt.get("ts"),
-                "distance_to_charger_m": dist,
-            })
+                dist = round(haversine_m(pt["lat"], pt["lng"], s.lat, s.lng), 1)
+            trail_with_distance.append(
+                {
+                    "lat": pt.get("lat"),
+                    "lng": pt.get("lng"),
+                    "ts": pt.get("ts"),
+                    "distance_to_charger_m": dist,
+                }
+            )
 
-        results.append({
-            "session_id": s.id,
-            "session_start": str(s.session_start) if s.session_start else None,
-            "session_end": str(s.session_end) if s.session_end else None,
-            "charger_id": s.charger_id,
-            "charger_network": s.charger_network,
-            "tesla_lat": s.lat,
-            "tesla_lng": s.lng,
-            "device_lat": meta.get("device_lat"),
-            "device_lng": meta.get("device_lng"),
-            "kwh_delivered": s.kwh_delivered,
-            "duration_minutes": s.duration_minutes,
-            "trail_points": len(trail),
-            "location_trail": trail_with_distance,
-        })
+        results.append(
+            {
+                "session_id": s.id,
+                "session_start": str(s.session_start) if s.session_start else None,
+                "session_end": str(s.session_end) if s.session_end else None,
+                "charger_id": s.charger_id,
+                "charger_network": s.charger_network,
+                "tesla_lat": s.lat,
+                "tesla_lng": s.lng,
+                "device_lat": meta.get("device_lat"),
+                "device_lng": meta.get("device_lng"),
+                "kwh_delivered": s.kwh_delivered,
+                "duration_minutes": s.duration_minutes,
+                "trail_points": len(trail),
+                "location_trail": trail_with_distance,
+            }
+        )
 
     return {"driver_id": driver_id, "session_count": len(results), "sessions": results}
 
@@ -2833,6 +3002,7 @@ async def debug_driver_sessions(
 # ---------------------------------------------------------------------------
 # Seed a charger (admin-only)
 # ---------------------------------------------------------------------------
+
 
 class SeedChargerRequest(BaseModel):
     charger_id: str
@@ -2897,6 +3067,7 @@ def admin_seed_charger(
 
 # Seed a merchant near a charger (admin-only)
 # ---------------------------------------------------------------------------
+
 
 class SeedMerchantRequest(BaseModel):
     charger_id: str
@@ -2979,10 +3150,14 @@ def admin_seed_merchant(
         db.add(merchant)
 
     # Upsert charger-merchant link
-    link = db.query(ChargerMerchant).filter(
-        ChargerMerchant.charger_id == request.charger_id,
-        ChargerMerchant.merchant_id == merchant_id,
-    ).first()
+    link = (
+        db.query(ChargerMerchant)
+        .filter(
+            ChargerMerchant.charger_id == request.charger_id,
+            ChargerMerchant.merchant_id == merchant_id,
+        )
+        .first()
+    )
     if link:
         link.distance_m = request.distance_m
         link.walk_duration_s = request.walk_duration_s
@@ -3005,9 +3180,13 @@ def admin_seed_merchant(
 
     # Add perk if specified
     if request.perk_title:
-        existing_perk = db.query(MerchantPerk).filter(
-            MerchantPerk.merchant_id == merchant_id,
-        ).first()
+        existing_perk = (
+            db.query(MerchantPerk)
+            .filter(
+                MerchantPerk.merchant_id == merchant_id,
+            )
+            .first()
+        )
         if not existing_perk:
             perk = MerchantPerk(
                 merchant_id=merchant_id,
@@ -3025,4 +3204,3 @@ def admin_seed_merchant(
         "charger_id": request.charger_id,
         "message": f"Merchant '{request.merchant_name}' linked to charger '{charger.name}'",
     }
-

@@ -21,9 +21,9 @@ from app.models import User
 from app.models.domain import DomainMerchant, MerchantFeeLedger
 from app.models.while_you_charge import FavoriteMerchant
 from app.models.while_you_charge import Merchant as WYCMerchant
-from app.routers.drivers_domain import haversine_distance
 from app.services.analytics import get_analytics_client
 from app.services.auth_service import AuthService
+from app.services.geo import haversine_m
 from app.services.merchant_share_card import generate_share_card
 from app.services.nova_service import NovaService
 
@@ -88,7 +88,7 @@ def register_merchant(request: MerchantRegisterRequest, db: Session = Depends(ge
         )
 
     # Validate location is within zone radius
-    distance = haversine_distance(zone.center_lat, zone.center_lng, request.lat, request.lng)
+    distance = haversine_m(zone.center_lat, zone.center_lng, request.lat, request.lng)
     if distance > zone.radius_m:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
