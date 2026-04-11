@@ -5,8 +5,8 @@
   "license": "UNLICENSED",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -21,22 +21,25 @@
   "engines": {
     "node": ">=18.17.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesdouglasskirk96/Nerava.git",
+    "directory": "nerava-sdk"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "mock": "tsx mock/server.ts",
     "example": "tsx examples/basic-integration.ts",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run build"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
-  },
-  "publishConfig": {
-    "access": "restricted"
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }
