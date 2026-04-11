@@ -9,7 +9,7 @@
  * registered. 1 second is the minimum that still feels responsive.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { AppEntry } from "../data/apps.js";
 import type { AppStoreState } from "../state/store.js";
@@ -23,14 +23,29 @@ export function DetailScreen({ store, app }: DetailScreenProps): React.JSX.Eleme
   const enabled = store.enabledApps.has(app.id);
   const [loading, setLoading] = useState(false);
 
+  // Track the pending setTimeout so we can cancel it on unmount. Without
+  // this, tapping Back during the 1-second loading animation would
+  // `setLoading(false)` after the component is gone, which React flags
+  // as a "state update on an unmounted component" dev warning.
+  const toggleTimeoutRef = useRef<number | null>(null);
+  useEffect(() => {
+    return (): void => {
+      if (toggleTimeoutRef.current !== null) {
+        window.clearTimeout(toggleTimeoutRef.current);
+        toggleTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const handleToggle = (): void => {
     if (loading) return;
     setLoading(true);
     // 1-second loading animation before the state flips. Matches the
     // prompt's "enable toggle with 1-second loading animation" spec.
-    window.setTimeout(() => {
+    toggleTimeoutRef.current = window.setTimeout(() => {
       store.toggleApp(app.id);
       setLoading(false);
+      toggleTimeoutRef.current = null;
     }, 1000);
   };
 

@@ -7,7 +7,7 @@
  * text color.
  */
 
-import { APP_CATEGORIES, type AppCategory } from "../data/apps.js";
+import { APP_CATEGORIES } from "../data/apps.js";
 import type { CategoryFilter } from "../state/store.js";
 
 interface CategoryTabsProps {
@@ -41,14 +41,10 @@ export function CategoryTabs({
                 : "bg-white text-nerava-ink/70 ring-1 ring-black/5 hover:bg-nerava-bg")
             }
           >
-            {categoryLabel(category)}
+            {category}
           </button>
         );
       })}
     </nav>
   );
-}
-
-function categoryLabel(category: CategoryFilter): string {
-  return category === "All" ? "All" : (category satisfies AppCategory);
 }

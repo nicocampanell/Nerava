@@ -217,15 +217,22 @@ export interface PaginationParams {
  *
  * `nextCursor` is `null` (not `undefined`) on the final page — this matches
  * the backend's JSON response shape and gives partners a clean loop
- * termination condition:
+ * termination condition.
+ *
+ * Use a null-sentinel loop with a conditional spread to avoid passing
+ * `cursor: undefined` to the list method (which would fail under
+ * `exactOptionalPropertyTypes: true`):
  *
  * ```ts
- * let cursor: string | undefined;
+ * let cursor: string | null = null;
  * do {
- *   const page = await nerava.sessions.list({ cursor });
+ *   const page = await nerava.sessions.list({
+ *     ...(cursor !== null ? { cursor } : {}),
+ *     limit: 100,
+ *   });
  *   for (const s of page.items) handle(s);
- *   cursor = page.nextCursor ?? undefined;
- * } while (cursor !== undefined);
+ *   cursor = page.nextCursor;
+ * } while (cursor !== null);
  * ```
  */
 export interface PaginatedResponse<T> {

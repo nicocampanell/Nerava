@@ -97,6 +97,3 @@ export {
   type QualityBucket,
   type SessionIntelligenceResponse,
 } from "./modules/intelligence.js";
-// TODO(step-11): add the top-level `Nerava` facade class that composes
-//   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`
-//   entry point matching the README quickstart.
