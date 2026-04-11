@@ -26,9 +26,20 @@ class APIClient(
     private val baseUrl: String = BuildConfig.API_BASE_URL,
     private val onAuthRequired: (() -> Unit)? = null,
 ) {
+    // Startup-critical client — aggressive timeouts so blocking config fetches
+    // never delay app startup. Play Store reviewers give up on blank screens in ~5 seconds.
+    private val startupClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    // Long-lived client — used for session events and background pings which can
+    // tolerate longer timeouts since they run after startup.
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
     private val jsonType = "application/json; charset=utf-8".toMediaType()
@@ -153,7 +164,7 @@ class APIClient(
             .build()
 
         return try {
-            client.newCall(request).execute().use { response ->
+            startupClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val json = JSONObject(response.body?.string() ?: "{}")
                     SessionConfig.fromJson(json)

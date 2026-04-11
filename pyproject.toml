@@ -4,11 +4,37 @@ target-version = ["py39"]
 
 [tool.ruff]
 line-length = 100
+# Production runtime is Python 3.9 — PEP 604 union syntax (X | None) and
+# lowercase generic subscripts (dict[str, Any]) are evaluation errors on 3.9
+# without `from __future__ import annotations`. Keep target aligned with prod.
 target-version = "py39"
 
 [tool.ruff.lint]
+# ignore list is the union of the two sources that fed this file:
+#
+#   1. The April 2026 full-codebase audit (SIM102, F841, E712, plus the
+#      base set) — scoped to silence pre-existing stylistic violations
+#      the audit did NOT rewrite because they lived in files the audit
+#      wasn't touching. Fixing them would have ballooned the audit diff.
+#
+#   2. The Tesla data collection work (SIM105, SIM108, plus py39
+#      UP006/UP007/UP035, plus B008) — UP rules would auto-rewrite
+#      Optional[X] / Dict[...] into 3.10+ syntax that crashes production,
+#      B008 is the standard FastAPI Depends(...) default pattern used
+#      across every router, and SIM105/SIM108 are pre-existing patterns
+#      we don't want auto-rewritten in unrelated files on every commit.
+#
+# Both sets are load-bearing. Removing any of them re-opens a previously
+# closed CI-breaking regression. If you need to tighten, do it per-file
+# via `# noqa: RULE` rather than deleting from this list.
 select = ["E","F","I","UP","B","SIM","C4"]
-ignore = ["E203","E266","E501","UP006","UP007","UP035","B008","SIM102","SIM108","F841","E712"]
+ignore = [
+  "E203","E266","E501",
+  "UP006","UP007","UP035",
+  "B008",
+  "SIM102","SIM105","SIM108",
+  "F841","E712",
+]
 
 [tool.mypy]
 python_version = "3.9"

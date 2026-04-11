@@ -3,6 +3,7 @@ Tesla OAuth2 service for user authentication and token management.
 
 Handles the complete OAuth2 flow for connecting user's Tesla account.
 """
+
 import asyncio
 import logging
 import secrets
@@ -65,7 +66,9 @@ class TeslaOAuthService:
         }
         return f"{TESLA_AUTH_URL}?{urlencode(params)}"
 
-    async def exchange_code_for_tokens(self, code: str, redirect_uri: Optional[str] = None) -> Dict[str, Any]:
+    async def exchange_code_for_tokens(
+        self, code: str, redirect_uri: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Exchange authorization code for access and refresh tokens.
 
@@ -166,9 +169,7 @@ class TeslaOAuthService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
-        params = {
-            "endpoints": "charge_state;drive_state;location_data;vehicle_config"
-        }
+        params = {"endpoints": "charge_state;drive_state;location_data;vehicle_config"}
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=headers, params=params)
@@ -178,12 +179,50 @@ class TeslaOAuthService:
             # Debug: log FULL raw charge_state from Fleet API
             # Captures all ~41 fields so we can compare adapter vs non-adapter sessions
             import json as _json
+
             raw_charge = vehicle_resp.get("charge_state", {})
             logger.info(
                 f"Fleet API FULL charge_state for vehicle {vehicle_id}: "
                 f"{_json.dumps(raw_charge, default=str)}"
             )
             return vehicle_resp
+
+    async def get_nearby_charging_sites(
+        self,
+        access_token: str,
+        vehicle_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Get Tesla Supercharger + Destination charging sites near the vehicle.
+
+        Calls GET /api/1/vehicles/{vehicle_id}/nearby_charging_sites.
+        Response is geographically scoped to the vehicle's current GPS location —
+        there is no lat/lon override parameter. The response contains up to
+        ~10-20 of the closest superchargers with live `available_stalls` and
+        `total_stalls` fields (destination chargers do NOT have stall counts).
+
+        Args:
+            access_token: Valid Tesla access token with vehicle_device_data scope
+            vehicle_id: Tesla vehicle ID (not VIN)
+
+        Returns:
+            Raw response dict with 'superchargers', 'destination_charging',
+            'timestamp', 'congestion_sync_time_utc_secs'.
+
+        Raises:
+            httpx.HTTPStatusError: If the API call fails (408 if vehicle asleep).
+        """
+        url = f"{TESLA_FLEET_API_URL}/api/1/vehicles/{vehicle_id}/nearby_charging_sites"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("response", {})
 
     async def wake_vehicle(self, access_token: str, vehicle_id: str) -> bool:
         """
@@ -248,7 +287,7 @@ class TeslaOAuthService:
 
         # The ca field needs the full certificate PEM, not just the public key
         # Env vars may store PEM with escaped \n — convert back to real newlines
-        ca_cert = (settings.TESLA_FLEET_TELEMETRY_CA_CERT or settings.TESLA_EC_PUBLIC_KEY_PEM or "")
+        ca_cert = settings.TESLA_FLEET_TELEMETRY_CA_CERT or settings.TESLA_EC_PUBLIC_KEY_PEM or ""
         if "\\n" in ca_cert:
             ca_cert = ca_cert.replace("\\n", "\n")
 
@@ -281,7 +320,9 @@ class TeslaOAuthService:
             if response.status_code >= 400:
                 logger.error(
                     "Fleet Telemetry config failed for VIN %s: HTTP %s — %s",
-                    vin, response.status_code, response.text,
+                    vin,
+                    response.status_code,
+                    response.text,
                 )
             response.raise_for_status()
             result = response.json()
@@ -293,9 +334,7 @@ class TeslaOAuthService:
     CHARGING_STATES = {"Charging", "Starting"}
 
     async def verify_charging(
-        self,
-        access_token: str,
-        vehicle_id: str
+        self, access_token: str, vehicle_id: str
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Verify if vehicle is currently charging.
@@ -360,9 +399,7 @@ class TeslaOAuthService:
                     except Exception:
                         pass  # Continue even if wake fails
 
-                    is_charging, charge_data = await self.verify_charging(
-                        access_token, vehicle_id
-                    )
+                    is_charging, charge_data = await self.verify_charging(access_token, vehicle_id)
                     last_charge_data = charge_data
 
                     if is_charging:
@@ -417,9 +454,7 @@ def generate_ev_code() -> str:
 
 
 async def get_valid_access_token(
-    db: Session,
-    connection: TeslaConnection,
-    oauth_service: TeslaOAuthService
+    db: Session, connection: TeslaConnection, oauth_service: TeslaOAuthService
 ) -> Optional[str]:
     """
     Get a valid access token, refreshing if expired.

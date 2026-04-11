@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var loadingView: View
     private lateinit var errorView: View
     private lateinit var errorMessage: TextView
     private lateinit var retryButton: MaterialButton
@@ -51,17 +52,33 @@ class MainActivity : AppCompatActivity() {
     private lateinit var apiClient: APIClient
     private lateinit var bridge: NativeBridge
     private lateinit var sessionEngine: SessionEngine
+    private var servicesInitialized = false
 
     private var pendingDeepLinkUrl: String? = null
     private var autoRetryCount = 0
     private val maxAutoRetries = 2
+    private var isRetrying = false
+
+    // Track last requested main-frame URL for reliable retry/crash recovery
+    private var currentLoadUrl: String = BuildConfig.WEB_APP_URL
+
+    // WebView load timeout (matches Play Store reviewer patience window)
+    private val loadTimeoutHandler = Handler(Looper.getMainLooper())
+    private var loadTimeoutRunnable: Runnable? = null
+    private val loadTimeoutMs = 10_000L
+
+    // Tracked postDelayed callbacks — must be cancelled in onDestroy to avoid
+    // leaking the Activity reference after it's been torn down.
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var reloadRunnable: Runnable? = null
+    private var sendTokenRunnable: Runnable? = null
 
     // Permission launchers
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (fineGranted) {
+        if (fineGranted && ::locationService.isInitialized) {
             locationService.startLocationUpdates()
         }
     }
@@ -87,18 +104,79 @@ class MainActivity : AppCompatActivity() {
         // Bind views
         webView = findViewById(R.id.webView)
         swipeRefresh = findViewById(R.id.swipeRefresh)
+        loadingView = findViewById(R.id.loadingView)
         errorView = findViewById(R.id.errorView)
         errorMessage = errorView.findViewById(R.id.errorMessage)
         retryButton = errorView.findViewById(R.id.retryButton)
 
-        // Initialize services
+        // Initialize services. Failures must NOT block the WebView — the user still
+        // needs to see the loading overlay and eventually the web app. Any service
+        // failure is logged but execution continues.
+        servicesInitialized = initializeServicesSafely()
+
+        // Configure WebView (always — even if services failed so user sees the app)
+        configureWebView()
+
+        // Set up pull-to-refresh
+        swipeRefresh.setOnRefreshListener {
+            webView.reload()
+        }
+
+        // Retry button
+        retryButton.setOnClickListener {
+            retryLoad()
+        }
+
+        // Handle deep link (if launched via one)
+        handleIntent(intent)
+
+        // Load web app FIRST — before permissions and background init —
+        // so the loading overlay is replaced by real content ASAP.
+        val deepLinkUrl = pendingDeepLinkUrl
+        val url = deepLinkUrl ?: BuildConfig.WEB_APP_URL
+        pendingDeepLinkUrl = null
+        startLoadTimeout()
+        loadMainFrameUrl(url)
+
+        // Request permissions (non-blocking — dialog will appear over loading view)
+        if (servicesInitialized) {
+            requestInitialPermissions()
+        }
+
+        // Start session engine (best-effort, must not block WebView)
+        if (servicesInitialized) {
+            try {
+                sessionEngine.start()
+            } catch (e: Exception) {
+                Log.e(TAG, "Session engine start failed", e)
+            }
+        }
+
+        // Register FCM (best-effort)
         try {
+            registerFCM()
+        } catch (e: Exception) {
+            Log.e(TAG, "FCM registration failed", e)
+        }
+    }
+
+    /**
+     * Initialize all native services. Returns true on success, false on any failure.
+     * On failure, logs the error but never throws — the WebView must still load so
+     * the user (or Play Store reviewer) sees the app, not a blank screen.
+     */
+    private fun initializeServicesSafely(): Boolean {
+        return try {
             tokenStore = (application as NeravaApplication).tokenStore
             locationService = LocationService(this)
             geofenceManager = GeofenceManager(this)
             apiClient = APIClient(
                 baseUrl = BuildConfig.API_BASE_URL,
-                onAuthRequired = { bridge.sendToWeb(network.nerava.app.bridge.BridgeMessage.AuthRequired) }
+                onAuthRequired = {
+                    if (::bridge.isInitialized) {
+                        bridge.sendToWeb(network.nerava.app.bridge.BridgeMessage.AuthRequired)
+                    }
+                }
             )
 
             // Load saved auth token
@@ -112,49 +190,101 @@ class MainActivity : AppCompatActivity() {
 
             // Set up location permission callback
             locationService.onRequestBackgroundPermission = { requestBackgroundLocation() }
+            true
         } catch (e: Exception) {
-            Log.e(TAG, "Service initialization failed", e)
+            Log.e(TAG, "Service initialization failed — WebView will load without native services", e)
+            false
+        }
+    }
+
+    // MARK: - Load Timeout
+
+    private fun startLoadTimeout() {
+        loadTimeoutRunnable?.let { loadTimeoutHandler.removeCallbacks(it) }
+        val runnable = Runnable {
+            if (loadingView.visibility == View.VISIBLE) {
+                Log.w(TAG, "WebView load timed out after ${loadTimeoutMs}ms")
+                showError(WebViewErrorHandler.ErrorType.OFFLINE)
+            }
+        }
+        loadTimeoutRunnable = runnable
+        loadTimeoutHandler.postDelayed(runnable, loadTimeoutMs)
+    }
+
+    private fun cancelLoadTimeout() {
+        loadTimeoutRunnable?.let { loadTimeoutHandler.removeCallbacks(it) }
+        loadTimeoutRunnable = null
+    }
+
+    private fun retryLoad() {
+        if (isRetrying) return
+        isRetrying = true
+        retryButton.isEnabled = false
+        // Cancel any queued auto-retry to prevent overlapping navigations
+        reloadRunnable?.let { mainHandler.removeCallbacks(it) }
+        reloadRunnable = null
+        hideError()
+        loadingView.visibility = View.VISIBLE
+        webView.visibility = View.INVISIBLE
+        // Always arm the watchdog explicitly before recovery navigation.
+        startLoadTimeout()
+        // Use tracked currentLoadUrl — reliable for failed pre-commit navigations
+        // where webView.url still points to the previous page.
+        loadMainFrameUrl(currentLoadUrl)
+    }
+
+    private fun loadMainFrameUrl(url: String) {
+        currentLoadUrl = url
+        webView.loadUrl(url)
+    }
+
+    private fun hideLoadingView() {
+        runOnUiThread {
+            loadingView.visibility = View.GONE
+            webView.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * Recover from a dead WebView render process by detaching the dead instance,
+     * creating a fresh WebView, reapplying all configuration, and loading the
+     * tracked currentLoadUrl. The dead WebView cannot be reloaded — we must
+     * replace it entirely.
+     */
+    private fun recreateWebView() {
+        val parent = webView.parent as? android.view.ViewGroup
+        val layoutParams = webView.layoutParams
+        val index = parent?.indexOfChild(webView) ?: -1
+
+        // Tear down the dead WebView. Don't call destroy() yet — Android docs warn
+        // against destroying a WebView whose render process has died. Just clear
+        // clients and detach so the GC can reclaim it.
+        webView.webViewClient = WebViewClient()
+        webView.webChromeClient = null
+        if (parent != null && index >= 0) {
+            parent.removeView(webView)
         }
 
-        // Configure WebView
+        // Create a new WebView and re-attach to the same parent slot
+        webView = WebView(this)
+        webView.id = R.id.webView
+        if (parent != null && index >= 0) {
+            parent.addView(webView, index, layoutParams)
+        }
+        webView.visibility = View.INVISIBLE
+
+        // Show loading overlay so the recreation isn't visible to the user
+        loadingView.visibility = View.VISIBLE
+
+        // Reapply all configuration (settings, clients, bridge, file upload handlers).
+        // configureWebView() already re-attaches the bridge via bridge.setupWebView(),
+        // so we must NOT call it a second time here — that would re-register the JS
+        // interface and send a duplicate NATIVE_READY message.
         configureWebView()
 
-        // Set up pull-to-refresh
-        swipeRefresh.setOnRefreshListener {
-            webView.reload()
-        }
-
-        // Retry button
-        retryButton.setOnClickListener {
-            hideError()
-            webView.reload()
-        }
-
-        // Request permissions
-        requestInitialPermissions()
-
-        // Start session engine
-        try {
-            sessionEngine.start()
-        } catch (e: Exception) {
-            Log.e(TAG, "Session engine start failed", e)
-        }
-
-        // Register FCM
-        try {
-            registerFCM()
-        } catch (e: Exception) {
-            Log.e(TAG, "FCM registration failed", e)
-        }
-
-        // Handle deep link (if launched via one)
-        handleIntent(intent)
-
-        // Load web app
-        val deepLinkUrl = pendingDeepLinkUrl
-        val url = deepLinkUrl ?: BuildConfig.WEB_APP_URL
-        pendingDeepLinkUrl = null
-        webView.loadUrl(url)
+        // Arm the watchdog and navigate to the tracked URL
+        startLoadTimeout()
+        loadMainFrameUrl(currentLoadUrl)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -162,7 +292,14 @@ class MainActivity : AppCompatActivity() {
         setIntent(intent)
         handleIntent(intent)
         pendingDeepLinkUrl?.let { url ->
-            webView.loadUrl(url)
+            // Clear any visible error overlay so the deep link navigation
+            // isn't obscured. The loading view will be shown by onPageStarted
+            // and dismissed normally on onPageFinished.
+            hideError()
+            loadingView.visibility = View.VISIBLE
+            webView.visibility = View.INVISIBLE
+            startLoadTimeout()
+            loadMainFrameUrl(url)
             pendingDeepLinkUrl = null
         }
     }
@@ -174,11 +311,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        // Cancel any pending file chooser callback so the system doesn't hold
+        // onto the Activity via the ValueCallback.
+        fileUploadCallback?.onReceiveValue(null)
+        fileUploadCallback = null
+
+        cancelLoadTimeout()
+        // Cancel any pending delayed callbacks so they don't fire against a
+        // destroyed Activity (would leak the reference and can crash).
+        reloadRunnable?.let { mainHandler.removeCallbacks(it) }
+        reloadRunnable = null
+        sendTokenRunnable?.let { mainHandler.removeCallbacks(it) }
+        sendTokenRunnable = null
         dismissPopupWebView()
-        bridge.detach()
-        sessionEngine.stop()
+        if (::bridge.isInitialized) {
+            bridge.detach()
+        }
+        if (::sessionEngine.isInitialized) {
+            sessionEngine.stop()
+        }
+
+        // Detach WebView from parent and clear clients so the lambdas/anonymous
+        // inner classes don't keep strong references to the Activity. Note:
+        // setting webViewClient = null isn't allowed — use a default empty client.
+        webView.webViewClient = WebViewClient()
+        webView.webChromeClient = null
+        (webView.parent as? android.view.ViewGroup)?.removeView(webView)
         webView.destroy()
+
+        super.onDestroy()
     }
 
     @Deprecated("Use OnBackPressedCallback")
@@ -217,20 +378,46 @@ class MainActivity : AppCompatActivity() {
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
 
-        // Setup bridge
-        bridge.setupWebView(webView)
+        // Setup bridge (only if services initialized successfully)
+        if (::bridge.isInitialized) {
+            bridge.setupWebView(webView)
+        }
 
         webView.webViewClient = object : WebViewClient() {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                // Sentinel: about:blank is loaded by showError() to wipe the
+                // Chromium default error page. Skip all watchdog/bridge work
+                // so we don't accidentally start a fresh 10s timer or fire
+                // bridge events for a blank page.
+                if (url == "about:blank") return
+                // Track the URL being loaded — reliable source for retry/recovery
+                url?.takeIf { it.isNotBlank() }?.let { currentLoadUrl = it }
+                // Start watchdog for EVERY main-frame navigation — covers deep links,
+                // redirects, SPA initial loads, and reloads that don't go through
+                // an explicit startLoadTimeout() call site.
+                startLoadTimeout()
                 // Inject bridge script at page start (matches iOS atDocumentStart)
-                bridge.injectBridgeScript()
+                if (::bridge.isInitialized) {
+                    bridge.injectBridgeScript()
+                }
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
+                // Sentinel: about:blank is loaded by showError() to wipe the
+                // Chromium default error page. Don't hide the loading view
+                // (would override INVISIBLE set in showError), don't fire
+                // bridge events for a blank page, and don't reset state.
+                if (url == "about:blank") return
+                cancelLoadTimeout()
+                hideLoadingView()
                 swipeRefresh.isRefreshing = false
-                bridge.didFinishNavigation()
+                if (::bridge.isInitialized) {
+                    bridge.didFinishNavigation()
+                }
                 autoRetryCount = 0 // Reset retry counter on successful load
+                isRetrying = false
+                retryButton.isEnabled = true
 
                 // Re-inject and send NATIVE_READY for SPA navigation
                 view.evaluateJavascript(
@@ -250,11 +437,30 @@ class MainActivity : AppCompatActivity() {
                     if (type == WebViewErrorHandler.ErrorType.OFFLINE && autoRetryCount < maxAutoRetries) {
                         autoRetryCount++
                         Log.i(TAG, "Auto-retrying navigation (attempt $autoRetryCount/$maxAutoRetries)")
-                        android.os.Handler(Looper.getMainLooper()).postDelayed({
-                            view.reload()
-                        }, 1500)
+                        // Cancel the existing watchdog — otherwise the old 10s timeout
+                        // can fire during the 1.5s retry backoff and show the offline
+                        // overlay even though a retry is already queued.
+                        cancelLoadTimeout()
+                        // Track the reload Runnable so we can cancel it in onDestroy
+                        // if the Activity is torn down while it's still pending.
+                        reloadRunnable?.let { mainHandler.removeCallbacks(it) }
+                        val runnable = Runnable {
+                            // Explicitly arm the watchdog as a safety net in case
+                            // the navigation never reaches onPageStarted.
+                            startLoadTimeout()
+                            // Use tracked currentLoadUrl — view.reload() can retry
+                            // a stale URL when the failed navigation never committed.
+                            if (currentLoadUrl.isNotBlank()) {
+                                loadMainFrameUrl(currentLoadUrl)
+                            } else {
+                                view.reload()
+                            }
+                        }
+                        reloadRunnable = runnable
+                        mainHandler.postDelayed(runnable, 1500)
                         return
                     }
+                    cancelLoadTimeout()
                     showError(type)
                 }
             }
@@ -266,6 +472,7 @@ class MainActivity : AppCompatActivity() {
                     handler.proceed()
                 } else {
                     handler.cancel()
+                    cancelLoadTimeout()
                     showError(WebViewErrorHandler.ErrorType.SSL)
                 }
             }
@@ -278,7 +485,10 @@ class MainActivity : AppCompatActivity() {
                 if (WebViewErrorHandler.isMainFrameRequest(request)) {
                     val statusCode = errorResponse?.statusCode ?: return
                     val type = WebViewErrorHandler.classifyHttpError(statusCode)
-                    if (type != null) showError(type)
+                    if (type != null) {
+                        cancelLoadTimeout()
+                        showError(type)
+                    }
                 }
             }
 
@@ -286,10 +496,14 @@ class MainActivity : AppCompatActivity() {
                 val url = request.url
                 val host = url.host
 
-                // Allow navigation within the app's domain
-                if (host == "app.nerava.network" || host == "localhost" ||
-                    host == "10.0.2.2" || host == "10.0.2.127"
-                ) {
+                // Allow navigation within the app's domain.
+                // Local dev hosts are only allowed in debug builds — production
+                // must never accept localhost or emulator-host URLs.
+                val isProductionHost = host == "app.nerava.network"
+                val isDevHost = BuildConfig.DEBUG && (
+                    host == "localhost" || host == "10.0.2.2" || host == "10.0.2.127"
+                )
+                if (isProductionHost || isDevHost) {
                     return false
                 }
 
@@ -303,8 +517,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail?): Boolean {
-                Log.e(TAG, "WebView render process gone, reloading")
-                webView.loadUrl(BuildConfig.WEB_APP_URL)
+                Log.e(TAG, "WebView render process gone, recreating WebView")
+                cancelLoadTimeout()
+                // The WebView's render process has died — we cannot reload the same
+                // instance because it's effectively dead. Detach the dead WebView,
+                // create a new one, reattach to the parent, reapply all configuration,
+                // then load the tracked URL on the new instance.
+                recreateWebView()
                 return true
             }
         }
@@ -344,8 +563,11 @@ class MainActivity : AppCompatActivity() {
                         override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
                             val url = request.url
                             val host = url.host ?: return false
-                            // If callback returns to nerava domain, load in main WebView and close popup
-                            if (host.contains("nerava.network") || host == "localhost") {
+                            // If callback returns to nerava domain, load in main WebView and close popup.
+                            // localhost is only allowed in debug builds — release OAuth callbacks
+                            // never redirect to localhost.
+                            val isDebugLocalhost = BuildConfig.DEBUG && host == "localhost"
+                            if (host.contains("nerava.network") || isDebugLocalhost) {
                                 view.loadUrl(url.toString())
                                 dismissPopupWebView()
                                 return true
@@ -416,8 +638,18 @@ class MainActivity : AppCompatActivity() {
             WebViewErrorHandler.ErrorType.GENERIC -> R.string.error_generic
         }
         runOnUiThread {
+            cancelLoadTimeout()
+            // Hide the WebView and clear its content so the Chromium default
+            // error page (e.g. "Webpage not available — ERR_NAME_NOT_RESOLVED")
+            // doesn't bleed through behind our error overlay. Load about:blank
+            // to wipe the failed page out of the WebView's render tree.
+            webView.visibility = View.INVISIBLE
+            webView.loadUrl("about:blank")
+            loadingView.visibility = View.GONE
             errorMessage.setText(msgRes)
             errorView.visibility = View.VISIBLE
+            isRetrying = false
+            retryButton.isEnabled = true
         }
     }
 
@@ -497,12 +729,21 @@ class MainActivity : AppCompatActivity() {
             if (task.isSuccessful) {
                 val token = task.result
                 Log.i(TAG, "FCM token: ${token.take(10)}...")
-                tokenStore.setFCMToken(token)
+                if (::tokenStore.isInitialized) {
+                    tokenStore.setFCMToken(token)
+                }
                 FCMService.cachedToken = token
-                // Forward to web bridge after delay (bridge may not be ready yet)
-                android.os.Handler(Looper.getMainLooper()).postDelayed({
-                    bridge.sendDeviceToken(token)
-                }, 2000)
+                // Forward to web bridge after delay (bridge may not be ready yet).
+                // Track the Runnable so we can cancel it in onDestroy — otherwise
+                // a delayed callback could fire against a destroyed Activity/bridge.
+                sendTokenRunnable?.let { mainHandler.removeCallbacks(it) }
+                val runnable = Runnable {
+                    if (::bridge.isInitialized) {
+                        bridge.sendDeviceToken(token)
+                    }
+                }
+                sendTokenRunnable = runnable
+                mainHandler.postDelayed(runnable, 2000)
             } else {
                 Log.w(TAG, "FCM token fetch failed", task.exception)
             }
