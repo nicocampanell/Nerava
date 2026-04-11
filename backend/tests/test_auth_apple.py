@@ -32,24 +32,54 @@ import uuid
 from typing import Any, Dict
 from unittest.mock import patch
 
+import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-# Apple tests do not need real APPLE_CLIENT_ID because the entire
-# verify_apple_id_token helper is mocked in every test. We set a
-# dummy value so the config-validator does not raise at import time.
-os.environ.setdefault("APPLE_CLIENT_ID", "com.nerava.test.app")
-os.environ.setdefault("STRICT_STARTUP_VALIDATION", "false")
-os.environ.setdefault("ENV", "test")
-os.environ.setdefault("OTP_PROVIDER", "stub")
-os.environ.setdefault("TESLA_MOCK_MODE", "true")
-os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest")
+# Env vars required for the test harness and for
+# verify_apple_id_token to import cleanly. We use monkeypatch via an
+# autouse fixture so settings override reliably even if the env was
+# already populated by a parent process — plain os.environ.setdefault
+# silently no-ops in that case, which Gemini flagged as fragile.
+#
+# The actual verify_apple_id_token helper is mocked in every test,
+# so the APPLE_CLIENT_ID value does not need to be real — it just
+# needs to be non-empty so the config-validator does not raise.
+_TEST_ENV: Dict[str, str] = {
+    "APPLE_CLIENT_ID": "com.nerava.test.app",
+    "STRICT_STARTUP_VALIDATION": "false",
+    "ENV": "test",
+    "OTP_PROVIDER": "stub",
+    "TESLA_MOCK_MODE": "true",
+    "JWT_SECRET": "test_secret_for_pytest",
+}
+
+# Apply once at module import time so `from app.models.user import User`
+# below does not race the fixture. Plain os.environ.setdefault is
+# still used for the import-time bootstrap, but the autouse fixture
+# below re-asserts the values for every test so any pollution from a
+# parent process is overridden.
+for _k, _v in _TEST_ENV.items():
+    os.environ.setdefault(_k, _v)
 
 from app.models.user import User  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 APPLE_ENDPOINT = "/auth/apple"
+
+
+@pytest.fixture(autouse=True)
+def _force_apple_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Unconditionally set every test-env variable before each test.
+    Unlike os.environ.setdefault this OVERRIDES a value if the
+    parent process already set a different one, so CI environments
+    can't poison the suite by pre-setting APPLE_CLIENT_ID to a
+    real production value.
+    """
+    for k, v in _TEST_ENV.items():
+        monkeypatch.setenv(k, v)
 
 
 def _mock_apple_payload(
@@ -183,7 +213,7 @@ class TestAppleAuthExistingUser:
 class TestAppleAuthErrorBranches:
     """Error paths: token verification failure, config missing, etc."""
 
-    def test_token_verification_failure_surfaces_as_500(self, client: TestClient) -> None:
+    def test_token_verification_401_is_re_raised_as_401(self, client: TestClient) -> None:
         """
         verify_apple_id_token raises HTTPException(401) when the
         token signature doesn't match Apple's JWKS. The router's

@@ -60,20 +60,15 @@ test.describe('Driver app — wallet UI', () => {
     await expect(walletNav).toBeVisible({ timeout: 10_000 })
     await walletNav.click()
 
-    // Withdraw / payout / cash-out / transfer button label varies.
-    // Test the button exists and is clickable — but do NOT click it,
-    // so we don't trigger a real payout attempt.
-    const withdrawButton = page
-      .locator(
-        'button:has-text("Withdraw"), button:has-text("Payout"), ' +
-          'button:has-text("Cash out"), button:has-text("Transfer")',
-      )
+    // The wallet surface must render SOMETHING from the balance
+    // or payout region. We assert on the presence of any
+    // balance-related text rather than the existence of a specific
+    // button, because the withdraw affordance may be hidden when
+    // balance is below the minimum threshold. The assertion below
+    // fails loudly if the wallet surface is blank or errored.
+    const balanceMarker = page
+      .locator('text=/\\$[0-9]+|balance|earnings|withdraw|payout|cash out/i')
       .first()
-    // The button may or may not be present depending on balance.
-    // We're content with the wallet surface having loaded.
-    const count = await withdrawButton.count()
-    // Either the button is there, or balance is below minimum —
-    // in either case the wallet surface rendered successfully.
-    expect(count).toBeGreaterThanOrEqual(0)
+    await expect(balanceMarker).toBeVisible({ timeout: 5_000 })
   })
 })
