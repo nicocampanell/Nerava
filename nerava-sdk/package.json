@@ -1,0 +1,60 @@
+{
+  "name": "@nerava/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for the Nerava EV charging intelligence and incentive platform.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesdouglasskirk96/Nerava.git",
+    "directory": "nerava-sdk"
+  },
+  "homepage": "https://github.com/jamesdouglasskirk96/Nerava/tree/main/nerava-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/jamesdouglasskirk96/Nerava/issues"
+  },
+  "author": "Nerava Inc.",
+  "keywords": [
+    "ev",
+    "ev-charging",
+    "nerava",
+    "sdk",
+    "typescript",
+    "fleet-api",
+    "incentives",
+    "wallet"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mock": "tsx mock/server.ts",
+    "example": "tsx examples/basic-integration.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run typecheck && npm run clean && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  }
+}
