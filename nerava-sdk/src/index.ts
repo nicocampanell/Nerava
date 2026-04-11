@@ -56,7 +56,20 @@ export {
   type SubmitSessionRequest,
 } from "./modules/sessions.js";
 
-// TODO(step-6 through step-8): re-export remaining module classes.
+// Step 6 — wallet module
+export {
+  WalletModule,
+  type CreditWalletRequest,
+  type DebitWalletRequest,
+  type PayoutResponse,
+  type PayoutStatus,
+  type WalletBalance,
+  type WalletTransaction,
+  type WalletTransactionFilters,
+  type WalletTransactionType,
+} from "./modules/wallet.js";
+
+// TODO(step-7 through step-8): re-export campaigns/offers/intelligence modules.
 // TODO(step-11): add the top-level `Nerava` facade class that composes
 //   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`
 //   entry point matching the README quickstart.

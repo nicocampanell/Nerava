@@ -58,6 +58,28 @@ function headersOf(init: RequestInit): Record<string, string> {
   return (init.headers ?? {}) as Record<string, string>;
 }
 
+/**
+ * Backend-shaped (snake_case) fixture. Mirrors what FastAPI actually
+ * returns on the wire. The SDK converts this to camelCase via
+ * `camelCaseKeys()` inside each module method, so consumer-facing
+ * assertions use the camelCase form (`FIXTURE_SESSION`).
+ */
+const FIXTURE_SESSION_WIRE = {
+  id: "sess_abc",
+  status: "open",
+  vehicle_id: "v_1",
+  charger_id: "c_1",
+  started_at: "2026-04-11T04:30:00Z",
+  ended_at: null,
+  duration_seconds: null,
+  kwh_delivered: null,
+  lat: 31.0824,
+  lng: -97.6492,
+  partner_id: "partner_1",
+  driver_id: null,
+};
+
+/** Camel-case shape the SDK exposes to consumers. */
 const FIXTURE_SESSION: SessionResponse = {
   id: "sess_abc",
   status: "open",
@@ -81,10 +103,10 @@ describe("sessions.submit", () => {
   let mockFetch: MockFetch;
 
   beforeEach(() => {
-    mockFetch = makeMockFetch(FIXTURE_SESSION);
+    mockFetch = makeMockFetch(FIXTURE_SESSION_WIRE);
   });
 
-  it("POSTs /v1/partners/sessions with snake_case body and partner auth", async () => {
+  it("POSTs /v1/partners/sessions with snake_case body and converts response back to camelCase", async () => {
     const sessions = buildSessionsModule(mockFetch);
 
     const result = await sessions.submit({
@@ -94,7 +116,14 @@ describe("sessions.submit", () => {
       lng: -97.6492,
     });
 
+    // Backend returned snake_case wire fixture; SDK converts to camelCase.
     expect(result).toEqual(FIXTURE_SESSION);
+    // Spot-check specific fields to prove the conversion happened and
+    // consumers don't see snake_case leak through.
+    expect(result.vehicleId).toBe("v_1");
+    expect(result.startedAt).toBe("2026-04-11T04:30:00Z");
+    // @ts-expect-error — snake_case fields must NOT exist on the typed shape
+    expect(result.vehicle_id).toBeUndefined();
     expect(mockFetch).toHaveBeenCalledOnce();
 
     const { url, init } = firstCall(mockFetch);
@@ -157,7 +186,7 @@ describe("sessions.get", () => {
   let mockFetch: MockFetch;
 
   beforeEach(() => {
-    mockFetch = makeMockFetch(FIXTURE_SESSION);
+    mockFetch = makeMockFetch(FIXTURE_SESSION_WIRE);
   });
 
   it("GETs /v1/partners/sessions/{id} with partner auth", async () => {
@@ -192,22 +221,25 @@ describe("sessions.get", () => {
 // ===========================================================================
 
 describe("sessions.list", () => {
-  const PAGE_FIXTURE = {
-    items: [FIXTURE_SESSION],
-    nextCursor: null,
+  const PAGE_FIXTURE_WIRE = {
+    items: [FIXTURE_SESSION_WIRE],
+    next_cursor: null,
   };
 
   let mockFetch: MockFetch;
 
   beforeEach(() => {
-    mockFetch = makeMockFetch(PAGE_FIXTURE);
+    mockFetch = makeMockFetch(PAGE_FIXTURE_WIRE);
   });
 
-  it("returns a paginated response with partner auth", async () => {
+  it("returns a paginated response with partner auth (snake→camel conversion)", async () => {
     const sessions = buildSessionsModule(mockFetch);
     const page = await sessions.list();
+    // Backend sends `next_cursor: null` — SDK exposes `nextCursor: null`.
     expect(page.items).toHaveLength(1);
     expect(page.nextCursor).toBeNull();
+    // And every field inside the item has been converted too.
+    expect(page.items[0]).toEqual(FIXTURE_SESSION);
 
     const { url, init } = firstCall(mockFetch);
     expect(url.pathname).toBe("/v1/partners/sessions");
@@ -244,6 +276,12 @@ describe("sessions.list", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("accepts limit of exactly 200 (boundary, guard is `> 200` not `>= 200`)", async () => {
+    const sessions = buildSessionsModule(mockFetch);
+    await expect(sessions.list({ limit: 200 })).resolves.toBeDefined();
+    expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
   it("omits undefined filter fields from the query string", async () => {
     const sessions = buildSessionsModule(mockFetch);
     await sessions.list({ cursor: "c_only" });
@@ -262,7 +300,7 @@ describe("sessions.complete", () => {
   let mockFetch: MockFetch;
 
   beforeEach(() => {
-    mockFetch = makeMockFetch({ ...FIXTURE_SESSION, status: "completed" });
+    mockFetch = makeMockFetch({ ...FIXTURE_SESSION_WIRE, status: "completed" });
   });
 
   it("PATCHes /v1/partners/sessions/{id} with status: completed and partner auth", async () => {
@@ -270,6 +308,9 @@ describe("sessions.complete", () => {
     const result = await sessions.complete("sess_abc");
 
     expect(result.status).toBe("completed");
+    // Verify snake→camel conversion applies on complete too.
+    expect(result.vehicleId).toBe("v_1");
+    expect(result.startedAt).toBe("2026-04-11T04:30:00Z");
     const { url, init } = firstCall(mockFetch);
     expect(url.pathname).toBe("/v1/partners/sessions/sess_abc");
     expect(init.method).toBe("PATCH");

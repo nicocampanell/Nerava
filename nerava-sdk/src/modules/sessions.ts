@@ -8,9 +8,25 @@
  * `/v1/partners/sessions{,/{id}}`. The SDK's request/response types
  * mirror the public partner API surface, not the Pydantic schemas
  * directly — see types.ts for the rationale.
+ *
+ * Case-conversion contract: the backend uses snake_case on the wire
+ * (e.g. `vehicle_id`, `started_at`). The SDK exposes camelCase to
+ * consumers (e.g. `vehicleId`, `startedAt`). Conversion happens in
+ * BOTH directions inside this module:
+ *
+ *   - Request bodies: camelCase → snake_case, explicit per field
+ *     (see each method's body assembly).
+ *   - Response bodies: snake_case → camelCase via `camelCaseKeys()`
+ *     from src/internal/case.ts, applied to the raw client response
+ *     before the final cast to `SessionResponse`.
+ *
+ * The two-direction translation lives in the module (not the client)
+ * because the client is transport-only and doesn't know which fields
+ * need what treatment. Each module owns its own wire contract.
  */
 
 import type { NeravaClient } from "../client.js";
+import { camelCaseKeys } from "../internal/case.js";
 import type { PaginatedResponse, PaginationParams, VehicleType } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -126,12 +142,13 @@ export class SessionsModule {
     if (request.idempotencyKey !== undefined) {
       body["idempotency_key"] = request.idempotencyKey;
     }
-    return await this.#client.request<SessionResponse>({
+    const raw = await this.#client.request<unknown>({
       auth: "partner",
       method: "POST",
       path: "/v1/partners/sessions",
       body,
     });
+    return camelCaseKeys(raw) as SessionResponse;
   }
 
   /**
@@ -142,10 +159,11 @@ export class SessionsModule {
     if (!sessionId) {
       throw new Error("sessions.get(): sessionId is required");
     }
-    return await this.#client.request<SessionResponse>({
+    const raw = await this.#client.request<unknown>({
       auth: "partner",
       path: `/v1/partners/sessions/${encodeURIComponent(sessionId)}`,
     });
+    return camelCaseKeys(raw) as SessionResponse;
   }
 
   /**
@@ -173,11 +191,12 @@ export class SessionsModule {
     if (filters.until !== undefined) query["until"] = filters.until;
     if (filters.vehicleType !== undefined) query["vehicle_type"] = filters.vehicleType;
 
-    return await this.#client.request<PaginatedResponse<SessionResponse>>({
+    const raw = await this.#client.request<unknown>({
       auth: "partner",
       path: "/v1/partners/sessions",
       query,
     });
+    return camelCaseKeys(raw) as PaginatedResponse<SessionResponse>;
   }
 
   /**
@@ -191,11 +210,12 @@ export class SessionsModule {
     if (!sessionId) {
       throw new Error("sessions.complete(): sessionId is required");
     }
-    return await this.#client.request<SessionResponse>({
+    const raw = await this.#client.request<unknown>({
       auth: "partner",
       method: "PATCH",
       path: `/v1/partners/sessions/${encodeURIComponent(sessionId)}`,
       body: { status: "completed" },
     });
+    return camelCaseKeys(raw) as SessionResponse;
   }
 }
