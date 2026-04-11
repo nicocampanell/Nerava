@@ -1,3 +1,30 @@
-// TODO(step-11): re-export the public surface of @nerava/sdk from here.
-// Intentionally empty in Step 1 — this is a scaffold-only placeholder.
-export {};
+// Public surface of @nerava/sdk.
+//
+// This file grows incrementally as each step adds modules. Step 11 will do a
+// final checkpoint pass and verify the surface matches the README. For now
+// the re-exports track the build plan step-by-step.
+
+// Step 2 — auth + client
+export {
+  AuthManager,
+  InMemoryTokenStore,
+  type AuthManagerConfig,
+  type TokenStore,
+} from "./auth.js";
+
+export {
+  NeravaClient,
+  DEFAULT_BASE_URL,
+  type AuthContext,
+  type HttpMethod,
+  type NeravaClientConfig,
+  type QueryValue,
+  type RequestOptions,
+} from "./client.js";
+
+// TODO(step-3): re-export types.ts interfaces.
+// TODO(step-4): re-export NeravaError class.
+// TODO(step-5 through step-8): re-export module classes and their types.
+// TODO(step-11): add the top-level `Nerava` facade class that composes
+//   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`
+//   entry point matching the README quickstart.
