@@ -26,6 +26,21 @@
     "url": "https://github.com/jamesdouglasskirk96/Nerava.git",
     "directory": "nerava-sdk"
   },
+  "homepage": "https://github.com/jamesdouglasskirk96/Nerava/tree/main/nerava-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/jamesdouglasskirk96/Nerava/issues"
+  },
+  "author": "Nerava Inc.",
+  "keywords": [
+    "ev",
+    "ev-charging",
+    "nerava",
+    "sdk",
+    "typescript",
+    "fleet-api",
+    "incentives",
+    "wallet"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
