@@ -15,13 +15,15 @@
  * touch `NeravaClient` directly — the top-level `Nerava` facade in Step 11
  * will hide it.
  *
- * Error handling note: this step (Step 2) throws plain `Error` on HTTP
- * failures. Step 4 will introduce `NeravaError` with `status`, `code`, and
- * `message` fields and the structured error-code enum, and this file will
- * be updated to throw those instead. Search for `TODO(step-4)` markers.
+ * Error handling: every failure path throws `NeravaError` — non-2xx
+ * responses, network failures, missing driver JWT, invalid response bodies,
+ * and invalid baseUrl at construction. Consumers discriminate in their
+ * catch block by `err.code` (the open `ErrorCode` union in errors.ts) or
+ * `err.status` for HTTP-derived cases.
  */
 
 import type { AuthManager } from "./auth.js";
+import { NeravaError } from "./errors.js";
 import type { JsonValue } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -160,18 +162,17 @@ export class NeravaClient {
     // Trim trailing slash so we don't produce `/v1//partners/sessions`.
     const trimmed = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     // Validate eagerly at construction so a misconfigured base URL surfaces
-    // with a clear "NeravaClient: invalid baseUrl" message — rather than
-    // throwing a cryptic TypeError deep inside `request()` when a consumer
-    // makes their first API call and we try to `new URL(...)` on a malformed
-    // string. Callers are much more likely to debug a constructor error
-    // correctly than a deferred runtime error.
+    // with a clear error message — rather than throwing a cryptic TypeError
+    // deep inside `request()` when a consumer makes their first API call
+    // and we try to `new URL(...)` on a malformed string.
     try {
       // Only constructed for validation; the parsed URL is discarded.
       new URL(trimmed);
     } catch {
-      throw new Error(
-        `NeravaClient: invalid baseUrl "${config.baseUrl ?? DEFAULT_BASE_URL}" — expected an absolute URL like https://api.nerava.network`,
-      );
+      throw new NeravaError({
+        code: "INVALID_CONFIG",
+        message: `NeravaClient: invalid baseUrl "${config.baseUrl ?? DEFAULT_BASE_URL}" — expected an absolute URL like https://api.nerava.network`,
+      });
     }
     this.#baseUrl = trimmed;
     this.#fetch = config.fetch ?? fetch;
@@ -181,8 +182,9 @@ export class NeravaClient {
    * Issues an HTTP request against the Nerava API. Called by every module
    * method. Returns the parsed JSON response as `T`.
    *
-   * Throws a plain `Error` on network failures and non-2xx responses.
-   * TODO(step-4): replace with structured `NeravaError` once Step 4 ships.
+   * Throws `NeravaError` on network failures, non-2xx responses, and
+   * invalid/unparseable response bodies. Consumers should discriminate
+   * in their catch blocks by `err.code` or `err.status`.
    */
   async request<T>(options: RequestOptions): Promise<T> {
     const method: HttpMethod = options.method ?? "GET";
@@ -203,27 +205,11 @@ export class NeravaClient {
     try {
       response = await this.#fetch(url, init);
     } catch (networkErr) {
-      // TODO(step-4): throw NeravaError with code 'NETWORK_ERROR'.
-      const message =
-        networkErr instanceof Error ? networkErr.message : String(networkErr);
-      throw new Error(
-        `NeravaClient: network error calling ${method} ${options.path}: ${message}`,
-      );
+      throw NeravaError.fromNetworkError(networkErr, { method, path: options.path });
     }
 
     if (!response.ok) {
-      // TODO(step-4): parse the error body into a NeravaError with the
-      // correct `code` from the backend's error envelope, and throw that.
-      // For Step 2 we surface the raw status so tests can assert on it.
-      let body = "";
-      try {
-        body = await response.text();
-      } catch {
-        // Body read failed — surface the status line only.
-      }
-      throw new Error(
-        `NeravaClient: HTTP ${response.status} ${response.statusText} calling ${method} ${options.path}${body ? ` — ${body}` : ""}`,
-      );
+      throw await NeravaError.fromResponse(response, { method, path: options.path });
     }
 
     // Some endpoints (e.g. DELETE) return 204 No Content. Don't try to
@@ -233,7 +219,16 @@ export class NeravaClient {
       return undefined as T;
     }
 
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch (parseErr) {
+      throw new NeravaError({
+        code: "INVALID_RESPONSE",
+        message: `${method} ${options.path} returned ${response.status} ${response.statusText} with an unparseable JSON body`,
+        status: response.status,
+        cause: parseErr,
+      });
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -269,10 +264,11 @@ export class NeravaClient {
       // Driver context.
       const token = await this.#auth.getDriverToken();
       if (!token) {
-        // TODO(step-4): throw NeravaError with code 'NO_DRIVER_TOKEN'.
-        throw new Error(
-          "NeravaClient: driver-scope request requires a driver JWT — call auth.setDriverToken() or pass driverToken at construction first",
-        );
+        throw new NeravaError({
+          code: "NO_DRIVER_TOKEN",
+          message:
+            "NeravaClient: driver-scope request requires a driver JWT — call auth.setDriverToken() or pass driverToken at construction first",
+        });
       }
       headers["Authorization"] = `Bearer ${token}`;
     }

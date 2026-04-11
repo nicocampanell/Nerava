@@ -15,6 +15,7 @@ import {
   type TokenStore,
 } from "../src/auth.js";
 import { NeravaClient } from "../src/client.js";
+import { NeravaError } from "../src/errors.js";
 
 const TEST_API_KEY = "nrv_pk_testkey1234567890abcdef";
 const TEST_DRIVER_JWT = "eyJ.test.jwt.payload";
@@ -193,7 +194,7 @@ describe("NeravaClient header injection by auth context", () => {
     expect(headers["X-Partner-Key"]).toBeUndefined();
   });
 
-  it("driver-scope request without a token throws a clear error", async () => {
+  it("driver-scope request without a token throws NeravaError NO_DRIVER_TOKEN", async () => {
     const auth = new AuthManager({ apiKey: TEST_API_KEY });
     const client = new NeravaClient({
       auth,
@@ -201,9 +202,17 @@ describe("NeravaClient header injection by auth context", () => {
       fetch: mockFetch,
     });
 
-    await expect(
-      client.request({ auth: "driver", path: "/v1/wallet/balance" }),
-    ).rejects.toThrow(/requires a driver JWT/);
+    try {
+      await client.request({ auth: "driver", path: "/v1/wallet/balance" });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NeravaError);
+      const nerava = err as NeravaError;
+      expect(nerava.code).toBe("NO_DRIVER_TOKEN");
+      // SDK-originated — no HTTP exchange occurred.
+      expect(nerava.status).toBeUndefined();
+      expect(nerava.message).toMatch(/requires a driver JWT/);
+    }
 
     // Importantly: the client must NOT have called fetch at all. The guard
     // fires before any network traffic.
@@ -263,16 +272,23 @@ describe("NeravaClient URL and body behavior", () => {
     mockFetch = makeMockFetch();
   });
 
-  it("rejects a malformed baseUrl at construction time", () => {
+  it("rejects a malformed baseUrl at construction time with NeravaError INVALID_CONFIG", () => {
     const auth = new AuthManager({ apiKey: TEST_API_KEY });
-    expect(
-      () =>
-        new NeravaClient({
-          auth,
-          baseUrl: "not-a-url",
-          fetch: makeMockFetch(),
-        }),
-    ).toThrow(/invalid baseUrl/);
+    try {
+      new NeravaClient({
+        auth,
+        baseUrl: "not-a-url",
+        fetch: makeMockFetch(),
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NeravaError);
+      const nerava = err as NeravaError;
+      expect(nerava.code).toBe("INVALID_CONFIG");
+      expect(nerava.status).toBeUndefined();
+      expect(nerava.message).toMatch(/invalid baseUrl/);
+    }
+    // Also verify the second malformed case rejects symmetrically.
     expect(
       () =>
         new NeravaClient({
@@ -280,7 +296,7 @@ describe("NeravaClient URL and body behavior", () => {
           baseUrl: "://broken",
           fetch: makeMockFetch(),
         }),
-    ).toThrow(/invalid baseUrl/);
+    ).toThrow(NeravaError);
   });
 
   it("normalizes the base URL and path to avoid double slashes", async () => {
@@ -375,14 +391,17 @@ describe("NeravaClient URL and body behavior", () => {
     expect(result).toBeUndefined();
   });
 
-  it("throws a descriptive error on non-2xx responses", async () => {
+  it("throws NeravaError on non-2xx responses with backend code/message", async () => {
     const auth = new AuthManager({ apiKey: TEST_API_KEY });
     mockFetch = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ code: "SESSION_NOT_FOUND", message: "nope" }), {
-        status: 404,
-        statusText: "Not Found",
-        headers: { "content-type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({ code: "SESSION_NOT_FOUND", message: "session xyz does not exist" }),
+        {
+          status: 404,
+          statusText: "Not Found",
+          headers: { "content-type": "application/json", "x-request-id": "req_abc123" },
+        },
+      ),
     );
     const client = new NeravaClient({
       auth,
@@ -390,22 +409,42 @@ describe("NeravaClient URL and body behavior", () => {
       fetch: mockFetch,
     });
 
-    await expect(
-      client.request({ auth: "partner", path: "/v1/partners/sessions/bad" }),
-    ).rejects.toThrow(/HTTP 404/);
+    try {
+      await client.request({ auth: "partner", path: "/v1/partners/sessions/bad" });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NeravaError);
+      const nerava = err as NeravaError;
+      expect(nerava.code).toBe("SESSION_NOT_FOUND");
+      expect(nerava.status).toBe(404);
+      expect(nerava.message).toBe("session xyz does not exist");
+      expect(nerava.requestId).toBe("req_abc123");
+      expect(nerava.rawBody).toContain("SESSION_NOT_FOUND");
+    }
   });
 
-  it("throws a descriptive error on network failures", async () => {
+  it("throws NeravaError with code NETWORK_ERROR and status undefined on network failures", async () => {
     const auth = new AuthManager({ apiKey: TEST_API_KEY });
-    mockFetch = vi.fn<typeof fetch>().mockRejectedValue(new Error("ECONNREFUSED"));
+    const cause = new Error("ECONNREFUSED");
+    mockFetch = vi.fn<typeof fetch>().mockRejectedValue(cause);
     const client = new NeravaClient({
       auth,
       baseUrl: TEST_BASE_URL,
       fetch: mockFetch,
     });
 
-    await expect(
-      client.request({ auth: "partner", path: "/v1/partners/sessions" }),
-    ).rejects.toThrow(/network error/);
+    try {
+      await client.request({ auth: "partner", path: "/v1/partners/sessions" });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NeravaError);
+      const nerava = err as NeravaError;
+      expect(nerava.code).toBe("NETWORK_ERROR");
+      // status: undefined unambiguously signals "no HTTP exchange occurred" —
+      // NOT 0, which is a valid status in some theoretical contexts.
+      expect(nerava.status).toBeUndefined();
+      expect(nerava.message).toContain("ECONNREFUSED");
+      expect(nerava.cause).toBe(cause);
+    }
   });
 });

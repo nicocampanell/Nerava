@@ -36,7 +36,16 @@ export {
   type VehicleType,
 } from "./types.js";
 
-// TODO(step-4): re-export NeravaError class + ErrorCode enum.
+// Step 4 — errors
+export {
+  NeravaError,
+  isKnownErrorCode,
+  KNOWN_ERROR_CODES,
+  type ErrorCode,
+  type KnownErrorCode,
+  type NeravaErrorInit,
+} from "./errors.js";
+
 // TODO(step-5 through step-8): re-export module classes and their types.
 // TODO(step-11): add the top-level `Nerava` facade class that composes
 //   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`
