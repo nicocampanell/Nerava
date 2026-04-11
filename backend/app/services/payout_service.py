@@ -672,6 +672,14 @@ class PayoutService:
         if payout.status == "failed":
             return {"status": "already_processed", "payout_id": payout.id}
 
+        # CRITICAL: row-lock the wallet before mutating pending_balance_cents
+        # and balance_cents. Without the lock, two concurrent transfer.failed
+        # webhook deliveries (retries from Stripe, or a user-initiated failure
+        # racing with a provider-initiated one) would each read the pre-mutation
+        # balance and each credit the reversal amount, effectively double-crediting
+        # the driver. `_handle_transfer_paid` at line ~634 already has this lock;
+        # the failure path was missed in the original April 2026 audit and is
+        # added here per CodeRabbit Round 14.
         wallet = (
             db.query(DriverWallet)
             .filter(DriverWallet.id == payout.wallet_id)
@@ -689,7 +697,11 @@ class PayoutService:
         wallet.balance_cents += payout.amount_cents + fee_cents
         wallet.updated_at = datetime.utcnow()
 
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         logger.warning(f"Payout {payout.id} failed via webhook: {payout.failure_reason}")
         return {"status": "success", "payout_id": payout.id, "action": "marked_failed"}
 
