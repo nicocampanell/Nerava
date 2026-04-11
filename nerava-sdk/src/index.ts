@@ -47,7 +47,16 @@ export {
   type NeravaErrorInit,
 } from "./errors.js";
 
-// TODO(step-5 through step-8): re-export module classes and their types.
+// Step 5 — sessions module
+export {
+  SessionsModule,
+  type SessionListFilters,
+  type SessionResponse,
+  type SessionStatus,
+  type SubmitSessionRequest,
+} from "./modules/sessions.js";
+
+// TODO(step-6 through step-8): re-export remaining module classes.
 // TODO(step-11): add the top-level `Nerava` facade class that composes
 //   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`
 //   entry point matching the README quickstart.
