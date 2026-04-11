@@ -414,8 +414,11 @@ class TestWithForUpdateOnPayoutPaths:
 
         source = inspect.getsource(PayoutService._handle_transfer_failed)
         assert "DriverWallet" in source
-        # The file-level comment documenting the lock intent
-        assert "row-lock" in source.lower() or "double-credit" in source.lower() or True
+        # The file-level comment documenting the lock intent MUST be
+        # present. Remove this assertion if/when the comment is no
+        # longer needed — the earlier TODO form used `or True` which
+        # was flagged by review as always-true dead code.
+        assert "row-lock" in source.lower() or "double-credit" in source.lower()
 
 
 class TestPaymentFeeCalculation:

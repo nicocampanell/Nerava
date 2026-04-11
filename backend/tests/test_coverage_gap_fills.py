@@ -22,13 +22,38 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Dict
 
 import pytest
 
-os.environ.setdefault("TOAST_MOCK_MODE", "true")
-os.environ.setdefault("STRICT_STARTUP_VALIDATION", "false")
-os.environ.setdefault("ENV", "test")
-os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest")
+# Env vars required for the mock-mode tests below. We bootstrap once
+# at import time with os.environ.setdefault so the downstream module
+# imports pick up the right values, and then re-apply via a monkeypatch
+# autouse fixture so parent-process pollution can't break the suite.
+# Gemini/CodeRabbit review feedback: plain setdefault alone silently
+# no-ops if a var is already set, which makes the mock-mode cache
+# order-dependent. The fixture override guarantees every test starts
+# from the same known env.
+_TEST_ENV: Dict[str, str] = {
+    "TOAST_MOCK_MODE": "true",
+    "STRICT_STARTUP_VALIDATION": "false",
+    "ENV": "test",
+    "JWT_SECRET": "test_secret_for_pytest",
+}
+for _k, _v in _TEST_ENV.items():
+    os.environ.setdefault(_k, _v)
+
+
+@pytest.fixture(autouse=True)
+def _force_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Unconditionally override every required env var before each test.
+    Prevents the parent process from injecting a conflicting value
+    (e.g. a real TOAST production key from a leaky CI runner) that
+    would poison the Toast mock-mode code path.
+    """
+    for k, v in _TEST_ENV.items():
+        monkeypatch.setenv(k, v)
 
 
 logger = logging.getLogger(__name__)
@@ -62,13 +87,42 @@ class TestToastPOSMockMode:
             assert 1 <= order["checks_count"] <= 3
 
     def test_generate_mock_orders_respects_day_count(self) -> None:
+        """
+        `days` must control the time-window span, not just the count.
+        Comparing randomized list lengths is technically robust here
+        (15-40 orders/day × 30 > 40 × 1) but deterministic tests
+        should assert on the actual window. We check that every
+        timestamp returned by days=1 falls inside the last 24h, and
+        that days=30 extends strictly further back than days=1.
+        """
+        from datetime import datetime, timedelta
+
         from app.services.toast_pos_service import _generate_mock_orders
 
         one_day = _generate_mock_orders(days=1)
         thirty_days = _generate_mock_orders(days=30)
-        # At least ~15 orders per day on average, so 30 days should
-        # have strictly more than 1 day
-        assert len(thirty_days) > len(one_day)
+
+        assert len(one_day) > 0, "days=1 must return at least one mock order"
+        assert len(thirty_days) > 0, "days=30 must return at least one mock order"
+
+        one_day_ts = [datetime.fromisoformat(o["timestamp"]) for o in one_day]
+        thirty_day_ts = [datetime.fromisoformat(o["timestamp"]) for o in thirty_days]
+
+        now = datetime.utcnow()
+        # days=1 window: every timestamp must be within the last ~26h
+        # (24h + some slack for the `random.randint(0, 14)` hours-back
+        # shift inside the generator)
+        one_day_floor = now - timedelta(hours=26)
+        assert all(
+            ts >= one_day_floor for ts in one_day_ts
+        ), "days=1 timestamps must fall inside the last ~26h"
+
+        # days=30: the oldest timestamp must be strictly earlier than
+        # the oldest days=1 timestamp, proving the window actually
+        # extended further back
+        assert min(thirty_day_ts) < min(
+            one_day_ts
+        ), "days=30 must reach strictly further into the past than days=1"
 
     def test_generate_mock_orders_totals_are_in_reasonable_range(self) -> None:
         """Mock orders should span $8–$65 per the service's own range."""

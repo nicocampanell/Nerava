@@ -29,6 +29,7 @@ import uuid
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
@@ -162,28 +163,33 @@ class TestPhoneOTPFlow:
         assert response.status_code == 400
 
 
+def _bootstrap_user_and_token(client: TestClient, db) -> tuple[User, str]:
+    """
+    Create a user via the OTP verify flow and return (user, refresh_token).
+    Shared by TestRefreshTokenRotation and TestLogoutFlow — previously
+    duplicated on both classes, DRY'd per Gemini review.
+    """
+    phone = _unique_phone()
+    with patch(
+        "app.services.otp_service_v2.OTPServiceV2.verify_otp",
+        new=AsyncMock(return_value=phone),
+    ):
+        response = client.post(
+            OTP_VERIFY_ENDPOINT,
+            json={"phone": phone, "code": "000000"},
+        )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    user = db.query(User).filter(User.phone == phone).first()
+    assert user is not None
+    return user, body["refresh_token"]
+
+
 class TestRefreshTokenRotation:
     """Refresh flow: old token revoked, new token issued, reuse detected."""
 
-    def _bootstrap_user_and_token(self, client: TestClient, db) -> tuple[User, str]:
-        """Create a user with a verified OTP flow and return (user, refresh_token)."""
-        phone = _unique_phone()
-        with patch(
-            "app.services.otp_service_v2.OTPServiceV2.verify_otp",
-            new=AsyncMock(return_value=phone),
-        ):
-            response = client.post(
-                OTP_VERIFY_ENDPOINT,
-                json={"phone": phone, "code": "000000"},
-            )
-        assert response.status_code == 200, response.text
-        body = response.json()
-        user = db.query(User).filter(User.phone == phone).first()
-        assert user is not None
-        return user, body["refresh_token"]
-
     def test_rotation_issues_new_token_old_becomes_unusable(self, client: TestClient, db) -> None:
-        _, original_refresh = self._bootstrap_user_and_token(client, db)
+        _, original_refresh = _bootstrap_user_and_token(client, db)
 
         # Rotate: old → new
         response = client.post(
@@ -219,23 +225,8 @@ class TestRefreshTokenRotation:
 class TestLogoutFlow:
     """Logout revokes refresh tokens."""
 
-    def _bootstrap_user_and_token(self, client: TestClient, db) -> tuple[User, str]:
-        phone = _unique_phone()
-        with patch(
-            "app.services.otp_service_v2.OTPServiceV2.verify_otp",
-            new=AsyncMock(return_value=phone),
-        ):
-            response = client.post(
-                OTP_VERIFY_ENDPOINT,
-                json={"phone": phone, "code": "000000"},
-            )
-        assert response.status_code == 200, response.text
-        body = response.json()
-        user = db.query(User).filter(User.phone == phone).first()
-        return user, body["refresh_token"]
-
     def test_logout_with_refresh_token_revokes_it(self, client: TestClient, db) -> None:
-        _, refresh_token = self._bootstrap_user_and_token(client, db)
+        _, refresh_token = _bootstrap_user_and_token(client, db)
 
         response = client.post(
             LOGOUT_ENDPOINT,
@@ -339,7 +330,38 @@ class TestMagicLinkProdGating:
     DEBUG_RETURN_MAGIC_LINK is a dev-only affordance. This test
     exercises the branch at auth_domain.py:361-367 that gates the
     URL echo behind both `not settings.is_prod` AND the flag.
+
+    Rate-limit note: /v1/auth/magic_link/request is capped at 3
+    requests/minute per client IP (middleware/ratelimit.py:21).
+    The TestClient always presents as the same IP, so 4+ requests
+    in the same class hit 429. We clear the bucket cache via an
+    autouse fixture so every test in the class starts with a
+    fresh budget.
     """
+
+    @pytest.fixture(autouse=True)
+    def _clear_magic_link_rate_bucket(self) -> None:
+        """
+        Wipe the in-memory rate-limit buckets before each test so
+        the magic-link endpoint isn't pre-limited by prior tests.
+        The buckets dict lives on the middleware instance attached
+        to the app.
+        """
+        from app.main_simple import app
+
+        # Walk the actual middleware stack (built on first request)
+        # to find the RateLimitMiddleware instance and clear its buckets.
+        stack = getattr(app, "middleware_stack", None)
+        _current = stack
+        while _current is not None:
+            if _current.__class__.__name__ == "RateLimitMiddleware" and hasattr(
+                _current, "buckets"
+            ):
+                _current.buckets.clear()
+            inner = getattr(_current, "app", None)
+            if inner is None or inner is _current:
+                break
+            _current = inner
 
     def test_magic_link_endpoint_exists_and_responds(self, client: TestClient) -> None:
         """
@@ -404,19 +426,36 @@ class TestMagicLinkProdGating:
                 body_nodebug = response_nodebug.json()
                 assert "magic_link_url" not in body_nodebug
 
-    def test_magic_link_prod_safety_branch(self) -> None:
+    def test_magic_link_url_is_never_echoed_when_is_prod_is_true(self, client: TestClient) -> None:
         """
-        Source-inspection of the is_prod guard in the magic-link
-        handler. We can't flip settings.ENV to 'prod' inside a test
-        without breaking other subsystems, so we source-inspect the
-        router module to confirm the guard exists.
+        Verify the real behavior: when settings.is_prod is True, the
+        handler MUST NOT return magic_link_url in the response body,
+        regardless of the DEBUG_RETURN_MAGIC_LINK flag. This replaces
+        the previous source-inspection check (flagged by review as
+        fragile — it tested the source, not the behavior).
         """
-        import inspect
+        from app.core.config import settings
 
-        from app.routers import auth_domain
+        email = f"magic-prod-{uuid.uuid4().hex[:8]}@test.nerava.network"
 
-        source = inspect.getsource(auth_domain)
-        assert "DEBUG_RETURN_MAGIC_LINK" in source
-        assert "is_prod" in source
-        # The debug flag is checked against `not settings.is_prod`
-        assert "not settings.is_prod" in source
+        with patch("app.core.email_sender.get_email_sender") as mock_get_sender:
+            mock_sender = mock_get_sender.return_value
+            mock_sender.send_email.return_value = True
+
+            # Force is_prod=True AND DEBUG_RETURN_MAGIC_LINK=True —
+            # the production branch must still block the echo.
+            with (
+                patch.object(type(settings), "is_prod", property(lambda self: True)),
+                patch.object(settings, "DEBUG_RETURN_MAGIC_LINK", True),
+            ):
+                response = client.post(
+                    MAGIC_LINK_ENDPOINT,
+                    json={"email": email},
+                )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert "magic_link_url" not in body, (
+            "Production branch must never return magic_link_url "
+            "even when DEBUG_RETURN_MAGIC_LINK is set"
+        )
