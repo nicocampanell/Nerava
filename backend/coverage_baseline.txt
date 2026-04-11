@@ -1,0 +1,977 @@
+....F......EEEEEEEEEFFEFFFFFFF..FFFFF.FFFFEEFEEFFFFFFFFFFFFFFFFEFFFFFFFF [  6%]
+FFFEFEEEEFFF.F.FFFFFFFFFEE.F.FFFEEFFFFFFFFFEEEEEEEEEEEEEEEEEEE..FF...FFF [ 13%]
+F..........F....FF......FFFFFF.........................................F [ 19%]
+..........................F....sssEF...F..FF.FFEF.....F..F.............. [ 26%]
+..FF...F........F.......F..EEEEFEF.....................F.......FFFFFFF.. [ 32%]
+..........FFFFF..............FFFFF.........F..FFF...F..F.FFF.F.......... [ 39%]
+......FFFF..........FF.FFFF....F..FFFFFF.FF.F........................... [ 45%]
+.....FF.........F.....F..EEEEEEEEEFFFFFEEEEFEF..........Fs.sF...FFFFFFFF [ 52%]
+FFFFFFFFFF.F..FF.FFFF......FFFF.FFFFF...................FFFFF........... [ 58%]
+..........................Fs............................................ [ 65%]
+......FsF...................EEEEEFFFFFFFF............................... [ 71%]
+..............FF.FF............F.FFF.F......FFFFFFFFFFFFFFFFFFFF........ [ 78%]
+...F.FFFFFFFFFFEEEEF..............F.FFF.FFF.F...FF................FF.... [ 84%]
+.FFFF.F..EEE..........FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 91%]
+......F..FFFFFFFFFFFFFFFFFFFFFFFF.............................EEEEEE.... [ 97%]
+..FF....................                                                 [100%]
+=============================== warnings summary ===============================
+../../../Library/Python/3.9/lib/python/site-packages/starlette/formparsers.py:10
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/starlette/formparsers.py:10: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+../../../Library/Python/3.9/lib/python/site-packages/hyperframe/flags.py:14
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/hyperframe/flags.py:14: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+    class Flags(collections.MutableSet):
+
+../../../Library/Python/3.9/lib/python/site-packages/h2/settings.py:154
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/h2/settings.py:154: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+    class Settings(collections.MutableMapping):
+
+../../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:268: 14 warnings
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/routers/checkin.py:173
+  /Users/jameskirk/Desktop/Nerava/backend/app/routers/checkin.py:173: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('phone')
+
+../../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/decl_api.py:0
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/decl_api.py:0: PytestCollectionWarning: cannot collect test class 'Base' because it has a __init__ constructor (from: tests/test_uuid_compatibility.py)
+
+tests/api/test_exclusive_sessions.py: 9 warnings
+tests/api/test_merchant_details.py: 1 warning
+tests/api/test_wallet_activate.py: 4 warnings
+tests/integration/test_checkout_square.py: 5 warnings
+tests/integration/test_merchant_qr_redemption.py: 2 warnings
+tests/integration/test_merchant_square_onboarding_flow.py: 1 warning
+tests/integration/test_nova_issuance_flow.py: 2 warnings
+tests/test_e2e_driver_merchant_flow.py: 1 warning
+tests/test_ev_disconnect.py: 1 warning
+tests/test_financial_flows.py: 1 warning
+tests/test_intent_capture.py: 5 warnings
+tests/test_merchant_balance.py: 1 warning
+tests/test_offer_codes.py: 3 warnings
+tests/test_otp_auth.py: 3 warnings
+tests/test_perk_unlock.py: 9 warnings
+tests/test_prod_hardening_p0.py: 2 warnings
+tests/test_rewards_service_core.py: 6 warnings
+tests/test_uuid_compatibility.py: 2 warnings
+tests/test_vehicle_onboarding.py: 5 warnings
+tests/test_while_you_charge_service.py: 8 warnings
+tests/unit/test_merchant_billing.py: 4 warnings
+tests/unit/test_merchant_onboarding.py: 2 warnings
+tests/unit/test_merchant_reporting.py: 4 warnings
+tests/unit/test_merchant_rewards.py: 3 warnings
+tests/unit/test_merchant_share_card.py: 4 warnings
+tests/unit/test_qr_service.py: 4 warnings
+tests/unit/test_qr_service_merchant.py: 4 warnings
+tests/unit/test_smartcar_service.py: 2 warnings
+tests/unit/test_wallet_timeline.py: 3 warnings
+  /Users/jameskirk/Desktop/Nerava/backend/tests/conftest.py:123: SAWarning: transaction already deassociated from connection
+    transaction.rollback()
+
+tests/integration/test_demo_qr_redirect.py::test_demo_qr_redirect_enabled
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:431: DeprecationWarning: The `allow_redirects` argument is deprecated. Use `follow_redirects` instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_otp_auth.py::test_otp_rate_limiting_per_phone
+  /Users/jameskirk/Library/Python/3.9/lib/python/site-packages/sqlalchemy/sql/util.py:815: RuntimeWarning: coroutine 'OTPService.send_otp' was never awaited
+    ", ".join(trunc(value) for value in items_first_batch)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_otp_auth.py::test_otp_audit_logging
+  /Users/jameskirk/Desktop/Nerava/backend/tests/test_otp_auth.py:172: RuntimeWarning: coroutine 'OTPService.send_otp' was never awaited
+    OTPService.send_otp(db, phone)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_prod_hardening_p0.py::TestSquareOAuthStateRace::test_atomic_oauth_state_consumption
+  /Users/jameskirk/Desktop/Nerava/backend/tests/test_prod_hardening_p0.py:308: SAWarning: Column 'square_oauth_states.id' is marked as a member of the primary key for table 'square_oauth_states', but has no Python-side or server-side default generator indicated, nor does it indicate 'autoincrement=True' or 'nullable=True', and no explicit value is passed.  Primary key columns typically may not store NULL.
+    db.commit()
+
+tests/test_uuid_compatibility.py::test_uuid_uniqueness_constraint
+  /Users/jameskirk/Desktop/Nerava/backend/tests/test_uuid_compatibility.py:75: SAWarning: New instance <UUIDTestModel at 0x112811a00> with identity key (<class 'test_uuid_compatibility.UUIDTestModel'>, ('bf02426b-638e-4cc8-b493-8d4f7476d9f8',), None) conflicts with persistent instance <UUIDTestModel at 0x112f58790>
+    db.commit()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform darwin, python 3.9.6-final-0 ________________
+
+Name                                                Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------------
+app/__init__.py                                         0      0   100%
+app/analytics/batch_writer.py                          86     57    34%   29-35, 39-54, 58-67, 71-75, 79-112, 117-150, 158
+app/analytics/kpis.py                                  81     65    20%   22-60, 64-100, 104-141, 145-178, 182-199
+app/cache/layers.py                                   171     78    54%   31-41, 48, 57-59, 63-71, 75-80, 84-85, 89, 107-112, 129-133, 137-139, 165, 171-172, 188-193, 202, 212, 219, 225-227, 235-238, 246, 253-255, 259-284
+app/clients/stripe_client.py                           34     25    26%   11-13, 25-37, 45-52, 70-95
+app/config.py                                          97      1    99%   177
+app/core/config.py                                    297    115    61%   37, 159-161, 391-396, 414-592
+app/core/copy.py                                        5      0   100%
+app/core/email_sender.py                               36     24    33%   38, 56-63, 73-87, 93
+app/core/env.py                                        17      0   100%
+app/core/retry.py                                      72     33    54%   44, 128-164, 176-187, 199-210
+app/core/secrets.py                                    53      8    85%   32, 61, 89-94
+app/core/security.py                                   71     35    51%   21, 46, 56-57, 74-76, 81-90, 94, 107-125, 138-150
+app/core/startup_validation.py                        213    150    30%   20, 23-29, 32-38, 46, 61, 66-81, 86-117, 122-160, 188-219, 224-238, 243-257, 262-266, 289-306, 313-314, 335-372, 379-380, 388-416
+app/core/token_encryption.py                           33     23    30%   23-35, 40-44, 49-56
+app/core/tracing.py                                    46     16    65%   32, 49-54, 86-92, 105-110
+app/core/uuid_type.py                                  35      8    77%   54-57, 66, 74-77
+app/cors_config.py                                     58     20    66%   78-83, 92, 96-114, 130-131
+app/db.py                                              55     16    71%   37-48, 56-57, 74, 83-85, 110, 130
+app/dependencies.py                                     2      2     0%   3-5
+app/dependencies/__init__.py                            6      4    33%   10-14
+app/dependencies/auth.py                               33     33     0%   4-104
+app/dependencies/domain.py                            103     50    51%   42, 69-75, 94-120, 130-135, 144, 160, 171-186, 192-197, 209-230
+app/dependencies/driver.py                             69     29    58%   51, 72-78, 82-83, 122-144, 150, 158, 191-193, 197-199
+app/dependencies/feature_flags.py                      20      5    75%   26, 31, 46, 60-61
+app/dependencies/partner_auth.py                       33      1    97%   47
+app/dependencies_domain.py                              2      0   100%
+app/dependencies_driver.py                              2      0   100%
+app/domains/__init__.py                                 0      0   100%
+app/domains/domain_hub.py                               5      0   100%
+app/domains/domain_verification.py                     27      1    96%   99
+app/domains/ids.py                                      4      4     0%   1-7
+app/domains/schemas.py                                 88      0   100%
+app/events/bus.py                                     115     80    30%   32-37, 41-61, 65-71, 75-83, 87-89, 95-97, 101-106, 110-120, 124-137, 141-151, 155-161, 165, 169-176, 182
+app/events/domain.py                                  137     24    82%   35-37, 53-55, 67-69, 81-83, 93-95, 110, 120-124, 140, 157, 173
+app/events/hubspot_adapter.py                          52     42    19%   45, 67, 87, 101-203
+app/events/outbox.py                                   13      3    77%   38-41
+app/exception_handlers.py                              41     12    71%   24-33, 48, 63-70, 76, 90-91
+app/experiments/faults.py                             176     67    62%   89-96, 102-116, 122-129, 135-144, 150-159, 165-172, 178-185, 191-198, 251-256
+app/integrations/__init__.py                            0      0   100%
+app/integrations/google_distance_matrix_client.py      51     41    20%   40-87, 94-98, 105-125
+app/integrations/google_places_client.py              254    220    13%   48-50, 60-73, 78-84, 92-94, 111-121, 149-152, 164-326, 338-478, 488-546, 555-577
+app/integrations/google_places_test.py                 24     24     0%   1-69
+app/integrations/nrel_client.py                        82     11    87%   55, 106-114, 140-142
+app/integrations/overpass_client.py                    67     67     0%   7-148
+app/legacy/__init__.py                                  0      0   100%
+app/lifespan.py                                       167    167     0%   4-258
+app/main_simple.py                                    817    406    50%   29-30, 66-77, 81-117, 119, 173-174, 177-180, 187-208, 221, 235-238, 244-267, 277-323, 477, 483-490, 503-521, 573-582, 593-613, 659, 664, 682-688, 695-752, 777-799, 1067-1070, 1098-1102, 1115-1129, 1134-1161, 1167-1175, 1180-1233, 1238-1242, 1247-1296, 1302-1345, 1351-1375, 1381-1401, 1407-1421, 1427-1444, 1455-1493, 1534-1543, 1554, 1575-1577, 1587-1625, 1638-1639
+app/middleware/audit.py                                74     37    50%   78-81, 87-113, 129-130, 134-147, 151-166
+app/middleware/auth.py                                 91     68    25%   23-32, 36-45, 56-73, 84-147, 156, 160-165, 169-188
+app/middleware/demo_banner.py                          21     10    52%   21-40
+app/middleware/logging.py                              40      7    82%   47-50, 72-82
+app/middleware/metrics.py                              20      0   100%
+app/middleware/ratelimit.py                            79     17    78%   52, 102, 120-140, 146
+app/middleware/region.py                               66      4    94%   67, 91, 109-110
+app/middleware/request_id.py                           14      0   100%
+app/middleware/request_size.py                         14      0   100%
+app/middleware/security_headers.py                     18      1    94%   28
+app/models.py                                           2      2     0%   3-5
+app/models/__init__.py                                 40      0   100%
+app/models/ad_impression.py                            14      0   100%
+app/models/admin_role.py                               10      2    80%   42-43
+app/models/arrival_session.py                          84      0   100%
+app/models/audit.py                                    21      2    90%   17-18
+app/models/billing_event.py                            23      0   100%
+app/models/campaign.py                                 66      2    97%   32-33
+app/models/car_pin.py                                  20      2    90%   18, 40
+app/models/charge_intent.py                            24      0   100%
+app/models/charger_availability.py                     17      0   100%
+app/models/claim_session.py                            19      0   100%
+app/models/clo.py                                      57     57     0%   2-80
+app/models/device_token.py                             18      1    94%   17
+app/models/domain.py                                  200      2    99%   30-31
+app/models/driver_wallet.py                            62      0   100%
+app/models/email_otp_challenge.py                      15      0   100%
+app/models/exclusive_session.py                        48      2    96%   14-15
+app/models/extra.py                                   106      4    96%   11-13, 17-18
+app/models/favorite_charger.py                         13      0   100%
+app/models/funding_source.py                           16      0   100%
+app/models/hubspot.py                                  19     19     0%   6-32
+app/models/intent.py                                   38      0   100%
+app/models/loyalty.py                                  32      0   100%
+app/models/merchant_account.py                         47      2    96%   28-29
+app/models/merchant_cache.py                           21      2    90%   14-15
+app/models/merchant_notification_config.py             16      0   100%
+app/models/merchant_oauth_token.py                     49     16    67%   55-62, 66-76, 80-81
+app/models/merchant_pos_credentials.py                 16      0   100%
+app/models/merchant_reward.py                          80      0   100%
+app/models/merchant_subscription.py                    19      0   100%
+app/models/notification_prefs.py                       12      0   100%
+app/models/otp_challenge.py                            15      0   100%
+app/models/partner.py                                  41      2    95%   27-28
+app/models/queued_order.py                             47     10    79%   30-31, 102-104, 108-109, 113-114, 119
+app/models/referral.py                                 17      0   100%
+app/models/refresh_token.py                            17      0   100%
+app/models/session_event.py                            73      2    97%   34-35
+app/models/tesla_connection.py                         97     34    65%   21, 122-134, 138-156, 160-165
+app/models/user.py                                     47      2    96%   21-22
+app/models/user_consent.py                             19      1    95%   36
+app/models/user_reputation.py                          11      0   100%
+app/models/vehicle.py                                  46      2    96%   15-16
+app/models/vehicle_onboarding.py                       25      0   100%
+app/models/verified_visit.py                           27      1    96%   77
+app/models/virtual_key.py                              25      0   100%
+app/models/wallet_pass.py                              19      0   100%
+app/models/wallet_pass_state.py                        20      0   100%
+app/models/while_you_charge.py                        172      2    99%   30-31
+app/models_all.py                                      14     14     0%   12-33
+app/models_client_events.py                            15      1    93%   21
+app/models_demo.py                                     26      0   100%
+app/models_domain.py                                    2      0   100%
+app/models_extra.py                                     2      0   100%
+app/models_vehicle.py                                   2      0   100%
+app/models_while_you_charge.py                          2      0   100%
+app/obs/__init__.py                                     0      0   100%
+app/obs/obs.py                                         35     10    71%   28, 32, 36, 46, 50-62, 66-68
+app/routers/__init__.py                                 0      0   100%
+app/routers/_helpers.py                                 9      9     0%   1-12
+app/routers/account.py                                227    141    38%   47-53, 68, 83-146, 176-181, 192, 222-225, 236, 312-430, 451-525, 551-662
+app/routers/activity.py                                40     29    28%   19-80, 98-126
+app/routers/ad_impressions.py                          38     13    66%   47-64, 77-82
+app/routers/admin.py                                    9      0   100%
+app/routers/admin_analytics.py                         89     41    54%   69, 73, 87-102, 123-163, 184-215, 237-266, 292-304, 328-350
+app/routers/admin_chargers.py                         248    110    56%   157, 187-208, 230-294, 309-314, 324-367, 378-409, 425-452, 463-517, 539-570
+app/routers/admin_domain.py                          1196    917    23%   78-124, 131-320, 347-420, 434-492, 500-648, 661-713, 783-799, 823-860, 880-911, 931-940, 966-991, 1015-1063, 1078-1148, 1166-1239, 1267-1314, 1342-1417, 1441-1467, 1489-1521, 1534-1562, 1584-1609, 1630-1650, 1681-1700, 1717-1736, 1753-1772, 1789-1808, 1825-1844, 1855-1870, 1885-1938, 1955-1968, 1981-1994, 2010-2054, 2073-2099, 2104-2129, 2149-2175, 2184-2210, 2218, 2230-2250, 2259-2279, 2284-2311, 2322-2350, 2358-2362, 2373-2412, 2425-2442, 2457-2492, 2507-2548, 2557-2584, 2593-2602, 2611-2623, 2640-2709, 2740-2744, 2767-2797, 2807-2819, 2852-2875, 2913-2936, 2946-2999, 3029-3065, 3100-3201
+app/routers/admin_partners.py                          55     30    45%   28, 53-68, 78-79, 89-92, 103-110, 121-131, 148-149, 172-175
+app/routers/admin_tesla.py                             64     49    23%   49-151
+app/routers/affiliate_api.py                           10      2    80%   11, 16
+app/routers/analytics.py                               53     35    34%   15-19, 24-28, 33-37, 42-46, 51-55, 60-64, 69-79
+app/routers/analytics_debug.py                         27     11    59%   44-67, 78-81
+app/routers/arrival.py                                421    280    33%   172, 183, 203-212, 217-218, 234-257, 262-275, 289-400, 421-482, 503-588, 605-676, 690-709, 718-733, 743-763, 781-844, 862-875, 903-1001
+app/routers/arrival_v2.py                              72     40    44%   54-72, 95-110, 123-130, 152-159, 168-173, 182-187
+app/routers/auth.py                                   343    242    29%   109, 138-168, 189-197, 228, 240-280, 315-395, 411-481, 498-613, 634-644, 660-726, 755-841, 854-875, 881-890
+app/routers/auth_domain.py                            332    217    35%   33-37, 48-53, 81, 91, 101, 111, 117-126, 192-197, 203-210, 226-239, 242-248, 257-258, 264-275, 296-382, 421-455, 471-477, 501-678, 700-726, 743-755, 767-804
+app/routers/bootstrap.py                              399    351    12%   44-57, 95-827, 840-847, 865, 906-927, 950-982
+app/routers/campaign_sessions.py                      175    138    21%   52-55, 75-126, 139-153, 161-208, 226-295, 311-317, 327-331, 348-405, 412-461
+app/routers/campaigns.py                              275    178    35%   29-33, 108-132, 146-157, 172-213, 223-229, 240-283, 293-301, 311-408, 419-427, 437-445, 457-476, 490-493, 509-554, 586-611, 627, 678-679
+app/routers/challenges.py                              79     61    23%   24-47, 56-90, 100-136, 145-179, 187-213
+app/routers/charge_context.py                          85      6    93%   171-186
+app/routers/chargers.py                               511    393    23%   30-40, 46-59, 64-70, 77-79, 85-94, 147-151, 168-303, 342-502, 515-535, 545-554, 563-567, 578-592, 608-718, 726-755, 771-836, 842, 859-908, 919, 930-971, 979-1015
+app/routers/checkin.py                                397    222    44%   177-185, 228-237, 242-255, 275-280, 285, 311-388, 407-426, 441-466, 484-523, 548-611, 633-661, 684-750, 771-789, 805-827, 851-872, 896-934, 953-1012, 1031-1037
+app/routers/checkout.py                               285    204    28%   60-99, 185-255, 286-312, 353-727, 777-864, 882-907
+app/routers/client_telemetry.py                        23      6    74%   30-48
+app/routers/clo.py                                     99     52    47%   54-58, 68-82, 92-98, 107-111, 121-125, 135-153, 163-171, 182-198
+app/routers/config.py                                  32     11    66%   42-44, 70-90
+app/routers/consent.py                                 76     45    41%   48-74, 85-127, 142-183
+app/routers/console_auth.py                            49     21    57%   56-58, 67-110
+app/routers/debug_pool.py                               9      2    78%   12-19
+app/routers/debug_verify.py                            15      7    53%   13-20
+app/routers/demo.py                                   278    278     0%   5-768
+app/routers/demo_charging.py                           62     21    66%   56, 92-108, 118, 134-155
+app/routers/demo_qr.py                                 24      2    92%   38, 56
+app/routers/demo_square.py                            132     71    46%   39-52, 115-150, 180-214, 249-327, 363-386, 421-440
+app/routers/dev_tools.py                               41     21    49%   41-114
+app/routers/discover_api.py                            17      2    88%   23-32
+app/routers/driver_wallet.py                          185    135    27%   45-50, 60-65, 76-110, 119-120, 130-137, 147-154, 164-173, 182-189, 199-211, 227-258, 274-331, 346-375
+app/routers/drivers_domain.py                         489    288    41%   102-145, 221-222, 278, 312-330, 357, 363, 380, 405-406, 412-454, 473-718, 730-755, 763-764, 781-1165, 1190-1252, 1289-1300, 1314-1318, 1340-1401
+app/routers/drivers_wallet.py                          89     61    31%   26-31, 35-38, 45-59, 72-91, 100-132, 153-162, 174-191
+app/routers/dual_zone.py                               34     34     0%   1-47
+app/routers/energyhub.py                              104     50    52%   26-34, 82-97, 103-161, 166-187, 192-193
+app/routers/ev_context.py                             110     57    48%   97-154, 178-185, 195-215, 225-239
+app/routers/ev_smartcar.py                            183    135    26%   92-93, 99-112, 129-172, 189-325, 345-410, 426-455, 476-540
+app/routers/events_api.py                              82     28    66%   21-26, 74-82, 94-99, 107-109, 120-124, 132-133, 141-143
+app/routers/exclusive.py                              550    416    24%   45-66, 91-93, 156, 167-178, 187-250, 280-301, 318-741, 767-933, 947-994, 1014-1053, 1084-1306, 1348-1390, 1430-1456, 1484-1536
+app/routers/flags.py                                   66     48    27%   16-18, 106-130, 142-166, 179-204, 211-217, 221-227
+app/routers/gpt.py                                    150    119    21%   37-110, 124-206, 216-281, 295-358, 372, 377, 383-384
+app/routers/grid.py                                    55     40    27%   19-69, 77-134, 139-184
+app/routers/health.py                                  18      3    83%   31-33, 47
+app/routers/hubs.py                                    26      6    77%   16, 21, 28, 58-60
+app/routers/incentives.py                              44      6    86%   27-30, 36, 58
+app/routers/insights_api.py                            17      7    59%   13, 18-24
+app/routers/intent.py                                 132     57    57%   91-93, 104-111, 120-123, 139, 146, 164-182, 190-200, 204-208, 214-223, 261, 316-363
+app/routers/intents.py                                 90     68    24%   16-21, 29-62, 71-114, 123-151, 159-190, 199-216, 233-262
+app/routers/leaderboard.py                             47     25    47%   38-84, 93-98
+app/routers/ledger.py                                  36     23    36%   18-36, 43-51, 56-67
+app/routers/loyalty.py                                 67     17    75%   61, 71-80, 89-90, 101-106, 117, 126, 139, 148-151, 164
+app/routers/merchant_analytics.py                      25     13    48%   18-25, 34, 46-53
+app/routers/merchant_api.py                            52     38    27%   27-37, 52-95, 109-119
+app/routers/merchant_arrivals.py                       56      0   100%
+app/routers/merchant_balance.py                        99     47    53%   90-113, 131-178, 196-243
+app/routers/merchant_billing.py                       199    160    20%   52-73, 85-87, 96-100, 109-144, 154-194, 203-209, 224-255, 265-281, 290-315, 321-363, 368-400
+app/routers/merchant_claim.py                         176    126    28%   80-144, 159-197, 212-284, 299-371, 390-394
+app/routers/merchant_funnel.py                        170     59    65%   128, 132-134, 139-147, 193-200, 237-285, 306-346
+app/routers/merchant_onboarding.py                    115     90    22%   65-78, 98-173, 189-222, 236-270, 286-300, 317-342
+app/routers/merchant_reports.py                       140    113    19%   44-55, 79-103, 108-113, 120-130, 135, 151-332
+app/routers/merchant_rewards.py                        96     69    28%   70-93, 110-115, 141-168, 184-185, 212-230, 262-300, 313-350
+app/routers/merchant_ui.py                             24     14    42%   26-243
+app/routers/merchants.py                              163     95    42%   37-54, 83-149, 167-174, 195-219, 229-238, 278, 353-382, 418-423, 447
+app/routers/merchants_domain.py                       611    486    20%   82-153, 164-177, 206-394, 422-451, 474-515, 523-529, 546-553, 579-600, 634-669, 698-744, 760-804, 819-860, 893-939, 963-1070, 1098-1187, 1208-1289, 1304-1335, 1348-1397, 1413-1433, 1441-1451, 1459-1487
+app/routers/merchants_local.py                        152     99    35%   38-45, 48-70, 73-78, 81-88, 91-96, 99-103, 106-109, 118-145, 148-151, 155-158, 162-165, 169-172, 176-179, 183-194, 197-216, 219-251, 262-265, 269-272
+app/routers/meta.py                                    68     50    26%   16, 25-27, 35, 55-112, 131-206
+app/routers/ml.py                                      32     22    31%   17-31, 40-78, 88-106
+app/routers/mock_tesla.py                              99     99     0%   7-246
+app/routers/native_events.py                          131     54    59%   35-41, 61-74, 78-79, 88-89, 93-101, 111-116, 120-122, 180-222, 231-257, 263
+app/routers/notifications.py                           81     42    48%   43-55, 71-97, 131-151, 174-207
+app/routers/nova_domain.py                             29     13    55%   37-68
+app/routers/offers_api.py                              24     15    38%   25-61
+app/routers/ops.py                                     30      7    77%   20-30
+app/routers/partner_api.py                             92     28    70%   32-37, 88, 126, 142-162, 176-178, 205, 207, 209, 211-212, 214-215, 224-226
+app/routers/payouts.py                                 48     35    27%   18-49, 58-67, 75-83, 91-115
+app/routers/perks.py                                   23     11    52%   50-83
+app/routers/places.py                                 147     99    33%   24, 66-68, 78-109, 114-147, 157-185, 195-204, 209-242, 261-286, 313-345
+app/routers/plaid.py                                  105     61    42%   60-65, 75-170, 183-188, 210-223
+app/routers/pool_api.py                                92     77    16%   19-23, 34-123, 134-158
+app/routers/posthog_events.py                         112     46    59%   139-176, 198-238, 260-300
+app/routers/profile.py                                  5      1    80%   8
+app/routers/public_stats.py                            22      8    64%   23-36
+app/routers/purchase_webhooks.py                      177    115    35%   43-58, 93-101, 113-114, 119-121, 132-134, 165, 171, 189-339, 358-473
+app/routers/recommend.py                               14      6    57%   13-18
+app/routers/referrals.py                               36     10    72%   44-45, 57-58, 68-75
+app/routers/reservations.py                            26      6    77%   27-32
+app/routers/sessions.py                               105     81    23%   36-217, 232-472
+app/routers/sessions_verify.py                         62     17    73%   21-29, 51-59
+app/routers/social.py                                  58      2    97%   34, 97
+app/routers/square.py                                  13      6    54%   18-29
+app/routers/stripe_api.py                             245    219    11%   46-562, 576-699
+app/routers/stripe_domain.py                           37     17    54%   35-50, 63-80, 89
+app/routers/stripe_webhooks.py                         89     74    17%   25-44, 60-91, 96-123, 128-139, 144-156, 161-173
+app/routers/tesla_auth.py                             351    261    26%   118-128, 142-270, 285-334, 353-431, 452-460, 481-569, 586-729, 744-750, 767-777
+app/routers/tesla_telemetry.py                         39      4    90%   30, 80-83
+app/routers/tesla_telemetry_config.py                  36     23    36%   42-91
+app/routers/toast_pos.py                               85     38    55%   81-90, 103-125, 140-155, 173-175, 187-205
+app/routers/twilio_sms_webhook.py                      63      7    89%   87-88, 90-91, 127-128, 143
+app/routers/user_prefs.py                              27     16    41%   13-16, 20-31
+app/routers/users.py                                   26      9    65%   19-22, 26-29, 34
+app/routers/users_register.py                          28     14    50%   25-43
+app/routers/vehicle_onboarding.py                      39     22    44%   53-71, 98-121, 146-155
+app/routers/virtual_cards.py                           33     17    48%   36-67, 87-104
+app/routers/virtual_key.py                            106     54    49%   80-96, 112-122, 137-162, 177-195, 213-266
+app/routers/wallet.py                                  18      2    89%   44, 46
+app/routers/wallet_pass.py                            468    374    20%   50-93, 144-154, 171-226, 243-286, 311-316, 345-357, 382-403, 430-442, 459-467, 489-588, 608-677, 704-837, 862-920, 934-960, 977-985, 995-1001, 1012-1045, 1071-1149, 1166-1192, 1219-1286, 1312-1388
+app/routers/webhooks.py                                26     15    42%   21-59
+app/routers/while_you_charge.py                        62     27    56%   68-167, 172-186
+app/run_migrations.py                                  70     70     0%   8-140
+app/schemas.py                                         25     25     0%   1-32
+app/schemas/__init__.py                                 3      0   100%
+app/schemas/account.py                                 23      0   100%
+app/schemas/auth.py                                    18      0   100%
+app/schemas/demo.py                                    43     43     0%   4-58
+app/schemas/intent.py                                  46      0   100%
+app/schemas/merchant_onboarding.py                     46      0   100%
+app/schemas/merchant_reward.py                         65      0   100%
+app/schemas/merchants.py                               58      0   100%
+app/schemas/partner.py                                134      0   100%
+app/schemas/perks.py                                   13      0   100%
+app/schemas/preferences.py                             12      0   100%
+app/schemas/telemetry.py                               10      0   100%
+app/schemas/vehicle_onboarding.py                      20      0   100%
+app/schemas/wallet.py                                  14      0   100%
+app/scripts/__init__.py                                 0      0   100%
+app/scripts/analyze_texas_chargers.py                 295    295     0%   12-734
+app/scripts/data/__init__.py                            0      0   100%
+app/scripts/data/texas_metro_bounds.py                 11     11     0%   7-191
+app/scripts/demo_seed.py                               95     95     0%   4-277
+app/scripts/franchise_exclusions.py                    12     12     0%   7-243
+app/scripts/seed_canyon_ridge_override.py             100    100     0%   9-212
+app/scripts/seed_flags.py                              25     25     0%   5-69
+app/scripts/seed_minimal.py                            73     73     0%   6-225
+app/security/__init__.py                                0      0   100%
+app/security/apikey.py                                 23     16    30%   33-36, 43-65
+app/security/jwt.py                                    51     15    71%   40-42, 62-64, 75, 82-86, 96-97, 101
+app/security/ratelimit.py                              24     17    29%   16-47
+app/security/ratelimit_redis.py                        89     54    39%   16-18, 53-56, 66-67, 74-75, 84-108, 113-139, 158-175
+app/security/rbac.py                                   68     27    60%   103-116, 125, 129-143, 147-157
+app/security/scopes.py                                 20     15    25%   14-29, 36-48
+app/security/tokens.py                                 27      4    85%   66, 74, 83-84
+app/services/__init__.py                               17     14    18%   6-19
+app/services/activity.py                               44     44     0%   1-89
+app/services/ad_billing_service.py                     30     19    37%   28, 49-100, 111
+app/services/affiliate.py                              27     19    30%   14-16, 20-80
+app/services/analytics.py                              83     30    64%   19-21, 36-37, 40-42, 45-46, 55-57, 94, 97, 112, 116, 118, 147-149, 163-179
+app/services/apple_auth.py                             44     44     0%   4-111
+app/services/apple_pass_push.py                        48     39    19%   23-43, 52-72, 81-103
+app/services/apple_wallet_pass.py                     323    280    13%   37-39, 43-53, 66-78, 92, 94, 96, 104-117, 128-147, 164-199, 234-327, 337-341, 357-635, 656-658, 662-748, 757
+app/services/arrival_service_v2.py                    120     97    19%   28-30, 35-36, 41, 53-75, 84-102, 112-158, 174-215, 231-252, 261-299
+app/services/async_wallet.py                           42     28    33%   15-17, 21-27, 31-37, 41-52, 56-70
+app/services/audit.py                                  46     34    26%   29-45, 74-98, 127-150, 179-203
+app/services/auth/__init__.py                          11      0   100%
+app/services/auth/audit.py                             56      8    86%   65, 121, 165, 186, 207, 249, 270, 291
+app/services/auth/email_otp_provider.py                63     45    29%   36-37, 41, 50-93, 102-145
+app/services/auth/google_oauth.py                      71     55    23%   42-64, 83-166, 185-201
+app/services/auth/otp_factory.py                       42     21    50%   36-43, 46-53, 57-61, 70
+app/services/auth/otp_provider.py                       8      2    75%   21, 35
+app/services/auth/rate_limit.py                       234     91    61%   16-18, 65-78, 85-91, 95-101, 108-114, 121-124, 131-138, 146-178, 206, 216, 219-220, 249, 286, 289-290, 305-310, 335-338, 350-353, 379-381, 384-386
+app/services/auth/stub_provider.py                     47     25    47%   30, 34, 38, 54, 73-109
+app/services/auth/tokens.py                            12      0   100%
+app/services/auth/twilio_sms.py                        72     52    28%   34-51, 55, 67-123, 136-169
+app/services/auth/twilio_verify.py                     77     65    16%   25-41, 53-89, 105-158
+app/services/auth_service.py                           78     20    74%   40, 80-81, 93-102, 125-127, 132-133, 138-146
+app/services/cache.py                                  32     20    38%   15-21, 25-29, 33-36, 40-43
+app/services/campaign_service.py                      218     61    72%   110, 153-205, 212, 231, 233, 250, 252, 282, 295, 297, 307, 337-338, 349-350, 367-368, 386-395, 399-410, 414-426
+app/services/categorize.py                             31     22    29%   19-22, 25-37, 40-56
+app/services/charger_score.py                          19     19     0%   12-77
+app/services/charger_seeder.py                        146    146     0%   7-362
+app/services/chargers_openmap.py                       46     35    24%   25, 28-32, 35-98
+app/services/charging_service.py                       24     24     0%   1-49
+app/services/checkin_service.py                       413    207    50%   67-68, 113, 121, 130-131, 177-204, 218-282, 294-318, 336-338, 352, 356, 379, 382, 386, 404, 414, 421, 426, 430, 464-467, 497-535, 600, 613, 683, 687, 691, 700-713, 717, 740-809, 830-885, 902-923, 947-968, 988-1025, 1035-1037
+app/services/circuit_breaker.py                        61     33    46%   33-46, 50-52, 56-62, 66-70, 81-85, 89-93
+app/services/codes.py                                  74     11    85%   61, 78, 119-131, 219
+app/services/corporate_classifier.py                   51     51     0%   6-156
+app/services/db_merchant.py                            47     47     0%   1-86
+app/services/db_user.py                                15      9    40%   15, 18-21, 24-27
+app/services/db_user_ext.py                            30     30     0%   1-42
+app/services/demo_seed.py                              26     19    27%   29-81
+app/services/discover.py                               93     75    19%   30-36, 40, 44-50, 54-69, 73-79, 83-114, 118-166, 170-203, 207-215, 228-241
+app/services/dual_zone.py                              29     29     0%   1-62
+app/services/dwolla_payout_provider.py                 60     60     0%   7-129
+app/services/dwolla_webhook_service.py                 65     65     0%   8-123
+app/services/email_otp_service.py                      58     40    31%   35-85, 93-133
+app/services/energyhub_sim.py                          63     23    63%   56, 62-65, 80-86, 98-113
+app/services/ev_telemetry.py                           52     42    19%   39-113, 126-141
+app/services/event_bus.py                               5      5     0%   1-9
+app/services/events2.py                                14      8    43%   12-28
+app/services/events.py                                 77     64    17%   29-89, 94-110, 133-189, 200-227, 237-247
+app/services/fraud.py                                  90     90     0%   4-266
+app/services/geo.py                                     8      0   100%
+app/services/geocoding.py                              24     24     0%   5-49
+app/services/google_auth.py                            20     14    30%   31-68
+app/services/google_business_profile.py                84     64    24%   35-48, 55-81, 86-107, 112-125, 130-140, 148-206
+app/services/google_places_new.py                     269    226    16%   49-93, 120-124, 131-216, 231-277, 291-337, 400-442, 466-565, 579-653
+app/services/google_wallet_service.py                 110     91    17%   35-39, 43, 53-73, 80-84, 93-119, 128-174, 183-189, 207-263
+app/services/hubs_dynamic.py                           60     49    18%   11-13, 16-20, 23-24, 31-56, 59-71, 74-88
+app/services/hubs_from_chargers.py                     56     56     0%   1-92
+app/services/hubspot.py                               137     99    28%   32-40, 44, 68-139, 156-198, 219-264, 283-290, 342-343, 349-352, 358
+app/services/idempotency.py                            28     16    43%   16-18, 22-31, 35-36, 43-49
+app/services/incentive_engine.py                      162     52    68%   110, 123-124, 130-131, 139-148, 152-156, 162-164, 168-169, 173-174, 183-193, 199-211, 231, 341-363
+app/services/incentive_service.py                      24     24     0%   1-55
+app/services/incentives.py                             38     31    18%   7-8, 11-15, 18-27, 44-77
+app/services/intent_service.py                        136     71    48%   122-123, 197-238, 269-301, 318-354, 362-370, 375-402, 418, 434, 455-479
+app/services/ledger.py                                 55     28    49%   69-81, 93-110, 121, 125
+app/services/loyalty_service.py                        78      0   100%
+app/services/merchant_activation_counts.py             10      0   100%
+app/services/merchant_analytics.py                     78     67    14%   37-184, 209-232, 267-293
+app/services/merchant_balance.py                       65     16    75%   46-54, 88, 110-113, 145, 174-177
+app/services/merchant_categories.py                    12     12     0%   6-48
+app/services/merchant_charger_map.py                   18     18     0%   7-49
+app/services/merchant_details.py                      147     69    53%   39-50, 65-81, 97-99, 104-108, 118-159, 183, 198, 201-203, 219, 238, 246-257, 277-289, 300, 332, 372-391, 408-412, 431-432
+app/services/merchant_enrichment.py                   158    138    13%   35-36, 42-45, 55-166, 185-216, 229-254, 267-290
+app/services/merchant_fee.py                           26      0   100%
+app/services/merchant_onboarding.py                    76     15    80%   116, 120-128, 177, 213, 240, 259-264
+app/services/merchant_onboarding_service.py           159    138    13%   33-49, 57, 68-76, 86-124, 132-167, 184-245, 254-278, 286-334, 350-408
+app/services/merchant_reporting.py                     45     38    16%   32-69, 92-139
+app/services/merchant_reports.py                       65      6    91%   40, 43-46, 51
+app/services/merchant_reward_service.py               171     90    47%   54, 89-100, 174-179, 202, 204-206, 232-316, 323, 328-345, 350, 381, 393-395, 404-406, 420-421
+app/services/merchant_share_card.py                    73     59    19%   23-32, 56-57, 61-148
+app/services/merchant_signs.py                         66     66     0%   6-134
+app/services/merchant_subscription_service.py          97     79    19%   28-30, 45-101, 106-137, 142-159, 164-176, 181-188, 193-205, 217-237
+app/services/merchants_google.py                       81     81     0%   1-197
+app/services/merchants_norm.py                         19     19     0%   1-31
+app/services/ml_ranker.py                              36     31    14%   19-35, 50-67, 86-118
+app/services/mock_tesla_fleet_api.py                  113    113     0%   7-282
+app/services/notification_service.py                   55     45    18%   20-40, 59-99, 113-114, 137-170
+app/services/notifier.py                                5      5     0%   1-9
+app/services/notify.py                                 31     31     0%   3-110
+app/services/nova.py                                    4      1    75%   40
+app/services/nova_accrual.py                           76     21    72%   40-41, 62-63, 71-73, 79-81, 95-125
+app/services/nova_engine.py                            34      1    97%   94
+app/services/nova_service.py                          229     89    61%   40-42, 118-124, 180-188, 209-210, 262-293, 300-312, 347, 366-367, 418-454, 497-498, 531-615, 620-626, 635, 646
+app/services/offers_feed.py                             6      6     0%   4-30
+app/services/otp_service.py                            75     51    32%   34-41, 46-47, 58-90, 95-115, 128-172
+app/services/otp_service_v2.py                         78     43    45%   54-56, 66-74, 124, 128-130, 162-259
+app/services/partner_service.py                        68     19    72%   70, 95, 99, 106-109, 113-122, 128, 136
+app/services/partner_session_service.py               162     30    81%   142, 169, 174, 176, 216-220, 236, 259-284, 313-326, 335-338, 368
+app/services/partner_webhook_service.py                46     46     0%   7-120
+app/services/payments.py                               19     19     0%   5-89
+app/services/payout_provider.py                        27     27     0%   7-60
+app/services/payout_service.py                        352    175    50%   46-53, 106-108, 138-139, 178-179, 206-245, 252-278, 283-315, 333, 340, 347-350, 355, 368-393, 403-482, 487-586, 601-603, 627-628, 631, 656-657, 670, 673, 702-704, 717, 731-736, 741-746, 751-761, 776
+app/services/payouts.py                                17      0   100%
+app/services/payouts_visa.py                           53     34    36%   33-82, 93-113, 120-149
+app/services/perk_service.py                           47     36    23%   56-161
+app/services/places_google.py                          22     17    23%   10-35
+app/services/plaid_service.py                          71     56    21%   20-42, 46, 51-71, 79-89, 97-108, 113-128, 142-163
+app/services/pool2.py                                  32     32     0%   1-70
+app/services/pool.py                                   39     29    26%   29-53, 69-92, 107-172
+app/services/pos_adapter.py                            57      6    89%   82-83, 86-87, 105, 108
+app/services/purchases.py                             135     80    41%   57-105, 125-128, 146, 182-231, 254-311
+app/services/push_service.py                          184    109    41%   28-50, 57-97, 107-125, 135-159, 179, 197-220, 261-262, 276-277, 282, 286, 290, 308-309, 324, 342, 362-366
+app/services/qr_service.py                             52     18    65%   20-21, 45-47, 83-98, 123-125, 137, 177-182
+app/services/referral_service.py                       70     55    21%   21-24, 29-45, 50-74, 80-103, 108-123
+app/services/refresh_token_service.py                  54     23    57%   70-71, 84-99, 104-106, 111-122, 130-135
+app/services/reputation.py                             24      1    96%   76
+app/services/reservations.py                           10      7    30%   8-20
+app/services/rewards.py                               102     49    52%   65, 77-78, 126-141, 151-239, 300-303, 326-415
+app/services/rewards_engine.py                         36      2    94%   59-61
+app/services/routing.py                                38     31    18%   8, 11-13, 16-26, 29-44
+app/services/s3_storage.py                             19      8    58%   30-44, 58-63
+app/services/seed_hubs.py                               8      4    50%   31, 34-36
+app/services/session_event_service.py                 469    360    23%   33-49, 121, 150-152, 220, 222, 241-801, 814, 816, 820, 828, 852-902, 915-956, 974-994, 1007-1056, 1073
+app/services/session_service.py                       114    114     0%   7-319
+app/services/smartcar_client.py                       102    102     0%   3-253
+app/services/smartcar_service.py                      131     71    46%   68-70, 88-196, 228-229, 259-265, 298-299
+app/services/spend_verification_service.py            245    193    21%   33, 38, 55-107, 112-123, 128-135, 148-167, 181-286, 307-336, 347-362, 367-372, 377-391, 397-415, 420-449, 454-485, 490-536, 541-547, 563-572, 586-603
+app/services/square_orders.py                         153     37    76%   44-48, 164-165, 180-185, 240, 245, 248-253, 330-337, 381, 410-417
+app/services/square_service.py                        152     45    70%   62-68, 79-80, 82-83, 85-86, 170-171, 195, 231-233, 239, 316-317, 341-348, 364, 400-404, 426, 446-468
+app/services/stripe_payout_provider.py                 55     55     0%   7-115
+app/services/stripe_service.py                        155     72    54%   50-55, 135-137, 159-164, 185, 192-193, 219-229, 251, 256-257, 288-299, 311-316, 352-507
+app/services/telemetry_processor.py                   165     45    73%   70-73, 80-83, 155-161, 175-181, 186-187, 230-232, 238-242, 264, 301-317
+app/services/tesla_auth_service.py                     64     51    20%   29-38, 59-121, 137-151
+app/services/tesla_fleet_api.py                        66     66     0%   7-168
+app/services/tesla_oauth.py                           181     67    63%   215-225, 238-248, 276-330, 399-400, 422-446, 479-489, 502-504, 514-516
+app/services/toast_pos_service.py                     222    190    14%   37, 49-54, 59-69, 83-101, 120-196, 216-253, 258, 273-328, 337-346, 354-380, 396-449, 454-476, 487-496, 513-520
+app/services/token_encryption.py                       95     51    46%   41-49, 61-75, 86-101, 119-127, 134-137, 164-166, 200-213
+app/services/vehicle_onboarding_service.py             46     33    28%   39-61, 85-108, 124-168
+app/services/verifier.py                               74     61    18%   40-68, 90-213
+app/services/verify_dwell.py                          377     84    78%   23-24, 30-31, 45-47, 53, 65-67, 73, 85-87, 114, 132-133, 148-149, 184, 208, 237-238, 259, 266, 276, 283, 294-297, 300, 304, 325, 332-334, 364-373, 397, 444-455, 462-467, 555, 581-585, 609, 619, 621-626, 704-706, 728-734, 737-747, 769-770, 836-837, 853, 868
+app/services/vin_decoder.py                            30     30     0%   17-88
+app/services/virtual_key_qr.py                         50     34    32%   14-16, 28-29, 48-74, 94-120, 145-147, 157-159
+app/services/virtual_key_service.py                    91     69    24%   42-89, 103-119, 142-166, 183-221, 238-259, 272, 290, 309-311
+app/services/wallet.py                                 91     11    88%   34-41, 46-47, 85, 110, 139
+app/services/wallet_activate.py                        34     24    29%   34-89
+app/services/wallet_activity.py                        24     10    58%   34-40, 52-54, 58-63
+app/services/wallet_pass_state.py                      47     37    21%   30-48, 67-80, 99-112, 129-142
+app/services/wallet_service.py                         30     30     0%   1-61
+app/services/wallet_timeline.py                        59     34    42%   61, 64, 72-75, 94-116, 120-155
+app/services/webhook_delivery_service.py               44     44     0%   6-99
+app/services/while_you_charge.py                      422    214    49%   98-159, 172-421, 436-523, 626-660, 664-743, 745, 837-839, 865, 879-882, 936-940, 947, 952-957, 984-988, 1043, 1049-1057
+app/tests/api/test_feature_flags.py                   295     83    72%   40-44, 60-64, 80-82, 98-102, 124-127, 149-153, 182-185, 201-204, 226-230, 246-250, 266-270, 292-295, 311-315, 339-343, 359-361, 385-389, 405-408, 424-425, 441-442, 458-460
+app/tests/api/test_observability.py                    88     22    75%   42-45, 52-55, 64-67, 86-88, 104, 124-129, 149-153
+app/tests/api/test_ratelimit.py                        91      1    99%   102
+app/tests/api/test_security_and_flags.py              104      8    92%   67, 115-116, 136-137, 157-158, 239
+app/tests/test_chaos.py                               160      1    99%   240
+app/tests/test_config_validation.py                    24      0   100%
+app/tests/test_demo_runner.py                          86     59    31%   42, 45-47, 50-56, 59-68, 73-97, 101-116, 119-139, 142-148
+app/tests/test_domain_hub.py                          100      0   100%
+app/tests/test_live_endpoints.py                       14      5    64%   8, 12-13, 17-18
+app/tests/test_merchants_dedup.py                      20      0   100%
+app/tests/test_security.py                             93      0   100%
+app/utils/dbjson.py                                    20      5    75%   20-23, 31
+app/utils/env.py                                        6      0   100%
+app/utils/ev_browser.py                                56     23    59%   49, 63, 75, 84, 92, 103-105, 125-152, 161-162
+app/utils/exclusive_logging.py                          9      3    67%   20-29
+app/utils/log.py                                       15      0   100%
+app/utils/names.py                                     18      1    94%   33
+app/utils/phone.py                                     35     12    66%   30, 37, 79, 96-106
+app/utils/pwa_responses.py                             76     35    54%   25-31, 42, 45-48, 98, 100, 104, 154-166, 170-179, 185-187, 191, 208-212, 233
+app/workers/availability_collector.py                 195    147    25%   70-82, 87-116, 134-177, 182-206, 211-213, 236, 251-399, 420-421, 425-426
+app/workers/hubspot_sync.py                           187    147    21%   27-35, 55-65, 72-79, 83-91, 95-115, 124-161, 165-184, 188-276, 280-293, 297-313, 317-331, 340-351
+---------------------------------------------------------------------------------
+TOTAL                                               36252  20757    43%
+=========================== short test summary info ============================
+FAILED tests/api/test_amenity_votes.py::test_vote_amenity_invalid_vote_type
+FAILED tests/api/test_merchant_details.py::TestMerchantDetailsEndpoint::test_get_merchant_details_by_id
+FAILED tests/api/test_merchant_details.py::TestMerchantDetailsEndpoint::test_get_merchant_details_by_external_id
+FAILED tests/api/test_merchant_details.py::TestMerchantDetailsEndpoint::test_get_merchant_details_not_found
+FAILED tests/api/test_merchant_details.py::TestMerchantDetailsEndpoint::test_merchant_details_response_schema
+FAILED tests/api/test_merchant_enrichment.py::test_enrich_from_google_places
+FAILED tests/api/test_merchant_enrichment.py::test_refresh_open_status - Fail...
+FAILED tests/api/test_merchants_nearby_filters.py::test_nova_only_returns_only_active_perks
+FAILED tests/api/test_merchants_nearby_filters.py::test_search_by_name_returns_matching
+FAILED tests/api/test_merchants_nearby_filters.py::test_category_filter_coffee
+FAILED tests/api/test_merchants_nearby_filters.py::test_all_three_eggmans_returned
+FAILED tests/api/test_merchants_nearby_filters.py::test_response_includes_required_fields
+FAILED tests/api/test_merchants_nearby_filters.py::test_while_you_charge_filter
+FAILED tests/api/test_merchants_nearby_filters.py::test_while_you_charge_excludes_far_merchants
+FAILED tests/api/test_merchants_nearby_filters.py::test_while_you_charge_excludes_null_distance
+FAILED tests/api/test_merchants_nearby_filters.py::test_category_filter_uses_primary_category
+FAILED tests/api/test_primary_merchant_override.py::test_primary_override_pre_charge
+FAILED tests/api/test_primary_merchant_override.py::test_primary_override_charging
+FAILED tests/api/test_primary_merchant_override.py::test_no_primary_override
+FAILED tests/api/test_wallet_activate.py::TestWalletActivateEndpoint::test_activate_wallet_pass_invalid_session
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_authenticated_contract
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[0-Bronze-100]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[99-Bronze-1]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[100-Silver-200]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[299-Silver-1]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[300-Gold-400]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[699-Gold-1]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[700-Platinum-0]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_tier_mapping[1000-Platinum-0]
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_offpeak_window_end_offpeak
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_offpeak_window_end_peak
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_charging_detected_reflects_wallet
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_activity_limit_5
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_handles_null_score
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_reputation_structure
+FAILED tests/api/test_wallet_summary.py::test_wallet_summary_platinum_returns_max_progress
+FAILED tests/demo/test_autorun.py::test_autorun_start_stop - assert 404 == 200
+FAILED tests/demo/test_autorun.py::test_autorun_scenarios - assert 404 == 200
+FAILED tests/demo/test_autorun.py::test_autorun_unauthorized - assert 404 == 401
+FAILED tests/demo/test_autorun.py::test_autorun_script_execution - assert 404...
+FAILED tests/demo/test_autorun.py::test_autorun_polling - assert 404 == 200
+FAILED tests/demo/test_autorun.py::test_autorun_cleanup - assert 404 == 200
+FAILED tests/integration/test_charging_demo.py::test_charging_start_bumps_wallet_activity
+FAILED tests/integration/test_charging_demo.py::test_charging_start_disabled_returns_404
+FAILED tests/integration/test_charging_demo.py::test_charging_stop_sets_false
+FAILED tests/integration/test_charging_demo.py::test_wallet_status_returns_charging_state
+FAILED tests/integration/test_charging_demo.py::test_wallet_status_returns_not_charging
+FAILED tests/integration/test_checkout_square.py::TestCheckoutOrdersEndpoint::test_list_orders_invalid_token
+FAILED tests/integration/test_demo_charging_flow.py::test_charging_start_bumps_wallet_activity
+FAILED tests/integration/test_demo_charging_flow.py::test_wallet_status_returns_charging_detected
+FAILED tests/integration/test_demo_charging_flow.py::test_wallet_status_returns_not_charging
+FAILED tests/integration/test_demo_charging_flow.py::test_charging_stop_sets_false
+FAILED tests/integration/test_demo_qr_redirect.py::test_demo_qr_redirect_disabled
+FAILED tests/integration/test_demo_qr_redirect.py::test_demo_qr_redirect_missing_token
+FAILED tests/integration/test_ev_connect_flow.py::TestEvConnectFlow::test_get_connect_returns_smartcar_url
+FAILED tests/integration/test_ev_connect_flow.py::TestEvConnectFlow::test_oauth_callback_creates_vehicle_account
+FAILED tests/integration/test_ev_no_vehicle.py::test_ev_telemetry_no_vehicle_returns_404
+FAILED tests/integration/test_golden_path.py::test_golden_path_driver_flow - ...
+FAILED tests/integration/test_golden_path.py::test_admin_demo_location_override
+FAILED tests/integration/test_golden_path.py::test_merchant_toggle_affects_driver_listing
+FAILED tests/integration/test_golden_path.py::test_api_response_schemas - htt...
+FAILED tests/integration/test_merchant_square_onboarding_flow.py::TestSquareOnboardingFlow::test_square_onboarding_updates_existing_merchant
+FAILED tests/integration/test_merchant_ui_flow.py::test_merchant_onboard_page_served
+FAILED tests/integration/test_merchant_ui_flow.py::test_merchant_dashboard_page_served
+FAILED tests/integration/test_merchant_ui_flow.py::test_checkout_page_served
+FAILED tests/integration/test_square_oauth_security.py::test_create_oauth_state
+FAILED tests/integration/test_square_oauth_security.py::test_validate_oauth_state_success
+FAILED tests/integration/test_square_oauth_security.py::test_validate_oauth_state_not_found
+FAILED tests/integration/test_square_oauth_security.py::test_validate_oauth_state_already_used
+FAILED tests/integration/test_square_oauth_security.py::test_square_connect_creates_state
+FAILED tests/integration/test_square_oauth_security.py::test_square_callback_validates_state
+FAILED tests/integration/test_square_oauth_security.py::test_square_callback_invalid_state
+FAILED tests/test_account_delete_guard.py::test_delete_account_requires_confirmation
+FAILED tests/test_account_delete_guard.py::test_delete_account_with_confirmation
+FAILED tests/test_arrival_sessions.py::TestArrivalSessionCreation::test_create_arrival
+FAILED tests/test_arrival_sessions.py::TestArrivalSessionCreation::test_invalid_arrival_type_rejected
+FAILED tests/test_arrival_sessions.py::TestConfirmArrivalValidation::test_confirm_requires_charger_id
+FAILED tests/test_arrival_sessions.py::TestConfirmArrivalValidation::test_confirm_requires_lat_lng
+FAILED tests/test_arrival_sessions.py::TestFeedbackValidation::test_feedback_requires_rating
+FAILED tests/test_arrival_sessions.py::TestFeedbackValidation::test_feedback_rating_must_be_up_or_down
+FAILED tests/test_arrival_unit.py::test_all_active_statuses_have_transitions
+FAILED tests/test_arrival_unit.py::test_valid_transitions_include_canceled_for_active_statuses
+FAILED tests/test_arrival_unit.py::test_valid_transitions_include_expired_for_active_statuses
+FAILED tests/test_auth_error_paths.py::test_auth_magic_link_invalid_token - a...
+FAILED tests/test_auth_error_paths.py::test_auth_magic_link_expired_token - a...
+FAILED tests/test_auth_error_paths.py::test_auth_magic_link_wrong_purpose - a...
+FAILED tests/test_auth_google.py::test_google_login_new_user - assert 500 == 200
+FAILED tests/test_auth_google.py::test_google_login_existing_user - assert 50...
+FAILED tests/test_auth_google.py::test_google_login_me_endpoint - assert 500 ...
+FAILED tests/test_checkin.py::TestVerifyCheckin::test_verify_already_verified
+FAILED tests/test_copy_discipline.py::test_no_verification_terminology_in_schemas
+FAILED tests/test_e2e_driver_merchant_flow.py::test_placement_rule_boost_ordering
+FAILED tests/test_env_detection.py::TestEnvDetection::test_is_local_env_returns_true_for_local_dev
+FAILED tests/test_env_detection.py::TestEnvDetection::test_is_production_env_returns_false_for_local
+FAILED tests/test_env_detection.py::TestEnvDetection::test_is_staging_env_returns_true_for_staging
+FAILED tests/test_error_handling.py::test_production_error_response_is_generic
+FAILED tests/test_error_handling.py::test_local_error_response_includes_details
+FAILED tests/test_ev_disconnect.py::test_disconnect_vehicle_no_account - asse...
+FAILED tests/test_external_api_resilience.py::TestCaching::test_google_places_cache_hit
+FAILED tests/test_external_api_resilience.py::TestExternalAPIIntegration::test_google_places_retry_on_failure
+FAILED tests/test_google_places_new.py::TestGooglePlacesNew::test_search_nearby_success
+FAILED tests/test_google_places_new.py::TestGooglePlacesNew::test_search_nearby_cache_hit
+FAILED tests/test_health.py::test_pilot_status - assert 404 == 200
+FAILED tests/test_incentive_engine.py::TestIncentiveEngine::test_haversine_m_calculation
+FAILED tests/test_intent_capture.py::TestIntentService::test_haversine_distance
+FAILED tests/test_intent_capture.py::TestIntentCaptureEndpoint::test_capture_intent_auth_required
+FAILED tests/test_logout_revokes.py::test_logout_revokes_token - assert False...
+FAILED tests/test_merchant_balance.py::test_get_balance_returns_existing - sq...
+FAILED tests/test_merchant_balance.py::test_api_get_balance - assert 401 == 200
+FAILED tests/test_merchant_balance.py::test_api_get_balance_creates_if_missing
+FAILED tests/test_merchant_balance.py::test_api_credit_balance - assert 401 =...
+FAILED tests/test_merchant_balance.py::test_api_debit_balance - assert 401 ==...
+FAILED tests/test_merchant_balance.py::test_api_debit_insufficient_balance - ...
+FAILED tests/test_merchant_balance.py::test_api_credit_negative_amount - asse...
+FAILED tests/test_merchant_balance.py::test_api_merchant_not_found - assert 4...
+FAILED tests/test_merchant_reports.py::test_api_merchant_report - NameError: ...
+FAILED tests/test_merchant_reports.py::test_api_merchant_report_30d - NameErr...
+FAILED tests/test_merchant_reports.py::test_api_merchant_report_not_found - N...
+FAILED tests/test_merchant_reports.py::test_api_merchant_report_invalid_period
+FAILED tests/test_merchant_reports.py::test_api_merchant_report_custom_ticket
+FAILED tests/test_merchants_nova.py::test_nova_merchants_filters_non_nova - a...
+FAILED tests/test_merchants_nova.py::test_nova_merchants_sorts_by_distance - ...
+FAILED tests/test_merchants_nova.py::test_nova_merchants_location_fallback - ...
+FAILED tests/test_merchants_nova.py::test_nova_merchants_radius_filtering - a...
+FAILED tests/test_merchants_nova.py::test_nova_merchants_response_schema - as...
+FAILED tests/test_no_legacy_deployment.py::test_dockerfile_uses_correct_entrypoint
+FAILED tests/test_notifications_prefs.py::test_get_notification_prefs_returns_defaults
+FAILED tests/test_notifications_prefs.py::test_update_notification_prefs - as...
+FAILED tests/test_notifications_prefs.py::test_update_notification_prefs_partial
+FAILED tests/test_nova_accrual_service.py::TestNovaAccrualService::test_start_when_disabled
+FAILED tests/test_nova_accrual_service.py::TestNovaAccrualService::test_stop_cancels_task
+FAILED tests/test_nova_accrual_service.py::TestNovaAccrualService::test_accrue_nova_for_charging_wallets_happy_path
+FAILED tests/test_nova_accrual_service.py::TestNovaAccrualService::test_accrue_nova_for_charging_wallets_multiple_wallets
+FAILED tests/test_nova_accrual_service.py::TestNovaAccrualService::test_accrue_nova_for_charging_wallets_skips_non_charging
+FAILED tests/test_nova_accrual_service.py::TestNovaAccrualService::test_accrue_nova_for_charging_wallets_rollback_on_error
+FAILED tests/test_nova_service_error_paths.py::test_nova_grant_insufficient_balance_validation
+FAILED tests/test_nova_service_error_paths.py::test_nova_grant_idempotency_duplicate_key
+FAILED tests/test_nova_service_error_paths.py::test_nova_redeem_insufficient_balance
+FAILED tests/test_nova_service_error_paths.py::test_nova_redeem_idempotency
+FAILED tests/test_offer_codes.py::test_is_code_valid_expired - sqlalchemy.exc...
+FAILED tests/test_offer_codes.py::test_code_expiration_future - sqlalchemy.ex...
+FAILED tests/test_offer_codes.py::test_api_create_merchant_offer - assert 404...
+FAILED tests/test_offer_codes.py::test_api_create_merchant_offer_merchant_not_found
+FAILED tests/test_offer_codes.py::test_api_create_merchant_offer_creates_unique_codes
+FAILED tests/test_offer_codes.py::test_api_offer_code_expiration - assert 404...
+FAILED tests/test_ops_endpoints.py::test_metrics_requires_token_when_set - as...
+FAILED tests/test_ops_endpoints.py::test_health_endpoint_db_failure - assert ...
+FAILED tests/test_otp_auth.py::test_otp_happy_path_with_stub_provider - asser...
+FAILED tests/test_otp_auth.py::test_otp_rate_limiting_per_phone - sqlalchemy....
+FAILED tests/test_otp_auth.py::test_otp_max_attempts - sqlalchemy.exc.Stateme...
+FAILED tests/test_otp_auth.py::test_otp_expiration - sqlalchemy.exc.Statement...
+FAILED tests/test_otp_auth.py::test_otp_audit_logging - assert 0 > 0
+FAILED tests/test_otp_production.py::test_rate_limit_start - assert True == F...
+FAILED tests/test_otp_production.py::test_rate_limit_verify - assert True == ...
+FAILED tests/test_otp_production.py::test_rate_limit_lockout - AssertionError...
+FAILED tests/test_payout_service.py::TestGetBalance::test_balance_cannot_withdraw_below_minimum
+FAILED tests/test_payout_service.py::TestGetBalance::test_minimum_withdrawal_is_configured
+FAILED tests/test_payout_service.py::TestPayoutServiceWithMockModels::test_check_withdrawal_eligibility_below_minimum
+FAILED tests/test_payout_service.py::TestWebhookHandling::test_handle_transfer_failed_webhook
+FAILED tests/test_pilot_flow.py::test_start_session - assert 404 == 200
+FAILED tests/test_pilot_flow.py::test_verify_ping - assert 404 == 200
+FAILED tests/test_pilot_flow.py::test_while_you_charge - assert 404 == 200
+FAILED tests/test_pilot_flow.py::test_verify_visit - assert 404 == 200
+FAILED tests/test_pilot_flow.py::test_activity_feed - assert 404 == 200
+FAILED tests/test_pilot_pwa_shapes.py::test_error_shape_normalized - Assertio...
+FAILED tests/test_pool_summary.py::test_pool_summary_and_recent_rewards_present
+FAILED tests/test_prod_hardening_p0.py::TestNovaRedeemRace::test_concurrent_redeem_prevents_double_spend
+FAILED tests/test_prod_hardening_p0.py::TestStripeWebhookDedup::test_duplicate_webhook_event_returns_success
+FAILED tests/test_prod_hardening_p0.py::TestSquareOAuthStateRace::test_atomic_oauth_state_consumption
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_payout_pending_replay_returns_202
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_payout_succeeded_replay_returns_200
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_payout_unknown_blocks_retry_returns_202
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_payout_failed_allows_retry_only_after_reconcile
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_payout_idempotency_conflict_returns_409
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_concurrent_payout_only_one_debit
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_stripe_timeout_sets_unknown_no_reversal
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_reconcile_unknown_to_succeeded
+FAILED tests/test_prod_hardening_p0.py::TestPayoutStateMachine::test_reconcile_unknown_to_failed_applies_reversal_once
+FAILED tests/test_prod_hardening_p0.py::TestWebhookStatusNormalization::test_webhook_sets_succeeded_not_paid
+FAILED tests/test_prod_hardening_p0.py::TestAdminReconcileEndpoint::test_admin_reconcile_404_for_missing_payment
+FAILED tests/test_prod_hardening_p0.py::TestAdminReconcileEndpoint::test_admin_reconcile_noop_for_succeeded_payment
+FAILED tests/test_prod_hardening_p0.py::TestAdminReconcileEndpoint::test_admin_reconcile_unknown_payment_calls_stripe_and_updates_status
+FAILED tests/test_prod_hardening_p0.py::TestAdminReconcileEndpoint::test_admin_reconcile_unknown_payment_transfer_not_found
+FAILED tests/test_prod_hardening_p0.py::TestSQLiteForUpdateGuard::test_sqlite_for_update_guard_no_exception
+FAILED tests/test_prod_hardening_p0.py::TestIdempotencyKeyRequired::test_payout_requires_client_token_in_non_local
+FAILED tests/test_prod_hardening_p0.py::TestIdempotencyKeyRequired::test_admin_grant_requires_idempotency_key_in_non_local
+FAILED tests/test_profile_me.py::test_get_me_returns_expected_fields - assert...
+FAILED tests/test_purchase_webhooks.py::TestPurchaseWebhookReplayProtection::test_accept_recent_webhook_event
+FAILED tests/test_purchase_webhooks.py::TestPurchaseWebhookReplayProtection::test_handle_missing_timestamp_gracefully
+FAILED tests/test_purchase_webhooks.py::TestSquareWebhookSignatureVerification::test_invalid_signature_rejected
+FAILED tests/test_purchase_webhooks.py::TestSquareWebhookSignatureVerification::test_missing_signature_header_with_configured_key_fails
+FAILED tests/test_purchase_webhooks.py::TestSquareWebhookSignatureVerification::test_missing_key_falls_back_to_secret_check
+FAILED tests/test_purchase_webhooks.py::TestSquareWebhookSignatureVerification::test_replay_attempt_blocked_with_timestamp_tolerance
+FAILED tests/test_redeem_code.py::test_redeem_code_happy_path - assert 404 ==...
+FAILED tests/test_redeem_code.py::test_redeem_code_twice_error - assert 404 =...
+FAILED tests/test_redeem_code.py::test_redeem_code_expired_error - assert 404...
+FAILED tests/test_redeem_code.py::test_redeem_code_wrong_merchant_error - ass...
+FAILED tests/test_redeem_code.py::test_redeem_code_insufficient_balance - ass...
+FAILED tests/test_redeem_code.py::test_redeem_code_creates_reward_event - ass...
+FAILED tests/test_redeem_code.py::test_redeem_code_validates_all_conditions
+FAILED tests/test_refresh_rotation.py::test_refresh_rotates_token - assert 40...
+FAILED tests/test_refresh_rotation.py::test_refresh_reuse_detected - assert 4...
+FAILED tests/test_rewards_service_core.py::TestAwardVerifyBonus::test_award_verify_bonus_happy_path
+FAILED tests/test_rewards_service_core.py::TestAwardVerifyBonus::test_award_verify_bonus_idempotent
+FAILED tests/test_rewards_service_core.py::TestAwardVerifyBonus::test_award_verify_bonus_error_handling
+FAILED tests/test_rewards_service_core.py::TestAwardPurchaseReward::test_award_purchase_reward_happy_path
+FAILED tests/test_rewards_service_core.py::TestAwardPurchaseReward::test_award_purchase_reward_idempotent
+FAILED tests/test_smartcar_state.py::test_connect_creates_state_jwt - assert ...
+FAILED tests/test_tracing.py::TestTracingDisabled::test_get_tracer_when_disabled
+FAILED tests/test_tracing.py::TestTracingEnabled::test_tracing_requires_dependencies
+FAILED tests/test_verify_dwell.py::test_verify_dwell_flow - TypeError: int() ...
+FAILED tests/test_verify_dwell.py::test_verify_no_target_branch - TypeError: ...
+FAILED tests/test_verify_dwell.py::test_verify_invalid_token - assert 200 in ...
+FAILED tests/test_verify_dwell.py::test_verify_missing_coordinates - fastapi....
+FAILED tests/test_verify_dwell.py::test_verify_invalid_coordinates - TypeErro...
+FAILED tests/test_verify_dwell.py::test_verify_ping_without_start - assert 20...
+FAILED tests/test_verify_dwell.py::test_verify_expired_token - TypeError: int...
+FAILED tests/test_verify_dwell.py::test_verify_ping_low_accuracy - TypeError:...
+FAILED tests/test_wallet_nova.py::test_wallet_returns_nova_balance - assert 4...
+FAILED tests/test_wallet_nova.py::test_wallet_history_returns_nova_delta - as...
+FAILED tests/test_wallet_nova.py::test_wallet_summary_includes_nova - assert ...
+FAILED tests/test_wallet_nova.py::test_wallet_credit_returns_nova_balance - a...
+FAILED tests/test_wallet_service_core.py::TestDebitWallet::test_debit_wallet_fallback_in_local
+FAILED tests/test_webhook_idempotency.py::test_webhook_signature_verification_failure
+FAILED tests/test_webhook_idempotency.py::test_webhook_missing_signature_header
+FAILED tests/test_webhook_idempotency.py::test_webhook_replay_protection_old_event
+FAILED tests/test_webhook_idempotency.py::test_webhook_invalid_json - assert ...
+FAILED tests/test_while_you_charge_service.py::TestFindChargersNear::test_find_chargers_near_in_db
+FAILED tests/test_while_you_charge_service.py::TestFindChargersNear::test_find_chargers_near_filters_by_drive_time
+FAILED tests/test_while_you_charge_service.py::TestFindChargersNear::test_find_chargers_near_fetches_from_api
+FAILED tests/test_while_you_charge_service.py::TestFindAndLinkMerchants::test_find_and_link_merchants_existing
+FAILED tests/test_while_you_charge_service.py::TestFindAndLinkMerchants::test_find_and_link_merchants_filters_by_category
+FAILED tests/test_while_you_charge_service.py::TestFindAndLinkMerchants::test_find_and_link_merchants_fetches_from_google
+FAILED tests/test_while_you_charge_service.py::TestRankMerchants::test_rank_merchants_basic
+FAILED tests/test_while_you_charge_service.py::TestRankMerchants::test_rank_merchants_skips_no_link
+FAILED tests/test_while_you_charge_service.py::TestRankMerchants::test_rank_merchants_no_perk_defaults
+FAILED tests/unit/test_apple_pass_charging_status.py::test_pass_includes_charging_status_when_detected
+FAILED tests/unit/test_apple_pass_charging_status.py::test_pass_includes_not_charging_status_when_false
+FAILED tests/unit/test_apple_wallet_pass.py::test_pkpass_bundle_non_empty - A...
+FAILED tests/unit/test_apple_wallet_pass.py::test_pkpass_contains_pass_json
+FAILED tests/unit/test_apple_wallet_pass.py::test_pkpass_no_driver_id_in_pass_json
+FAILED tests/unit/test_apple_wallet_pass.py::test_pkpass_signing_disabled_returns_unsigned
+FAILED tests/unit/test_apple_wallet_pass.py::test_ensure_wallet_pass_token_creates_token
+FAILED tests/unit/test_merchant_billing.py::TestMerchantBilling::test_billing_summary_no_redemptions
+FAILED tests/unit/test_merchant_billing.py::TestMerchantBilling::test_billing_summary_with_redemptions
+FAILED tests/unit/test_merchant_billing.py::TestMerchantBilling::test_billing_summary_multiple_redemptions
+FAILED tests/unit/test_merchant_billing.py::TestMerchantBilling::test_billing_summary_period_defaults_to_current_month
+FAILED tests/unit/test_merchant_onboarding.py::TestCheckDuplicateMerchant::test_finds_duplicate_by_google_place_id
+FAILED tests/unit/test_merchant_onboarding.py::TestCheckDuplicateMerchant::test_duplicate_by_location_and_name
+FAILED tests/unit/test_merchant_reporting.py::TestMerchantReporting::test_get_merchant_summary_no_redemptions
+FAILED tests/unit/test_merchant_reporting.py::TestMerchantReporting::test_get_merchant_summary_with_redemptions
+FAILED tests/unit/test_merchant_reporting.py::TestMerchantReporting::test_get_shareable_stats_with_redemptions
+FAILED tests/unit/test_merchant_reporting.py::TestMerchantReporting::test_get_shareable_stats_no_redemptions
+FAILED tests/unit/test_merchant_rewards.py::TestMerchantRewards::test_ensure_eggman_demo_reward_creates_reward
+FAILED tests/unit/test_merchant_rewards.py::TestMerchantRewards::test_ensure_eggman_demo_reward_idempotent
+FAILED tests/unit/test_merchant_rewards.py::TestMerchantRewards::test_ensure_eggman_demo_reward_disabled_when_demo_off
+FAILED tests/unit/test_merchant_rewards.py::TestMerchantRewards::test_reward_redemption_requires_sufficient_nova
+FAILED tests/unit/test_merchant_rewards.py::TestMerchantRewards::test_reward_redemption_creates_merchant_redemption
+FAILED tests/unit/test_merchant_share_card.py::test_share_card_merchant_not_found
+FAILED tests/unit/test_qr_service.py::TestResolveQrToken::test_resolves_valid_token_to_merchant
+FAILED tests/unit/test_qr_service.py::TestCheckCodeStatus::test_valid_code_status
+FAILED tests/unit/test_qr_service.py::TestCheckCodeStatus::test_redeemed_code_status
+FAILED tests/unit/test_qr_service.py::TestCheckCodeStatus::test_expired_code_status
+FAILED tests/unit/test_qr_service_merchant.py::TestMerchantQrTokens::test_create_merchant_qr_creates_token
+FAILED tests/unit/test_qr_service_merchant.py::TestMerchantQrTokens::test_create_merchant_qr_reuses_existing_token
+FAILED tests/unit/test_qr_service_merchant.py::TestMerchantQrTokens::test_resolve_merchant_qr_token_found
+FAILED tests/unit/test_qr_service_merchant.py::TestMerchantQrTokens::test_resolve_merchant_qr_token_inactive_merchant
+FAILED tests/unit/test_smartcar_service.py::TestRefreshTokens::test_refresh_when_token_valid
+FAILED tests/unit/test_smartcar_service.py::TestRefreshTokens::test_refresh_when_token_expired
+FAILED tests/unit/test_square_service.py::TestSquareOAuth::test_get_square_oauth_authorize_url
+FAILED tests/unit/test_square_service.py::TestSquareOAuth::test_get_square_oauth_authorize_url_missing_config
+FAILED tests/unit/test_token_encryption.py::test_encrypt_empty_token_raises_error
+FAILED tests/unit/test_token_encryption.py::test_decrypt_invalid_cipher_raises_error
+FAILED tests/unit/test_token_encryption.py::test_decrypt_empty_cipher_raises_error
+FAILED tests/unit/test_token_encryption.py::test_decrypt_wrong_key_raises_error
+FAILED tests/unit/test_wallet_activity_push_and_google.py::test_mark_wallet_activity_triggers_google_update
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_merchant_intel_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_merchant_intel_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_behavior_cloud_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_behavior_cloud_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_reward_routing_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_reward_routing_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_city_marketplace_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_city_marketplace_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_multimodal_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_multimodal_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_merchant_credits_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_merchant_credits_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_verify_api_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_verify_api_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_wallet_interop_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_wallet_interop_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_coop_pools_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_coop_pools_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_sdk_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_sdk_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_energy_rep_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_energy_rep_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_offsets_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_offsets_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_fleet_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_fleet_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_iot_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_iot_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_deals_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_deals_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_events_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_events_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_tenant_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_tenant_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_ai_rewards_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_ai_rewards_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_finance_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_finance_flag_on
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_ai_growth_flag_off
+FAILED app/tests/api/test_feature_flags.py::TestFeatureFlags::test_ai_growth_flag_on
+FAILED app/tests/api/test_observability.py::TestObservability::test_trace_id_generation
+FAILED app/tests/api/test_observability.py::TestObservability::test_structured_logging
+FAILED app/tests/api/test_observability.py::TestObservability::test_metrics_counters_increment
+FAILED app/tests/api/test_observability.py::TestObservability::test_metrics_timers_record
+FAILED app/tests/api/test_observability.py::TestObservability::test_error_logging
+FAILED app/tests/api/test_observability.py::TestObservability::test_success_logging
+FAILED app/tests/api/test_observability.py::TestObservability::test_middleware_trace_id_setting
+FAILED app/tests/api/test_observability.py::TestObservability::test_metrics_per_route
+FAILED app/tests/api/test_observability.py::TestObservability::test_trace_id_consistency
+FAILED app/tests/api/test_ratelimit.py::TestRateLimiting::test_rate_limit_burst_returns_429
+FAILED app/tests/api/test_ratelimit.py::TestRateLimiting::test_rate_limit_token_bucket_algorithm
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/merchant/intel/overview?merchant_id=M123-feature_merchant_intel]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/utility/behavior/cloud?utility_id=U123&window=24h-feature_behavior_cloud]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/verify/charge-feature_charge_verify_api]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/deals/green_hours?lat=40.7128&lng=-74.0060-feature_contextual_commerce]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/profile/energy_rep?user_id=U123-feature_energy_rep]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/fleet/overview?org_id=ORG1-feature_fleet_workplace]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/tenant/T123/modules-feature_uap_partnerships]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_off_returns_404[/v1/finance/offers?user_id=U123-feature_esg_finance_gateway]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/merchant/intel/overview?merchant_id=M123-feature_merchant_intel]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/utility/behavior/cloud?utility_id=U123&window=24h-feature_behavior_cloud]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/deals/green_hours?lat=40.7128&lng=-74.0060-feature_contextual_commerce]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/profile/energy_rep?user_id=U123-feature_energy_rep]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/fleet/overview?org_id=ORG1-feature_fleet_workplace]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/tenant/T123/modules-feature_uap_partnerships]
+FAILED app/tests/api/test_security_and_flags.py::TestFeatureFlags::test_endpoint_flag_on_returns_200[/v1/finance/offers?user_id=U123-feature_esg_finance_gateway]
+FAILED app/tests/api/test_security_and_flags.py::TestVerifyAPI::test_verify_charge_missing_api_key_returns_403
+FAILED app/tests/api/test_security_and_flags.py::TestVerifyAPI::test_verify_charge_bad_api_key_returns_403
+FAILED app/tests/api/test_security_and_flags.py::TestVerifyAPI::test_verify_charge_below_min_kwh_returns_false
+FAILED app/tests/api/test_security_and_flags.py::TestVerifyAPI::test_verify_charge_geo_mismatch_returns_false
+FAILED app/tests/api/test_security_and_flags.py::TestVerifyAPI::test_verify_charge_valid_returns_true
+FAILED app/tests/api/test_security_and_flags.py::TestAuthScopes::test_merchant_endpoints_require_merchant_scope
+FAILED app/tests/api/test_security_and_flags.py::TestAuthScopes::test_utility_endpoints_require_utility_scope
+FAILED app/tests/api/test_security_and_flags.py::TestAuthScopes::test_fleet_endpoints_require_fleet_scope
+FAILED app/tests/api/test_security_and_flags.py::TestRateLimiting::test_rate_limit_exceeded_returns_429
+FAILED app/tests/test_live_endpoints.py::test_chargers_domain - urllib.error....
+FAILED app/tests/test_live_endpoints.py::test_hubs_domain - urllib.error.URLE...
+ERROR tests/api/test_exclusive_sessions.py::TestActivateExclusive::test_activate_outside_radius
+ERROR tests/api/test_exclusive_sessions.py::TestActivateExclusive::test_activate_missing_location_returns_422
+ERROR tests/api/test_exclusive_sessions.py::TestActivateExclusive::test_activate_success_creates_active_session
+ERROR tests/api/test_exclusive_sessions.py::TestActivateExclusive::test_activate_when_active_exists
+ERROR tests/api/test_exclusive_sessions.py::TestCompleteExclusive::test_complete_success
+ERROR tests/api/test_exclusive_sessions.py::TestCompleteExclusive::test_complete_not_active
+ERROR tests/api/test_exclusive_sessions.py::TestGetActiveExclusive::test_active_endpoint_returns_active
+ERROR tests/api/test_exclusive_sessions.py::TestGetActiveExclusive::test_active_endpoint_returns_null_when_no_active
+ERROR tests/api/test_exclusive_sessions.py::TestGetActiveExclusive::test_active_endpoint_expires_old
+ERROR tests/api/test_merchant_details.py::TestMerchantDetailsEndpoint::test_get_merchant_details_with_session_id
+ERROR tests/api/test_wallet_activate.py::TestWalletActivateEndpoint::test_activate_wallet_pass_creates_new
+ERROR tests/api/test_wallet_activate.py::TestWalletActivateEndpoint::test_activate_wallet_pass_updates_existing
+ERROR tests/api/test_wallet_activate.py::TestWalletActivateEndpoint::test_activate_wallet_pass_invalid_merchant
+ERROR tests/api/test_wallet_activate.py::TestWalletActivateEndpoint::test_activate_wallet_pass_response_schema
+ERROR tests/api/test_wallet_summary_activity.py::test_wallet_summary_aggregates_sessions_by_day
+ERROR tests/integration/test_checkout_square.py::TestCheckoutOrdersEndpoint::test_list_orders_success
+ERROR tests/integration/test_checkout_square.py::TestCheckoutOrdersEndpoint::test_list_orders_not_connected
+ERROR tests/integration/test_checkout_square.py::TestCheckoutRedeemWithSquareOrder::test_redeem_with_square_order_success
+ERROR tests/integration/test_checkout_square.py::TestCheckoutRedeemWithSquareOrder::test_redeem_duplicate_order
+ERROR tests/integration/test_checkout_square.py::TestCheckoutRedeemWithSquareOrder::test_redeem_square_not_connected
+ERROR tests/integration/test_merchant_qr_redemption.py::TestMerchantQrRedemption::test_redeem_code_debits_driver_wallet
+ERROR tests/integration/test_merchant_qr_redemption.py::TestMerchantQrRedemption::test_redeem_insufficient_balance_fails
+ERROR tests/integration/test_nova_issuance_flow.py::TestNovaIssuanceFlow::test_grant_nova_creates_transaction_and_updates_wallet
+ERROR tests/integration/test_nova_issuance_flow.py::TestNovaIssuanceFlow::test_off_peak_session_eligible_for_nova
+ERROR tests/test_arrival_integration.py::test_create_arrival_valid_returns_session
+ERROR tests/test_arrival_integration.py::test_create_arrival_idempotent - Nam...
+ERROR tests/test_arrival_integration.py::test_create_arrival_when_active_exists_returns_409
+ERROR tests/test_arrival_integration.py::test_create_arrival_invalid_type_returns_422
+ERROR tests/test_arrival_integration.py::test_bind_order_transitions_to_awaiting_arrival
+ERROR tests/test_arrival_integration.py::test_bind_order_with_estimated_total_stores_driver_estimate
+ERROR tests/test_arrival_integration.py::test_confirm_arrival_requires_charger_id
+ERROR tests/test_arrival_integration.py::test_confirm_arrival_too_far_returns_400
+ERROR tests/test_arrival_integration.py::test_confirm_arrival_success_returns_status
+ERROR tests/test_arrival_integration.py::test_merchant_confirm_creates_billing_event_when_total_available
+ERROR tests/test_arrival_integration.py::test_merchant_confirm_without_total_marks_unbillable
+ERROR tests/test_arrival_integration.py::test_merchant_confirm_with_reported_total_uses_that_total
+ERROR tests/test_arrival_integration.py::test_feedback_up_is_stored - NameErr...
+ERROR tests/test_arrival_integration.py::test_feedback_down_with_reason_is_stored
+ERROR tests/test_arrival_integration.py::test_feedback_invalid_rating_returns_422
+ERROR tests/test_arrival_integration.py::test_get_active_returns_current_session
+ERROR tests/test_arrival_integration.py::test_get_active_expires_session_and_returns_null
+ERROR tests/test_arrival_integration.py::test_cancel_sets_status_canceled - N...
+ERROR tests/test_arrival_integration.py::test_cancel_on_already_canceled_returns_400
+ERROR tests/test_e2e_driver_merchant_flow.py::test_e2e_driver_merchant_flow
+ERROR tests/test_ev_disconnect.py::test_disconnect_vehicle_deactivates_account
+ERROR tests/test_intent_capture.py::TestIntentCaptureEndpoint::test_capture_intent_tier_a
+ERROR tests/test_intent_capture.py::TestIntentCaptureEndpoint::test_capture_intent_tier_c
+ERROR tests/test_intent_capture.py::TestIntentCaptureEndpoint::test_capture_intent_poor_accuracy
+ERROR tests/test_intent_capture.py::TestIntentCaptureEndpoint::test_capture_intent_dev_anon_enabled
+ERROR tests/test_intent_capture.py::TestIntentCaptureEndpoint::test_capture_intent_mock_places
+ERROR tests/test_perk_unlock.py::TestPerkService::test_unlock_perk_dwell_time
+ERROR tests/test_perk_unlock.py::TestPerkService::test_unlock_perk_user_confirmation
+ERROR tests/test_perk_unlock.py::TestPerkService::test_unlock_perk_idempotency
+ERROR tests/test_perk_unlock.py::TestWalletPassState::test_get_or_create_wallet_pass_state
+ERROR tests/test_perk_unlock.py::TestWalletPassState::test_transition_to_charging_moment
+ERROR tests/test_perk_unlock.py::TestWalletPassState::test_transition_to_perk_unlocked
+ERROR tests/test_perk_unlock.py::TestWalletPassState::test_reset_to_idle - sq...
+ERROR tests/test_perk_unlock.py::TestPerkUnlockEndpoint::test_unlock_perk_endpoint
+ERROR tests/test_perk_unlock.py::TestPerkUnlockEndpoint::test_unlock_perk_invalid_method
+ERROR tests/test_pilot_pwa_shapes.py::test_start_session_shape - sqlalchemy.e...
+ERROR tests/test_pilot_pwa_shapes.py::test_verify_ping_shape - sqlalchemy.exc...
+ERROR tests/test_pilot_pwa_shapes.py::test_while_you_charge_shape - sqlalchem...
+ERROR tests/test_pilot_pwa_shapes.py::test_bootstrap_shape - sqlalchemy.exc.I...
+ERROR tests/test_pilot_pwa_shapes.py::test_verify_visit_reward_earned_flag - ...
+ERROR tests/test_vehicle_onboarding.py::TestVehicleOnboardingService::test_start_onboarding
+ERROR tests/test_vehicle_onboarding.py::TestVehicleOnboardingService::test_complete_onboarding
+ERROR tests/test_vehicle_onboarding.py::TestVehicleOnboardingService::test_complete_onboarding_not_found
+ERROR tests/test_vehicle_onboarding.py::TestVehicleOnboardingEndpoint::test_start_onboarding_endpoint
+ERROR tests/test_vehicle_onboarding.py::TestVehicleOnboardingEndpoint::test_complete_onboarding_endpoint
+ERROR tests/unit/test_merchant_share_card.py::test_share_card_png_header - sq...
+ERROR tests/unit/test_merchant_share_card.py::test_share_card_deterministic_size
+ERROR tests/unit/test_merchant_share_card.py::test_share_card_zero_redemptions
+ERROR tests/unit/test_merchant_share_card.py::test_share_card_with_redemptions
+ERROR tests/unit/test_wallet_timeline.py::test_spent_events_only - sqlalchemy...
+ERROR tests/unit/test_wallet_timeline.py::test_no_duplicate_spent_events - sq...
+ERROR tests/unit/test_wallet_timeline.py::test_timeline_ordering - sqlalchemy...
+ERROR app/tests/test_demo_runner.py::test_user_register - AssertionError: ass...
+ERROR app/tests/test_demo_runner.py::test_user_prefs - AssertionError: assert...
+ERROR app/tests/test_demo_runner.py::test_wallet_credit_debit - AssertionErro...
+ERROR app/tests/test_demo_runner.py::test_unified_merchants_includes_local - ...
+ERROR app/tests/test_demo_runner.py::test_perk_claim_idempotent_and_wallet - ...
+ERROR app/tests/test_demo_runner.py::test_reservation_and_hubs - AssertionErr...

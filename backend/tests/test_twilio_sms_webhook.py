@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import pytest
 from app.models import User
 from app.models.arrival_session import ArrivalSession
 from app.models.billing_event import BillingEvent
