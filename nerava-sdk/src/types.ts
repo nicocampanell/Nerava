@@ -140,6 +140,32 @@ export interface LatLng {
   readonly lng: number;
 }
 
+/**
+ * Convenience constructor for `LatLng` with range validation. Throws if
+ * either value is outside the WGS-84 valid range — catches the common
+ * bug class where a degrees/radians mixup or swapped lat/lng arguments
+ * silently produce a coordinate the backend rejects with a cryptic
+ * validation error far from the call site.
+ *
+ * ```ts
+ * import { latLng } from "@nerava/sdk";
+ * const here = latLng(31.0824, -97.6492); // Market Heights
+ * ```
+ */
+export function latLng(lat: number, lng: number): LatLng {
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new Error(
+      `latLng(): lat must be a finite number in [-90, 90] (got ${String(lat)}). Did you swap lat and lng?`,
+    );
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new Error(
+      `latLng(): lng must be a finite number in [-180, 180] (got ${String(lng)}). Did you swap lat and lng?`,
+    );
+  }
+  return { lat, lng };
+}
+
 // ---------------------------------------------------------------------------
 // Vehicle type — data-source classification
 // ---------------------------------------------------------------------------

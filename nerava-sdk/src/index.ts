@@ -24,6 +24,7 @@ export {
 
 // Step 3 — shared primitive types
 export {
+  latLng,
   usd,
   type JsonArray,
   type JsonObject,

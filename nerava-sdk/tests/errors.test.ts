@@ -263,20 +263,19 @@ describe("NeravaError.fromResponse — body parsing", () => {
     expect(err.requestId).toBe("req_body_456");
   });
 
-  it("prefers header requestId over body request_id when both present", async () => {
-    // Body has body-request-id-99, header wins because headers are closer
-    // to the transport layer — this is the documented precedence.
+  it("body request_id takes precedence over x-request-id header when both present", async () => {
+    // Documented precedence (matches src/errors.ts `fromResponse`):
+    //   parsed.requestId ?? response.headers.get("x-request-id") ?? undefined
+    // The body field wins because the body envelope is under backend
+    // control — when the backend explicitly sets `request_id` in its
+    // JSON error envelope, that's the most-specific identifier and the
+    // header is a redundant fallback.
     const res = jsonResponse(
       { code: "NOT_FOUND", message: "x", request_id: "body-request-id-99" },
       404,
       { "x-request-id": "header-request-id-11" },
     );
     const err = await NeravaError.fromResponse(res, context);
-    // The SDK precedence is body-code wins over status-derived, but for
-    // requestId we prefer the body's own request_id when set (matches the
-    // parseErrorBody priority). Verify whichever precedence is documented.
-    // With current impl: parsed.requestId ?? header.x-request-id
-    // → body wins when present.
     expect(err.requestId).toBe("body-request-id-99");
   });
 

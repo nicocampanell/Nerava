@@ -86,10 +86,11 @@ export type KnownErrorCode = (typeof KNOWN_ERROR_CODES)[number];
  * error code never breaks SDK compilation.
  *
  * The `(string & {})` trick prevents TypeScript from widening the union
- * to plain `string` and losing the autocomplete — see
- * https://github.com/microsoft/TypeScript/issues/29729
+ * to plain `string` and losing the `KnownErrorCode` autocomplete — see
+ * https://github.com/microsoft/TypeScript/issues/29729. This intersection
+ * is load-bearing: removing it collapses the union and drops autocomplete.
+ * No ESLint directive is needed because this package does not ship ESLint.
  */
-// eslint-disable-next-line @typescript-eslint/ban-types
 export type ErrorCode = KnownErrorCode | (string & {});
 
 /**
