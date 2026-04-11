@@ -1,8 +1,11 @@
 // Public surface of @nerava/sdk.
 //
-// This file grows incrementally as each step adds modules. Step 11 will do a
-// final checkpoint pass and verify the surface matches the README. For now
-// the re-exports track the build plan step-by-step.
+// Grows incrementally through the 20-step build plan. Step 11 finalizes
+// the surface with the top-level `Nerava` facade class that composes
+// every module behind a single `new Nerava({apiKey})` entry point.
+
+// Step 11 — top-level facade (idiomatic entry point)
+export { Nerava, type NeravaConfig } from "./nerava.js";
 
 // Step 2 — auth + client
 export {
