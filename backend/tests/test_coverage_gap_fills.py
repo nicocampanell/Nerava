@@ -197,17 +197,26 @@ class TestSpendVerificationServiceImports:
         assert svs is not None
 
     def test_module_has_expected_public_functions(self) -> None:
-        """Sanity-check that the module exposes the functions we rely on."""
+        """Sanity-check that the module exposes the service class we rely on."""
         import app.services.spend_verification_service as svs
 
-        # These are the public names used elsewhere in the codebase
-        expected = ["verify_receipt", "calculate_reward"]
-        for name in expected:
-            # At least one of the expected functions must exist — the
-            # actual surface changes between versions, so we don't fail
-            # if the name is absent. This is a smoke check.
-            _ = getattr(svs, name, None)
-        # Always succeeds — this is a compilation/import check
+        # SpendVerificationService is the class-level public surface
+        # used across the backend (see backend/app/routers/*.py). Any
+        # regression that removes these methods must fail loudly.
+        assert hasattr(
+            svs, "SpendVerificationService"
+        ), "SpendVerificationService class missing from module"
+        service_cls = svs.SpendVerificationService
+        expected_methods = [
+            "link_card",
+            "verify_transaction",
+            "process_webhook",
+            "get_transaction_history",
+        ]
+        for method_name in expected_methods:
+            assert hasattr(service_cls, method_name), (
+                f"SpendVerificationService.{method_name} is missing — " f"public method regression"
+            )
 
 
 # ─── Google Places (new) ──────────────────────────────────────────
@@ -292,7 +301,10 @@ class TestPhoneUtils:
     def test_normalize_phone_raises_on_invalid(self) -> None:
         from app.utils.phone import normalize_phone
 
-        with pytest.raises(Exception):
+        # Use the specific exception type raised by phonenumbers'
+        # validator so unrelated bugs (NameError, ImportError) are
+        # surfaced instead of swallowed by a broad Exception.
+        with pytest.raises(ValueError):
             normalize_phone("not-a-phone")
 
     def test_get_phone_last4_returns_last_four_digits(self) -> None:
