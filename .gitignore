@@ -116,3 +116,15 @@ nerava-backend-v9/nerava.db*
 /ui-mobile/videos/
 /ui-mobile/traces/
 backend/logs/
+
+# MCP config — never commit. Contains local-only server definitions
+# that reference environment-variable-backed credentials. The repo
+# history already leaked a database connection string via this file
+# once (April 2026, rotated same day); keep it local-only from here.
+.mcp.json
+
+# Playwright MCP session traces (screenshots, console logs, snapshots).
+# These live in .playwright-mcp/ as an artifact of agent browsing;
+# never commit them — they can capture DOM snapshots that include
+# auth tokens from localStorage.
+.playwright-mcp/
