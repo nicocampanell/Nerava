@@ -151,7 +151,22 @@ export class NeravaClient {
   constructor(config: NeravaClientConfig) {
     this.#auth = config.auth;
     // Trim trailing slash so we don't produce `/v1//partners/sessions`.
-    this.#baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    const trimmed = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // Validate eagerly at construction so a misconfigured base URL surfaces
+    // with a clear "NeravaClient: invalid baseUrl" message — rather than
+    // throwing a cryptic TypeError deep inside `request()` when a consumer
+    // makes their first API call and we try to `new URL(...)` on a malformed
+    // string. Callers are much more likely to debug a constructor error
+    // correctly than a deferred runtime error.
+    try {
+      // Only constructed for validation; the parsed URL is discarded.
+      new URL(trimmed);
+    } catch {
+      throw new Error(
+        `NeravaClient: invalid baseUrl "${config.baseUrl ?? DEFAULT_BASE_URL}" — expected an absolute URL like https://api.nerava.network`,
+      );
+    }
+    this.#baseUrl = trimmed;
     this.#fetch = config.fetch ?? fetch;
   }
 

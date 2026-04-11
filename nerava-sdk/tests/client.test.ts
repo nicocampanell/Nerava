@@ -263,6 +263,26 @@ describe("NeravaClient URL and body behavior", () => {
     mockFetch = makeMockFetch();
   });
 
+  it("rejects a malformed baseUrl at construction time", () => {
+    const auth = new AuthManager({ apiKey: TEST_API_KEY });
+    expect(
+      () =>
+        new NeravaClient({
+          auth,
+          baseUrl: "not-a-url",
+          fetch: makeMockFetch(),
+        }),
+    ).toThrow(/invalid baseUrl/);
+    expect(
+      () =>
+        new NeravaClient({
+          auth,
+          baseUrl: "://broken",
+          fetch: makeMockFetch(),
+        }),
+    ).toThrow(/invalid baseUrl/);
+  });
+
   it("normalizes the base URL and path to avoid double slashes", async () => {
     const auth = new AuthManager({ apiKey: TEST_API_KEY });
     // Base URL with trailing slash, path without leading slash — both should
