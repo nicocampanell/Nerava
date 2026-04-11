@@ -28,37 +28,63 @@ During local development inside this monorepo, the SDK is imported directly from
 
 ## Quickstart
 
+The idiomatic entry point is the top-level `Nerava` facade:
+
 ```ts
-import {
-  AuthManager,
-  NeravaClient,
-  SessionsModule,
-  usd,
-  latLng,
-  NeravaError,
-} from "@nerava/sdk";
+import { Nerava, usd, latLng, NeravaError } from "@nerava/sdk";
 
-const auth = new AuthManager({
-  apiKey: "nrv_pk_yourPartnerKey1234",
-});
-
-const client = new NeravaClient({ auth });
-const sessions = new SessionsModule(client);
+const nerava = new Nerava({ apiKey: "nrv_pk_yourPartnerKey1234" });
 
 try {
-  const session = await sessions.submit({
+  // Partner-scope operations use the api key (no setup needed)
+  const session = await nerava.sessions.submit({
     vehicleId: "v_abc",
     chargerId: "c_heights",
     ...latLng(31.0824, -97.6492),
   });
-  console.log(`Created session ${session.id} (${session.status})`);
+  void session;
+
+  // Driver-scope operations (wallet.*) need a driver JWT. Set it
+  // after the partner backend mints one, then call wallet methods.
+  await nerava.auth.setDriverToken("eyJ.driver.jwt.here");
+  await nerava.wallet.credit({
+    driverId: "drv_1",
+    amount: usd(500),
+    campaignId: "camp_1",
+  });
 } catch (err) {
   if (err instanceof NeravaError) {
+    // Log only the code + message — never rawBody or cause (may contain PII)
+    // eslint-disable-next-line no-console
     console.error(`Nerava API error: [${err.code}] ${err.message}`);
   } else {
     throw err;
   }
 }
+```
+
+### Advanced construction
+
+For custom `TokenStore` implementations, injected `fetch`, or explicit control of the `NeravaClient` lifecycle, you can construct the primitives directly instead of using the facade:
+
+```ts
+import {
+  AuthManager,
+  NeravaClient,
+  SessionsModule,
+  latLng,
+} from "@nerava/sdk";
+
+const auth = new AuthManager({ apiKey: "nrv_pk_yourPartnerKey1234" });
+const client = new NeravaClient({ auth });
+const sessions = new SessionsModule(client);
+
+const session = await sessions.submit({
+  vehicleId: "v_abc",
+  chargerId: "c_heights",
+  ...latLng(31.0824, -97.6492),
+});
+void session;
 ```
 
 ## Auth model
@@ -283,10 +309,13 @@ Every public method returns a canned fixture. Auth is validated for presence onl
 
 ### In-process server for tests
 
-For unit tests that need a running server, import `startMockServer` directly:
+Inside this monorepo, you can import `startMockServer` directly from the relative path to spawn a server in-process for tests:
 
 ```ts
-import { startMockServer } from "@nerava/sdk/mock/server";
+// Monorepo-only import path — mock/ is NOT part of the published
+// package exports. When the SDK ships to npm, partners should run
+// `npm run mock` as a separate process instead.
+import { startMockServer } from "../mock/server.js";
 
 const { port, stop } = await startMockServer(0); // 0 = OS-assigned
 try {
@@ -391,12 +420,13 @@ The `usd()` helper constructs USD `Money` values with a runtime guard against th
 import { usd } from "@nerava/sdk";
 
 const fivedollars = usd(500);    // ✅ $5.00 — 500 cents
-const wrong = usd(5);            // ✅ $0.05 — 5 cents (still valid)
-usd(5.00);                       // ❌ throws — floats are a bug
+const pennies = usd(5);          // ✅ $0.05 — 5 cents (still a valid integer)
+usd(5.00);                       // ✅ same as usd(5) — 5.00 === 5 in JS
+usd(1.50);                       // ❌ throws — 1.50 is a float
 usd(Number.MAX_SAFE_INTEGER + 1); // ❌ throws — unsafe integer
 ```
 
-If you try to pass a floating-point value to `usd()`, it throws immediately with a `"Did you pass dollars instead of cents?"` hint. This catches the most common fintech-SDK bug at the call site.
+If you try to pass a fractional value to `usd()`, it throws immediately with a `"Did you pass dollars instead of cents?"` hint. This catches the most common fintech-SDK bug at the call site. Note: `5.00`, `100.0`, and similar values are equal to their integer counterparts in JavaScript (`5.00 === 5`), so they're accepted — only genuinely fractional values like `1.50` throw.
 
 ## Geographic coordinates
 
@@ -418,12 +448,20 @@ The "did you swap lat and lng" hint catches the most common coordinate bug: Java
 List methods return a `PaginatedResponse<T>` with `items` and `nextCursor`. `nextCursor` is `string | null` — loop on `!== null` to walk all pages:
 
 ```ts
-let cursor: string | undefined;
+// Use a null sentinel throughout so we never pass `cursor: undefined`
+// to `sessions.list()` — under `exactOptionalPropertyTypes: true`,
+// optional fields must be absent, not present-as-undefined. The
+// conditional spread `...(cursor !== null ? { cursor } : {})` is
+// the idiomatic way to conditionally include a field.
+let cursor: string | null = null;
 do {
-  const page = await sessions.list({ cursor, limit: 100 });
+  const page = await sessions.list({
+    ...(cursor !== null ? { cursor } : {}),
+    limit: 100,
+  });
   for (const s of page.items) handle(s);
-  cursor = page.nextCursor ?? undefined;
-} while (cursor !== undefined);
+  cursor = page.nextCursor;
+} while (cursor !== null);
 ```
 
 The `limit` parameter is capped at 200 server-side. The SDK enforces this client-side and throws before the network round-trip if you pass anything larger.

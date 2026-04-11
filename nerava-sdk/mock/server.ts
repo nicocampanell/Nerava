@@ -251,7 +251,24 @@ export async function startMockServer(
   port: number = DEFAULT_PORT,
 ): Promise<{ readonly port: number; readonly stop: () => Promise<void> }> {
   const server = createServer((req, res) => {
-    void handleRequest(req, res);
+    handleRequest(req, res).catch((err: unknown) => {
+      // Last-resort handler so a thrown route handler or body-read
+      // failure never hangs a test or the CLI. Log and return a
+      // 500 envelope if the response hasn't started yet.
+      // eslint-disable-next-line no-console -- mock server CLI/log
+      console.error("[nerava/sdk mock] unhandled error:", err);
+      if (!res.headersSent) {
+        try {
+          sendJson(
+            res,
+            500,
+            errorResponse("SERVER_ERROR", "Mock server internal error"),
+          );
+        } catch {
+          // Response socket already broken — nothing to do.
+        }
+      }
+    });
   });
 
   await new Promise<void>((resolve, reject) => {

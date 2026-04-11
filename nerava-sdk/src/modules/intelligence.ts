@@ -62,6 +62,13 @@ export interface IntelligenceGrant {
   readonly campaignId: string;
   readonly campaignName: string;
   readonly matchedAt: string;
+  /**
+   * Match priority within the set of campaigns that matched this
+   * session. **Lower value = higher priority.** `1` is the highest
+   * priority (first match); increasing integers are progressively
+   * lower priority. This matches the backend's priority ordering in
+   * `campaign_service.py`.
+   */
   readonly priority: number;
   readonly evaluationNotes: string | null;
 }
@@ -75,6 +82,11 @@ export interface IntelligenceGrant {
  */
 export interface SessionIntelligenceResponse {
   readonly sessionId: string;
+  /**
+   * Quality score from the backend's verification pipeline, in the
+   * inclusive range `[0, 100]`. Higher is better — 100 means every
+   * anti-fraud check passed, 0 means every check failed.
+   */
   readonly qualityScore: number;
   readonly qualityBucket: QualityBucket;
   readonly antiFraud: AntiFraudSignals;

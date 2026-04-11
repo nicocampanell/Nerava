@@ -44,6 +44,15 @@ describe("toCamelCase", () => {
   it("handles empty string", () => {
     expect(toCamelCase("")).toBe("");
   });
+
+  it("handles leading underscore edge cases documented in the JSDoc", () => {
+    // `_p` matches the regex and becomes `P`, the first underscore
+    // stays in place. The JSDoc example says `__private → _Private`.
+    expect(toCamelCase("__private")).toBe("_Private");
+    // Single leading underscore: `_foo` — `_f` matches → `F`, no
+    // leading char remains. Verify behavior, don't assume.
+    expect(toCamelCase("_foo")).toBe("Foo");
+  });
 });
 
 // ===========================================================================
