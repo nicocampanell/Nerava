@@ -9,11 +9,11 @@ Generates a unique request_id UUID per request and injects it into:
 Also accepts inbound X-Request-ID from frontend and forwards if present.
 """
 
+import logging
 import uuid
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
-import logging
 
 logger = logging.getLogger(__name__)
 

@@ -2,15 +2,16 @@
 Vehicle Onboarding Service
 Handles vehicle onboarding photo uploads and status tracking
 """
+import json
 import logging
 import uuid
-import json
 from datetime import datetime, timedelta
 from typing import Optional
+
 from sqlalchemy.orm import Session
 
-from app.models import VehicleOnboarding, IntentSession
 from app.core.config import settings
+from app.models import VehicleOnboarding
 from app.services.s3_storage import generate_upload_urls
 
 logger = logging.getLogger(__name__)
@@ -120,8 +121,8 @@ def get_onboarding_status(db: Session, user_id: int) -> dict:
         - status: "not_required", "required", "submitted", "approved", "rejected"
         - required: bool
     """
-    from app.services.intent_service import get_intent_session_count
     from app.core.config import settings
+    from app.services.intent_service import get_intent_session_count
     
     # Get latest onboarding record
     latest_onboarding = (

@@ -1,6 +1,7 @@
 """Account schemas for profile update and stats."""
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 class ProfileUpdate(BaseModel):

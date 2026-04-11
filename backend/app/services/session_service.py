@@ -4,17 +4,16 @@ Session Service for Domain Charge Party v1
 Provides canonical session management using DomainChargingSession
 and bridges to existing verify_dwell logic.
 """
-from typing import Optional, Dict, Any
-from datetime import datetime
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from typing import Any, Dict, Optional
 
-from app.models_domain import DomainChargingSession, EnergyEvent
-from app.services.verify_dwell import ping as verify_dwell_ping
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.models_domain import DomainChargingSession
 from app.services.nova import cents_to_nova
-from app.utils.pwa_responses import normalize_number
-from app.services.verify_dwell import haversine_m
+from app.services.verify_dwell import ping as verify_dwell_ping
 from app.utils.log import get_logger
+from app.utils.pwa_responses import normalize_number
 
 logger = get_logger(__name__)
 
@@ -40,8 +39,10 @@ class SessionService:
         Creates a minimal entry that verify_dwell can use. Also calls verify_dwell.start_session
         to properly initialize target selection.
         """
-        from sqlalchemy import text
         from datetime import datetime
+
+        from sqlalchemy import text
+
         from app.services.verify_dwell import start_session as verify_dwell_start
         
         try:

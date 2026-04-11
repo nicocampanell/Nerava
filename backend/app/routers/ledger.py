@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Query, HTTPException, Depends
-from typing import Optional, Dict, Any
-from ..services.ledger import get_proof, verify_proof
-from ..db import get_db
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
+from ..db import get_db
 from ..models_extra import RewardEvent
+from ..services.ledger import get_proof, verify_proof
 
 router = APIRouter(prefix="/v1/ledger", tags=["ledger"])
 
@@ -52,13 +54,14 @@ async def verify_proof_endpoint(
 async def ledger_status():
     """Get ledger status and configuration."""
     import os
+
     from ..services.ledger import ledger
     
     ledger_exists = os.path.exists(ledger.ledger_path)
     ledger_size = 0
     
     if ledger_exists:
-        with open(ledger.ledger_path, "r") as f:
+        with open(ledger.ledger_path) as f:
             ledger_size = sum(1 for line in f)
     
     return {

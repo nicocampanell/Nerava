@@ -2,26 +2,27 @@
 Vehicle Onboarding Router
 Handles vehicle onboarding endpoints
 """
+import json
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
 from app.dependencies_domain import get_current_user
+from app.models import User
 from app.schemas.vehicle_onboarding import (
-    VehicleOnboardingStartRequest,
-    VehicleOnboardingStartResponse,
     VehicleOnboardingCompleteRequest,
     VehicleOnboardingCompleteResponse,
+    VehicleOnboardingStartRequest,
+    VehicleOnboardingStartResponse,
     VehicleOnboardingStatusResponse,
 )
 from app.services.vehicle_onboarding_service import (
-    start_onboarding,
     complete_onboarding,
     get_onboarding_status,
+    start_onboarding,
 )
-import json
 
 logger = logging.getLogger(__name__)
 

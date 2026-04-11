@@ -8,7 +8,7 @@
  * - Anonymous ID persistence
  */
 
-import posthog, { type PostHog } from 'posthog-js'
+import posthog from 'posthog-js'
 import { MERCHANT_EVENTS } from './events'
 
 const ANON_ID_KEY = 'nerava_merchant_anon_id'
@@ -57,7 +57,7 @@ export function init(): void {
   try {
     posthog.init(posthogKey, {
       api_host: posthogHost,
-      loaded: (ph: PostHog) => {
+      loaded: (ph: any) => {
         const anonId = getOrCreateAnonymousId()
         ph.identify(anonId)
         

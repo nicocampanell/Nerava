@@ -1,13 +1,11 @@
 """
 Chaos engineering tests for fault injection and resilience
 """
-import pytest
-import asyncio
 import time
-import random
-from typing import Dict, Any
-from unittest.mock import patch
-from app.experiments.faults import FaultInjector, FaultType, fault_injector, chaos_monkey
+
+import pytest
+from app.experiments.faults import FaultType, chaos_monkey, fault_injector
+
 
 # Enable fault injection for tests
 @pytest.fixture(autouse=True)

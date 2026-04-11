@@ -1,6 +1,8 @@
-from typing import Dict, List, Optional
 from datetime import datetime
+from typing import Dict, List
+
 import httpx
+
 
 class WalletService:
     """Service for managing wallet operations"""
@@ -37,7 +39,7 @@ class WalletService:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
-                    f"http://127.0.0.1:8000/v1/wallet/balance",
+                    "http://127.0.0.1:8000/v1/wallet/balance",
                     params={"user_id": user_id}
                 )
                 

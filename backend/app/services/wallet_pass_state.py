@@ -4,12 +4,11 @@ Manages mocked wallet pass state machine transitions
 """
 import logging
 import uuid
-import json
 from datetime import datetime
-from typing import Optional
+
 from sqlalchemy.orm import Session
 
-from app.models import WalletPassState, User, IntentSession, MerchantPerk
+from app.models import WalletPassState
 
 logger = logging.getLogger(__name__)
 

@@ -1,15 +1,15 @@
 """
 Merchant dashboard UI (server-rendered HTML)
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Optional
+from sqlalchemy.orm import Session
 
-from app.db import get_db
 from app.config import settings
-from app.services.merchant_analytics import merchant_summary, merchant_offers
+from app.db import get_db
+from app.services.merchant_analytics import merchant_offers, merchant_summary
 
 router = APIRouter(tags=["merchant_ui"])
 

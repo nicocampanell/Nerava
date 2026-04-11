@@ -12,8 +12,14 @@ This is the core timing control for "Ready on Arrival".
 import uuid
 from datetime import datetime
 from enum import Enum
+
 from sqlalchemy import (
-    Column, String, DateTime, Text, Index, ForeignKey,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
@@ -23,8 +29,8 @@ try:
     from sqlalchemy import JSON
 except Exception:
     JSON = SQLITE_JSON
-from ..db import Base
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class QueuedOrderStatus(str, Enum):

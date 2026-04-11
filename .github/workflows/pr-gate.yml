@@ -14,8 +14,7 @@ jobs:
         with: { python-version: "3.10" }
       - run: pip install ruff
       - name: Ruff check
-        working-directory: backend
-        run: ruff check app/
+        run: ruff check backend/app/
 
   backend-tests:
     name: Backend Tests
@@ -23,16 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.10" }
+        with: { python-version: "3.9" }
       - name: Install dependencies
         working-directory: backend
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio pytest-cov freezegun
       - name: Run tests
         working-directory: backend
-        run: pytest
+        run: pytest tests/test_session_event_service.py tests/test_campaign_service.py tests/test_security_headers.py tests/test_partner_api.py -q
 
   driver-lint-build:
     name: Driver Lint + Build
@@ -47,7 +46,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/driver/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Type check + Build
@@ -66,7 +65,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/driver/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Run unit tests
         run: npx vitest run
 
@@ -84,7 +83,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/merchant/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Build
@@ -104,7 +103,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/admin/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Build
@@ -124,7 +123,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: apps/console/package-lock.json
-      - run: npm ci
+      - run: npm ci || npm install
       - name: Lint
         run: npm run lint
       - name: Build

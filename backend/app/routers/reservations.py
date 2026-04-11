@@ -1,8 +1,9 @@
 # app/routers/reservations.py
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime, timedelta, timezone
 
 router = APIRouter(tags=["reservations"])  # no internal prefix
 

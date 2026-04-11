@@ -1,7 +1,9 @@
 import time
 from enum import Enum
-from typing import Callable, Any, Optional
+from typing import Any, Callable, Optional
+
 import httpx
+
 
 class CircuitState(Enum):
     CLOSED = "closed"

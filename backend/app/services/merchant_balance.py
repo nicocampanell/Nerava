@@ -5,8 +5,9 @@ Manages merchant balance tracking and ledger operations for discount budgets.
 """
 import uuid
 from typing import Optional
-from sqlalchemy.orm import Session
+
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.models_while_you_charge import MerchantBalance, MerchantBalanceLedger
 from app.utils.log import get_logger

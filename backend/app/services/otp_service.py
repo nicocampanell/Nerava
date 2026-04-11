@@ -5,15 +5,15 @@ DB-backed OTP challenges for v1 (no Redis)
 import secrets
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+
 import phonenumbers
 from phonenumbers import NumberParseException
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
-from ..models import OTPChallenge
-from ..core.security import hash_password, verify_password
 from ..core.config import settings
+from ..core.security import hash_password, verify_password
+from ..models import OTPChallenge
 
 
 class OTPService:

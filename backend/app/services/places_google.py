@@ -1,9 +1,13 @@
-import os, httpx
-from typing import List, Dict
+import os
+from typing import Dict, List
+
+import httpx
+
 from app.services.categorize import categorize_google_types, summarize_for_badge
 
+
 def search_nearby(lat: float, lng: float, radius_m: int = 450) -> List[Dict]:
-    api_key = "AIzaSyAs0PVYXj3-ztRXCjdd0ztUGUSjQR73FFg"
+    api_key = os.getenv("GOOGLE_API_KEY", "")
     if not api_key:
         return []  # seed-only mode
     url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"

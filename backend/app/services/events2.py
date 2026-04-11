@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from sqlalchemy import text
+
 from app.db import SessionLocal
 
 

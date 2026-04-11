@@ -4,19 +4,20 @@ EV Context Router — /v1/ev-context
 Detects EV browser and returns context-aware merchant recommendations.
 """
 import logging
-from typing import Optional, List
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import get_db
+from app.dependencies.driver import get_current_driver_optional
 from app.models import User
 from app.models.while_you_charge import Charger, Merchant
-from app.dependencies.driver import get_current_driver_optional
-from app.utils.ev_browser import detect_ev_browser, EVBrowserInfo
-from app.services.geo import haversine_m
 from app.services.analytics import get_analytics_client
-from app.core.config import settings
+from app.services.geo import haversine_m
+from app.utils.ev_browser import EVBrowserInfo, detect_ev_browser
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/ev-context", tags=["ev-context"])

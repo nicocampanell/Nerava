@@ -1,8 +1,8 @@
 """
 Schemas for Wallet Pass Activation API
 """
+
 from pydantic import BaseModel
-from datetime import datetime
 
 
 class WalletActivateRequest(BaseModel):

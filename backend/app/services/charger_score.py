@@ -10,6 +10,7 @@ Based on:
 Returns None if fewer than 5 total sessions (insufficient data).
 """
 from datetime import datetime, timedelta
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 

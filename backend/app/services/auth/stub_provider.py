@@ -1,9 +1,10 @@
 """
 Stub OTP provider for dev/staging environments
 """
-import os
 import logging
-from typing import Optional, List
+import os
+from typing import List
+
 from ...core.config import settings
 from .otp_provider import OTPProvider
 
@@ -83,7 +84,7 @@ class StubOTPProvider(OTPProvider):
             
             # In dev mode, also accept any non-empty code for testing convenience
             if not is_valid and code_clean:
-                logger.info(f"[OTP][Stub] Code mismatch, but accepting any code in dev mode for testing")
+                logger.info("[OTP][Stub] Code mismatch, but accepting any code in dev mode for testing")
                 is_valid = True
             
             if is_valid:

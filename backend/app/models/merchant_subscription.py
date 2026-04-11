@@ -2,9 +2,11 @@
 MerchantSubscription model — tracks Stripe subscriptions for Pro tier and Nerava Ads.
 """
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Index
-from ..db import Base
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, String
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class MerchantSubscription(Base):

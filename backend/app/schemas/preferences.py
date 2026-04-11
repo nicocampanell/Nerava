@@ -1,8 +1,10 @@
 """
 Pydantic schemas for user preferences.
 """
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
+
 
 class PreferencesIn(BaseModel):
     """Input schema for user preferences."""

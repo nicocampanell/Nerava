@@ -3,8 +3,9 @@ Wallet Activity Service
 
 Helper functions to mark wallet activity for pass refresh tracking.
 """
-from sqlalchemy.orm import Session
 from datetime import datetime
+
+from sqlalchemy.orm import Session
 
 from app.models.domain import DriverWallet
 from app.services.apple_pass_push import send_updates_for_wallet

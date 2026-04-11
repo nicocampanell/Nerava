@@ -1,6 +1,7 @@
-from typing import Dict, List, Optional
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Dict, List, Optional
+
 
 class ChargingService:
     """Service for managing charging sessions"""

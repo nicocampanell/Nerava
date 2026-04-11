@@ -10,6 +10,9 @@ vi.mock('../../services/api', () => ({
   createStripeAccount: vi.fn(),
   createStripeAccountLink: vi.fn(),
   requestWithdrawal: vi.fn(),
+  checkStripeStatus: vi.fn().mockResolvedValue({ onboarding_complete: true }),
+  useReferralStats: () => ({ data: null, isLoading: false, error: null }),
+  useActiveExclusive: () => ({ data: null, isLoading: false }),
 }))
 
 import {

@@ -1,7 +1,9 @@
 """Charger real-time availability snapshot model."""
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Float, DateTime, JSON, Index
+
+from sqlalchemy import JSON, Column, DateTime, Index, Integer, String
+
 from app.db import Base
 
 

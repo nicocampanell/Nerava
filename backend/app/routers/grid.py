@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Query, Depends
-from typing import Dict, Any, List
 from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+
 from ..db import get_db
 from ..models_extra import RewardEvent
 

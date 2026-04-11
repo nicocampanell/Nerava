@@ -5,10 +5,10 @@ Sends server-truth events to PostHog for product analytics.
 Never crashes requests if PostHog is down - swallows errors and logs them.
 """
 
-import os
 import logging
-from typing import Optional, Dict, Any
+import os
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

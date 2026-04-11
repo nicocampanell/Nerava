@@ -1,8 +1,19 @@
-from datetime import datetime, time
 import uuid
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Time, UniqueConstraint, Index
-from sqlalchemy.orm import relationship
+from datetime import datetime, time
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Time,
+)
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
+from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 try:
@@ -11,6 +22,7 @@ except Exception:
     JSON = SQLITE_JSON  # fallback for sqlite
 
 from ..core.uuid_type import UUIDType
+
 UUID_TYPE = UUIDType  # Alias for backward compatibility
 
 

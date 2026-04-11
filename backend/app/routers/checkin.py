@@ -7,23 +7,24 @@ Supports two flows:
 
 Handles session creation, verification, code generation, and merchant confirmation.
 """
-import logging
 import hashlib
+import logging
 import re
 from datetime import datetime
-from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, validator
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies.driver import get_current_driver, get_current_driver_optional
 from app.models import User
 from app.models.arrival_session import ArrivalSession
 from app.models.while_you_charge import Charger, Merchant
-from app.dependencies.driver import get_current_driver, get_current_driver_optional
-from app.services.checkin_service import get_checkin_service, CODE_TTL_MINUTES, SESSION_TTL_MINUTES
 from app.services.analytics import get_analytics_client
-from app.utils.ev_browser import detect_ev_browser, require_ev_browser, EVBrowserInfo
+from app.services.checkin_service import CODE_TTL_MINUTES, SESSION_TTL_MINUTES, get_checkin_service
+from app.utils.ev_browser import detect_ev_browser, require_ev_browser
 
 logger = logging.getLogger(__name__)
 
@@ -178,9 +179,7 @@ class PhoneStartRequest(BaseModel):
         # Handle US numbers
         if len(digits) == 10:
             return f"+1{digits}"
-        elif len(digits) == 11 and digits.startswith('1'):
-            return f"+{digits}"
-        elif len(digits) > 10 and not v.startswith('+'):
+        elif len(digits) == 11 and digits.startswith('1') or len(digits) > 10 and not v.startswith('+'):
             return f"+{digits}"
 
         return v if v.startswith('+') else f"+{digits}"
@@ -963,8 +962,8 @@ async def confirm_pairing(
 
     # Verify OTP and get/create user
     try:
-        from app.services.otp_service_v2 import OTPServiceV2
         from app.services.auth.jwt_service import create_access_token
+        from app.services.otp_service_v2 import OTPServiceV2
 
         otp_service = OTPServiceV2()
 

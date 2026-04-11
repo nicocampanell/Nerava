@@ -2,11 +2,10 @@
 Rate limiting service for OTP authentication
 Redis-backed with in-memory fallback
 """
-import time
-from typing import Dict, Optional, Tuple
-from collections import defaultdict
-from datetime import datetime, timedelta
 import logging
+import time
+from collections import defaultdict
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

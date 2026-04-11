@@ -5,8 +5,9 @@ Merchant-facing arrival endpoints:
   PUT  /v1/merchants/{merchant_id}/notification-config
 """
 import logging
-from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 

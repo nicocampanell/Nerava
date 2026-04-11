@@ -3,13 +3,17 @@ Tesla Connection model for OAuth tokens and vehicle data.
 
 Stores user's Tesla OAuth credentials and linked vehicle information.
 """
+
 from __future__ import annotations
 
 import json
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Boolean, Index
-from sqlalchemy.orm import relationship, Session
+from typing import Optional
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Session, relationship
+
 from ..db import Base
 
 
@@ -19,6 +23,7 @@ def _uuid_str():
 
 class TeslaConnection(Base):
     """Tesla OAuth connection and vehicle data."""
+
     __tablename__ = "tesla_connections"
 
     id = Column(String(36), primary_key=True, default=_uuid_str)
@@ -61,6 +66,7 @@ class TeslaConnection(Base):
 
 class EVVerificationCode(Base):
     """EV verification codes generated when user enters merchant geofence while charging."""
+
     __tablename__ = "ev_verification_codes"
 
     id = Column(String(36), primary_key=True, default=_uuid_str)
@@ -85,7 +91,7 @@ class EVVerificationCode(Base):
     lng = Column(String(20), nullable=True)
 
     # Status: 'active', 'redeemed', 'expired'
-    status = Column(String(20), default='active', nullable=False, index=True)
+    status = Column(String(20), default="active", nullable=False, index=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -96,13 +102,12 @@ class EVVerificationCode(Base):
     user = relationship("User", foreign_keys=[user_id])
     tesla_connection = relationship("TeslaConnection", foreign_keys=[tesla_connection_id])
 
-    __table_args__ = (
-        Index("idx_ev_code_user_status", "user_id", "status"),
-    )
+    __table_args__ = (Index("idx_ev_code_user_status", "user_id", "status"),)
 
 
 class TeslaOAuthState(Base):
     """Persisted OAuth state for Tesla CSRF protection (survives deploys)."""
+
     __tablename__ = "tesla_oauth_states"
 
     state = Column(String(64), primary_key=True)
@@ -110,9 +115,7 @@ class TeslaOAuthState(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
-    __table_args__ = (
-        Index("idx_tesla_oauth_states_expires", "expires_at"),
-    )
+    __table_args__ = (Index("idx_tesla_oauth_states_expires", "expires_at"),)
 
     @classmethod
     def store(cls, db: Session, state: str, data: dict, ttl_minutes: int = 10):
@@ -123,24 +126,40 @@ class TeslaOAuthState(Base):
             created_at=now,
             expires_at=now + timedelta(minutes=ttl_minutes),
         )
-        db.merge(row)
-        db.commit()
+        try:
+            db.merge(row)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
     @classmethod
-    def pop(cls, db: Session, state: str) -> dict | None:
+    def pop(cls, db: Session, state: str) -> Optional[dict]:
         row = db.query(cls).filter(cls.state == state).first()
         if not row:
             return None
         if row.expires_at < datetime.utcnow():
-            db.delete(row)
-            db.commit()
+            try:
+                db.delete(row)
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
             return None
         data = json.loads(row.data_json)
-        db.delete(row)
-        db.commit()
+        try:
+            db.delete(row)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         return data
 
     @classmethod
     def cleanup_expired(cls, db: Session):
-        db.query(cls).filter(cls.expires_at < datetime.utcnow()).delete()
-        db.commit()
+        try:
+            db.query(cls).filter(cls.expires_at < datetime.utcnow()).delete()
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise

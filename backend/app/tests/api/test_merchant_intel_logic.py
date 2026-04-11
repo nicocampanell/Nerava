@@ -1,6 +1,10 @@
-import pytest
-from datetime import datetime
-from app.services.merchant_intel import get_overview, cohort_buckets, forecast_footfall, dynamic_promos
+from app.services.merchant_intel import (
+    cohort_buckets,
+    dynamic_promos,
+    forecast_footfall,
+    get_overview,
+)
+
 
 class TestMerchantIntelLogic:
     """Test merchant intelligence v1 logic implementation."""

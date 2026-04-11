@@ -2,8 +2,7 @@
 Stripe client for Connect payouts (test mode)
 """
 import os
-from typing import Optional, Dict, Any
-from app.config import settings
+from typing import Any, Dict, Optional
 
 # Optional Stripe import (will work in simulation mode without it)
 try:

@@ -2,10 +2,10 @@
 Rate limiting utilities.
 """
 import time
-from typing import Dict, Tuple
-from fastapi import HTTPException
-from threading import Lock
 from collections import defaultdict
+from threading import Lock
+
+from fastapi import HTTPException
 
 # In-memory rate limiting (TODO: replace with Redis in production)
 _rate_limits = defaultdict(lambda: {"tokens": 0, "last_refill": time.time()})

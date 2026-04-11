@@ -4,18 +4,13 @@ Charger Seeder Service
 Seeds chargers and nearby merchants from Google Places API.
 Designed to be called from admin endpoints in production.
 """
-import os
 import math
-import httpx
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
 from sqlalchemy.orm import Session
 
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
-from app.services.google_places_new import (
-    _haversine_distance,
-    search_nearby,
-    place_details
-)
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
+from app.services.google_places_new import _haversine_distance, place_details, search_nearby
 from app.utils.log import get_logger
 
 logger = get_logger(__name__)

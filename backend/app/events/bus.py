@@ -3,12 +3,12 @@ Event bus for publishing and subscribing to domain events
 """
 import asyncio
 import json
-from typing import Dict, List, Callable, Any, Optional
-from datetime import datetime
 import logging
+from typing import Callable, Dict, List, Optional
 
-from .domain import DomainEvent, EVENT_TYPES
 from app.config import settings
+
+from .domain import EVENT_TYPES, DomainEvent
 
 logger = logging.getLogger(__name__)
 

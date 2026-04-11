@@ -3,15 +3,14 @@ Merchant Share Card Service
 
 Generates deterministic PNG social cards for merchant sharing.
 """
-import os
-from pathlib import Path
-from typing import Optional
+import logging
 from datetime import datetime, timedelta
 from io import BytesIO
-import logging
+from pathlib import Path
+from typing import Optional
 
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
 
 from app.models.domain import DomainMerchant, MerchantRedemption
 

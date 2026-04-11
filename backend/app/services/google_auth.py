@@ -1,8 +1,10 @@
 """
 Google OAuth ID token verification service
 """
-from typing import Dict, Any
+from typing import Any, Dict
+
 from fastapi import HTTPException, status
+
 from ..core.config import settings
 
 

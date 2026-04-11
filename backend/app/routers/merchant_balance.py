@@ -3,21 +3,18 @@ Merchant Balance API Router
 
 Provides endpoints for managing merchant balance and ledger.
 """
-from fastapi import APIRouter, HTTPException, Depends, Path, Body, status
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
 from typing import Optional
 
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.db import get_db
-from app.models import User
 from app.dependencies.domain import require_merchant_admin
-from app.services.merchant_balance import (
-    get_balance,
-    credit_balance,
-    debit_balance
-)
-from app.services.auth_service import AuthService
+from app.models import User
 from app.services.audit import log_merchant_balance_mutation
+from app.services.auth_service import AuthService
+from app.services.merchant_balance import credit_balance, debit_balance, get_balance
 from app.utils.log import get_logger
 
 router = APIRouter(prefix="/v1/merchants", tags=["merchant-balance"])

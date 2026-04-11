@@ -9,37 +9,38 @@ Handles:
 - GET  /v1/rewards/claims/{id} — Get claim detail
 - POST /v1/rewards/claims/{id}/receipt — Upload receipt (base64 image)
 """
+import base64
 import logging
 import os
 import uuid
-import base64
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
 from app.dependencies.driver import get_current_driver, get_current_driver_optional
+from app.models import User
 from app.schemas.merchant_reward import (
-    RequestToJoinRequest,
-    RequestToJoinResponse,
-    JoinRequestCountResponse,
-    ClaimRewardRequest,
-    ClaimRewardResponse,
     ActiveClaimsResponse,
     ClaimDetailResponse,
+    ClaimRewardRequest,
+    ClaimRewardResponse,
+    JoinRequestCountResponse,
     ReceiptUploadResponse,
+    RequestToJoinRequest,
+    RequestToJoinResponse,
 )
 from app.services.merchant_reward_service import (
     create_join_request,
-    get_join_request_count,
-    user_has_requested,
+    create_receipt_submission,
     create_reward_claim,
     get_active_claims,
     get_claim_by_id,
-    create_receipt_submission,
-    process_receipt_ocr,
+    get_join_request_count,
     get_receipt_for_claim,
+    process_receipt_ocr,
+    user_has_requested,
 )
 
 logger = logging.getLogger(__name__)

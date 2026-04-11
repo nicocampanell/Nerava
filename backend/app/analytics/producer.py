@@ -2,11 +2,16 @@
 Analytics event producer for business metrics
 """
 import logging
-from datetime import datetime
-from typing import Dict, Any, Optional
-from app.events.domain import DomainEvent, ChargeStartedEvent, ChargeStoppedEvent, WalletCreditedEvent
-from app.events.bus import event_bus
+from typing import Any, Dict
+
 from app.config import settings
+from app.events.bus import event_bus
+from app.events.domain import (
+    ChargeStartedEvent,
+    ChargeStoppedEvent,
+    DomainEvent,
+    WalletCreditedEvent,
+)
 
 logger = logging.getLogger(__name__)
 

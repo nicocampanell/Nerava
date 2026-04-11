@@ -1,15 +1,17 @@
 """Verification service for event check-ins."""
 
-from typing import Dict, Optional
+import json
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from typing import Optional
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
-from app.services.geo import haversine_m
 from app.services.events import get_event_by_id
+from app.services.geo import haversine_m
 from app.services.pool import split_and_credit_verified_attendee
 from app.utils.log import get_logger
-import json
 
 logger = get_logger("verifier")
 

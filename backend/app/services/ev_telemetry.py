@@ -3,18 +3,18 @@ EV Telemetry polling service
 Polls Smartcar for vehicle telemetry and stores it
 """
 import logging
-from datetime import datetime
-from typing import List
-from sqlalchemy.orm import Session
 import uuid
+from datetime import datetime
+
+from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from app.models_vehicle import VehicleAccount, VehicleTelemetry, VehicleToken
 from app.services.smartcar_service import (
-    refresh_tokens,
     get_vehicle_charge,
     get_vehicle_location,
+    refresh_tokens,
 )
-from sqlalchemy import desc
 
 logger = logging.getLogger(__name__)
 

@@ -2,16 +2,16 @@
 Domain Charge Party MVP Stripe Router
 Stripe Checkout and webhook handling for Nova purchases
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
 
-from app.db import get_db
-from app.services.stripe_service import StripeService, NOVA_PACKAGES
-from app.dependencies_domain import require_merchant_admin, get_current_user
-from app.services.auth_service import AuthService
 from app.core.config import settings
+from app.db import get_db
+from app.dependencies_domain import require_merchant_admin
+from app.services.auth_service import AuthService
+from app.services.stripe_service import NOVA_PACKAGES, StripeService
 
 router = APIRouter(prefix="/v1/stripe", tags=["stripe-v1"])
 

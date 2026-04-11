@@ -2,29 +2,34 @@
 Domain Charge Party MVP Merchant Router
 Merchant-specific endpoints for registration, dashboard, and redemption
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+
+import logging
+import uuid
+from calendar import monthrange
+from datetime import date, datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-from typing import Optional, List
-import uuid
 
 from app.db import get_db
-from app.models import User
-from app.models.domain import DomainMerchant, NovaTransaction, MerchantFeeLedger
-from app.models.while_you_charge import FavoriteMerchant, Merchant as WYCMerchant
 from app.dependencies.driver import get_current_driver
-from app.services.auth_service import AuthService
-from app.services.nova_service import NovaService
-from app.services.merchant_share_card import generate_share_card
-from app.dependencies_domain import require_merchant_admin, get_current_user
-from app.routers.drivers_domain import haversine_distance
+from app.dependencies_domain import require_merchant_admin
+from app.models import User
+from app.models.domain import DomainMerchant, MerchantFeeLedger
+from app.models.while_you_charge import FavoriteMerchant
+from app.models.while_you_charge import Merchant as WYCMerchant
 from app.services.analytics import get_analytics_client
-from fastapi import Request
-from datetime import date, datetime
-from calendar import monthrange
+from app.services.auth_service import AuthService
+from app.services.geo import haversine_m
+from app.services.merchant_share_card import generate_share_card
+from app.services.nova_service import NovaService
 
 router = APIRouter(prefix="/v1/merchants", tags=["merchants-v1"])
+
+logger = logging.getLogger(__name__)
 
 # Domain center coordinates (Domain area, Austin)
 DOMAIN_CENTER_LAT = 30.4021
@@ -71,31 +76,25 @@ class RedeemFromDriverResponse(BaseModel):
 
 
 @router.post("/register")
-def register_merchant(
-    request: MerchantRegisterRequest,
-    db: Session = Depends(get_db)
-):
+def register_merchant(request: MerchantRegisterRequest, db: Session = Depends(get_db)):
     """Register a new merchant (creates user + merchant)"""
     # Validate zone exists and location is within zone bounds
     from app.models.domain import Zone
+
     zone = db.query(Zone).filter(Zone.slug == request.zone_slug).first()
     if not zone:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid zone: {request.zone_slug}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid zone: {request.zone_slug}"
         )
-    
+
     # Validate location is within zone radius
-    distance = haversine_distance(
-        zone.center_lat, zone.center_lng,
-        request.lat, request.lng
-    )
+    distance = haversine_m(zone.center_lat, zone.center_lng, request.lat, request.lng)
     if distance > zone.radius_m:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Location must be within {zone.radius_m}m of {zone.name} center"
+            detail=f"Location must be within {zone.radius_m}m of {zone.name} center",
         )
-    
+
     # Create user with merchant_admin role
     try:
         user = AuthService.register_user(
@@ -103,9 +102,9 @@ def register_merchant(
             email=request.email,
             password=request.password,
             display_name=request.display_name or request.business_name,
-            roles=["merchant_admin", "driver"]  # Merchants can also be drivers
+            roles=["merchant_admin", "driver"],  # Merchants can also be drivers
         )
-        
+
         # Create merchant
         merchant_id = str(uuid.uuid4())
         merchant = DomainMerchant(
@@ -123,16 +122,16 @@ def register_merchant(
             owner_user_id=user.id,
             status="active",  # Auto-activate for MVP
             zone_slug=request.zone_slug,
-            nova_balance=0
+            nova_balance=0,
         )
         db.add(merchant)
         db.commit()
         db.refresh(user)
         db.refresh(merchant)
-        
+
         # Create session token
         token = AuthService.create_session_token(user)
-        
+
         return {
             "access_token": token,
             "token_type": "bearer",
@@ -140,39 +139,34 @@ def register_merchant(
                 "id": user.id,
                 "email": user.email,
                 "display_name": user.display_name,
-                "role_flags": user.role_flags
+                "role_flags": user.role_flags,
             },
             "merchant": {
                 "id": merchant.id,
                 "name": merchant.name,
-                "nova_balance": merchant.nova_balance
-            }
+                "nova_balance": merchant.nova_balance,
+            },
         }
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Registration failed: {str(e)}"
+            detail=f"Registration failed: {str(e)}",
         )
 
 
 @router.get("/me", response_model=MerchantDashboardResponse)
 def get_merchant_dashboard(
-    user: User = Depends(require_merchant_admin),
-    db: Session = Depends(get_db)
+    user: User = Depends(require_merchant_admin), db: Session = Depends(get_db)
 ):
     """Get merchant dashboard data"""
     merchant = AuthService.get_user_merchant(db, user.id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Merchant not found for user"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found for user"
         )
-    
+
     # Get recent transactions (wrapped — nova_transactions may have schema drift)
     transactions = []
     try:
@@ -186,7 +180,7 @@ def get_merchant_dashboard(
             "name": merchant.name,
             "nova_balance": merchant.nova_balance,
             "zone_slug": merchant.zone_slug,
-            "status": merchant.status
+            "status": merchant.status,
         },
         transactions=[
             {
@@ -195,10 +189,10 @@ def get_merchant_dashboard(
                 "amount": txn.amount,
                 "driver_user_id": txn.driver_user_id,
                 "created_at": txn.created_at.isoformat(),
-                "metadata": txn.transaction_meta
+                "metadata": txn.transaction_meta,
             }
             for txn in transactions
-        ]
+        ],
     )
 
 
@@ -213,9 +207,11 @@ def get_merchant_insights(
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found for user")
 
-    from app.models.session_event import SessionEvent
     from datetime import timedelta
+
     from sqlalchemy import func
+
+    from app.models.session_event import SessionEvent
 
     days = 30
     if period.endswith("d"):
@@ -270,8 +266,12 @@ def get_merchant_insights(
         # Dwell time distribution (only completed sessions with duration)
         completed = base.filter(SessionEvent.duration_minutes.isnot(None))
         under_15 = completed.filter(SessionEvent.duration_minutes < 15).count()
-        min_15_30 = completed.filter(SessionEvent.duration_minutes >= 15, SessionEvent.duration_minutes < 30).count()
-        min_30_60 = completed.filter(SessionEvent.duration_minutes >= 30, SessionEvent.duration_minutes < 60).count()
+        min_15_30 = completed.filter(
+            SessionEvent.duration_minutes >= 15, SessionEvent.duration_minutes < 30
+        ).count()
+        min_30_60 = completed.filter(
+            SessionEvent.duration_minutes >= 30, SessionEvent.duration_minutes < 60
+        ).count()
         over_60 = completed.filter(SessionEvent.duration_minutes >= 60).count()
         if under_15 + min_15_30 + min_30_60 + over_60 > 0:
             dwell_distribution = {
@@ -286,22 +286,30 @@ def get_merchant_insights(
     charger_availability = None
     peak_occupancy_hours = []
     try:
+
         from app.models.charger_availability import ChargerAvailabilitySnapshot
         from app.models.while_you_charge import Charger
         from app.services.google_places_new import _haversine_distance
-        import math
 
         # Find chargers within 500m of merchant
-        merchant_lat = merchant.lat or (merchant.google_place_lat if hasattr(merchant, 'google_place_lat') else None)
-        merchant_lng = merchant.lng or (merchant.google_place_lng if hasattr(merchant, 'google_place_lng') else None)
+        merchant_lat = merchant.lat or (
+            merchant.google_place_lat if hasattr(merchant, "google_place_lat") else None
+        )
+        merchant_lng = merchant.lng or (
+            merchant.google_place_lng if hasattr(merchant, "google_place_lng") else None
+        )
 
         if merchant_lat and merchant_lng:
             lat_delta = 0.005  # ~500m
             lng_delta = 0.006
-            nearby_chargers = db.query(Charger).filter(
-                Charger.lat.between(merchant_lat - lat_delta, merchant_lat + lat_delta),
-                Charger.lng.between(merchant_lng - lng_delta, merchant_lng + lng_delta),
-            ).all()
+            nearby_chargers = (
+                db.query(Charger)
+                .filter(
+                    Charger.lat.between(merchant_lat - lat_delta, merchant_lat + lat_delta),
+                    Charger.lng.between(merchant_lng - lng_delta, merchant_lng + lng_delta),
+                )
+                .all()
+            )
 
             nearby_charger_ids = []
             for c in nearby_chargers:
@@ -310,17 +318,28 @@ def get_merchant_insights(
                     nearby_charger_ids.append(c.id)
 
             # Also check tomtom IDs
-            tomtom_ids = [f"tomtom_katy_{i}" for i in range(1, 11)] + [f"tomtom_domain_{i}" for i in range(1, 11)]
-            all_monitor_ids = nearby_charger_ids + [tid for tid in tomtom_ids if any(
-                tid.replace("tomtom_", "").startswith(cid.replace("nrel_", "")[:5]) for cid in nearby_charger_ids
-            )]
+            tomtom_ids = [f"tomtom_katy_{i}" for i in range(1, 11)] + [
+                f"tomtom_domain_{i}" for i in range(1, 11)
+            ]
+            all_monitor_ids = nearby_charger_ids + [
+                tid
+                for tid in tomtom_ids
+                if any(
+                    tid.replace("tomtom_", "").startswith(cid.replace("nrel_", "")[:5])
+                    for cid in nearby_charger_ids
+                )
+            ]
 
             if nearby_charger_ids or all_monitor_ids:
                 # Get latest snapshots for any nearby monitored chargers
-                snapshots = db.query(ChargerAvailabilitySnapshot).filter(
-                    ChargerAvailabilitySnapshot.charger_id.in_(all_monitor_ids),
-                    ChargerAvailabilitySnapshot.recorded_at >= since,
-                ).all()
+                snapshots = (
+                    db.query(ChargerAvailabilitySnapshot)
+                    .filter(
+                        ChargerAvailabilitySnapshot.charger_id.in_(all_monitor_ids),
+                        ChargerAvailabilitySnapshot.recorded_at >= since,
+                    )
+                    .all()
+                )
 
                 if snapshots:
                     total_occupied = sum(s.occupied_ports or 0 for s in snapshots)
@@ -330,9 +349,13 @@ def get_merchant_insights(
                     # Estimate daily EV sessions from occupancy
                     # If a charger is X% occupied over N snapshots at 3min intervals,
                     # estimate sessions = occupied_snapshots * (avg_session_duration / poll_interval)
-                    avg_occupancy_pct = (total_occupied / total_ports * 100) if total_ports > 0 else 0
+                    avg_occupancy_pct = (
+                        (total_occupied / total_ports * 100) if total_ports > 0 else 0
+                    )
                     # Rough: ~20 sessions/day per charger that's 50% occupied
-                    estimated_daily_sessions = int(avg_occupancy_pct / 100 * 20 * len(set(s.charger_id for s in snapshots)))
+                    estimated_daily_sessions = int(
+                        avg_occupancy_pct / 100 * 20 * len(set(s.charger_id for s in snapshots))
+                    )
 
                     charger_availability = {
                         "nearby_chargers_monitored": len(set(s.charger_id for s in snapshots)),
@@ -352,8 +375,11 @@ def get_merchant_insights(
                             hourly_occ[h].append(occ)
 
                     peak_occupancy_hours = sorted(
-                        [{"hour": h, "avg_occupancy_pct": round(sum(v)/len(v), 1)} for h, v in hourly_occ.items()],
-                        key=lambda x: -x["avg_occupancy_pct"]
+                        [
+                            {"hour": h, "avg_occupancy_pct": round(sum(v) / len(v), 1)}
+                            for h, v in hourly_occ.items()
+                        ],
+                        key=lambda x: -x["avg_occupancy_pct"],
                     )[:5]
 
                     # If Nerava sessions = 0 but we have availability data, estimate
@@ -371,7 +397,11 @@ def get_merchant_insights(
         "unique_drivers": unique_drivers,
         "avg_duration_minutes": avg_duration,
         "avg_kwh": avg_kwh,
-        "peak_hours": peak_hours or [{"hour": h["hour"], "sessions": max(1, int(h["avg_occupancy_pct"] / 10))} for h in peak_occupancy_hours],
+        "peak_hours": peak_hours
+        or [
+            {"hour": h["hour"], "sessions": max(1, int(h["avg_occupancy_pct"] / 10))}
+            for h in peak_occupancy_hours
+        ],
         "dwell_distribution": dwell_distribution,
         "walk_traffic": None,
         "charger_availability": charger_availability,
@@ -396,7 +426,15 @@ def update_merchant_profile(
             detail="Merchant not found for user",
         )
 
-    allowed_fields = {"name", "description", "photo_url", "website", "hours_text", "perk_label", "custom_perk_cents"}
+    allowed_fields = {
+        "name",
+        "description",
+        "photo_url",
+        "website",
+        "hours_text",
+        "perk_label",
+        "custom_perk_cents",
+    }
     updated = []
     for field in allowed_fields:
         if field in request:
@@ -405,6 +443,7 @@ def update_merchant_profile(
 
     if updated:
         from datetime import datetime
+
         merchant.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(merchant)
@@ -429,16 +468,13 @@ def update_merchant_profile(
 def redeem_from_driver(
     request: RedeemFromDriverRequest,
     user: User = Depends(require_merchant_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Merchant redeems Nova from a driver (by email or user_id)"""
     merchant = AuthService.get_user_merchant(db, user.id)
     if not merchant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Merchant not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
     # Find driver by email or user_id
     driver_id = None
     if request.driver_user_id:
@@ -448,7 +484,7 @@ def redeem_from_driver(
         if not driver:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Driver not found with email: {request.driver_email}"
+                detail=f"Driver not found with email: {request.driver_email}",
             )
         driver_id = driver.id
     elif request.driver_code:
@@ -460,47 +496,36 @@ def redeem_from_driver(
             if not driver:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Driver not found with code: {request.driver_code}"
+                    detail=f"Driver not found with code: {request.driver_code}",
                 )
             driver_id = driver.id
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide driver_user_id, driver_email, or driver_code"
+            detail="Must provide driver_user_id, driver_email, or driver_code",
         )
-    
+
     # Perform redemption
     try:
         result = NovaService.redeem_from_driver(
-            db=db,
-            driver_id=driver_id,
-            merchant_id=merchant.id,
-            amount=request.amount
+            db=db, driver_id=driver_id, merchant_id=merchant.id, amount=request.amount
         )
         return RedeemFromDriverResponse(**result)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/transactions")
 def get_merchant_transactions(
-    limit: int = 50,
-    user: User = Depends(require_merchant_admin),
-    db: Session = Depends(get_db)
+    limit: int = 50, user: User = Depends(require_merchant_admin), db: Session = Depends(get_db)
 ):
     """Get merchant transaction history"""
     merchant = AuthService.get_user_merchant(db, user.id)
     if not merchant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Merchant not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
     transactions = NovaService.get_merchant_transactions(db, merchant.id, limit=limit)
-    
+
     return [
         {
             "id": txn.id,
@@ -508,7 +533,7 @@ def get_merchant_transactions(
             "amount": txn.amount,
             "driver_user_id": txn.driver_user_id,
             "created_at": txn.created_at.isoformat(),
-            "metadata": txn.metadata
+            "metadata": txn.metadata,
         }
         for txn in transactions
     ]
@@ -516,17 +541,14 @@ def get_merchant_transactions(
 
 # IMPORTANT: Static routes must be defined BEFORE dynamic /{merchant_id} routes
 @router.get("/favorites")
-def list_favorites(
-    driver: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
-):
+def list_favorites(driver: User = Depends(get_current_driver), db: Session = Depends(get_db)):
     """List user's favorite merchants"""
-    favorites = db.query(FavoriteMerchant).filter(
-        FavoriteMerchant.user_id == driver.id
-    ).all()
+    favorites = db.query(FavoriteMerchant).filter(FavoriteMerchant.user_id == driver.id).all()
 
     merchant_ids = [f.merchant_id for f in favorites]
-    merchants = db.query(WYCMerchant).filter(WYCMerchant.id.in_(merchant_ids)).all() if merchant_ids else []
+    merchants = (
+        db.query(WYCMerchant).filter(WYCMerchant.id.in_(merchant_ids)).all() if merchant_ids else []
+    )
 
     return {
         "favorites": [
@@ -545,52 +567,48 @@ def list_favorites(
 def get_merchant_share_card(
     merchant_id: str,
     range: str = Query("7d", description="Time range: 7d, 30d, etc."),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Generate shareable PNG social card for merchant.
-    
+
     Returns a 1200x630 PNG image with merchant stats.
     Works even when 0 redemptions (returns valid card).
     """
     # Parse range (e.g., "7d" -> 7 days)
     days = 7
-    if range.endswith('d'):
+    if range.endswith("d"):
         try:
             days = int(range[:-1])
         except ValueError:
             days = 7
-    
+
     try:
         png_bytes = generate_share_card(db, merchant_id, days=days)
-        
+
         return Response(
             content=png_bytes,
             media_type="image/png",
-            headers={
-                "Cache-Control": "public, max-age=3600"  # Cache for 1 hour
-            }
+            headers={"Cache-Control": "public, max-age=3600"},  # Cache for 1 hour
         )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "MERCHANT_NOT_FOUND",
-                "message": str(e)
-            }
+            detail={"error": "MERCHANT_NOT_FOUND", "message": str(e)},
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "error": "SHARE_CARD_GENERATION_FAILED",
-                "message": "Failed to generate share card"
-            }
+                "message": "Failed to generate share card",
+            },
         )
 
 
 class BillingSummaryResponse(BaseModel):
     """Response for merchant billing summary"""
+
     period_start: str  # ISO date string
     period_end: str  # ISO date string
     nova_redeemed_cents: int
@@ -599,19 +617,16 @@ class BillingSummaryResponse(BaseModel):
 
 
 @router.get("/{merchant_id}/billing/summary", response_model=BillingSummaryResponse)
-def get_billing_summary(
-    merchant_id: str,
-    db: Session = Depends(get_db)
-):
+def get_billing_summary(merchant_id: str, db: Session = Depends(get_db)):
     """
     Get current month's billing summary for a merchant.
-    
+
     Returns the current month's ledger row or defaults if not found.
-    
+
     Args:
         merchant_id: Merchant ID
         db: Database session
-        
+
     Returns:
         BillingSummaryResponse with period, nova_redeemed_cents, fee_cents, and status
     """
@@ -620,31 +635,34 @@ def get_billing_summary(
     if not merchant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "MERCHANT_NOT_FOUND",
-                "message": f"Merchant {merchant_id} not found"
-            }
+            detail={"error": "MERCHANT_NOT_FOUND", "message": f"Merchant {merchant_id} not found"},
         )
-    
+
     # Determine current month period
     now = datetime.utcnow()
     period_start = date(now.year, now.month, 1)
     last_day = monthrange(now.year, now.month)[1]
     period_end = date(now.year, now.month, last_day)
-    
+
     # Get ledger row for current month
-    ledger = db.query(MerchantFeeLedger).filter(
-        MerchantFeeLedger.merchant_id == merchant_id,
-        MerchantFeeLedger.period_start == period_start
-    ).first()
-    
+    ledger = (
+        db.query(MerchantFeeLedger)
+        .filter(
+            MerchantFeeLedger.merchant_id == merchant_id,
+            MerchantFeeLedger.period_start == period_start,
+        )
+        .first()
+    )
+
     if ledger:
         return BillingSummaryResponse(
             period_start=ledger.period_start.isoformat(),
-            period_end=ledger.period_end.isoformat() if ledger.period_end else period_end.isoformat(),
+            period_end=(
+                ledger.period_end.isoformat() if ledger.period_end else period_end.isoformat()
+            ),
             nova_redeemed_cents=ledger.nova_redeemed_cents,
             fee_cents=ledger.fee_cents,
-            status=ledger.status
+            status=ledger.status,
         )
     else:
         # Return defaults if no ledger row exists yet
@@ -653,7 +671,7 @@ def get_billing_summary(
             period_end=period_end.isoformat(),
             nova_redeemed_cents=0,
             fee_cents=0,
-            status="accruing"
+            status="accruing",
         )
 
 
@@ -677,55 +695,70 @@ def _find_all_charger_merchant_links(db: Session, merchant: DomainMerchant):
     Find ALL ChargerMerchant links for a DomainMerchant using the same
     place_id + name matching as list_exclusives. Returns a flat list.
     """
-    from app.models.while_you_charge import ChargerMerchant
     from sqlalchemy import func as sqlfunc
+
+    from app.models.while_you_charge import ChargerMerchant
 
     wyc_ids = set()
     if merchant.google_place_id:
-        wyc_by_place = db.query(WYCMerchant).filter(
-            WYCMerchant.place_id == merchant.google_place_id
-        ).all()
+        wyc_by_place = (
+            db.query(WYCMerchant).filter(WYCMerchant.place_id == merchant.google_place_id).all()
+        )
         for w in wyc_by_place:
             wyc_ids.add(w.id)
 
     merchant_name = merchant.name or ""
     if not merchant_name and merchant.google_place_id:
-        wyc = db.query(WYCMerchant).filter(
-            WYCMerchant.place_id == merchant.google_place_id
-        ).first()
+        wyc = db.query(WYCMerchant).filter(WYCMerchant.place_id == merchant.google_place_id).first()
         if wyc:
             merchant_name = wyc.name or ""
 
     if merchant_name:
         # Exact match first
-        wyc_by_name = db.query(WYCMerchant).filter(
-            sqlfunc.lower(WYCMerchant.name) == merchant_name.lower()
-        ).all()
+        wyc_by_name = (
+            db.query(WYCMerchant)
+            .filter(sqlfunc.lower(WYCMerchant.name) == merchant_name.lower())
+            .all()
+        )
         for w in wyc_by_name:
             wyc_ids.add(w.id)
         # Partial match: WYC name contained in DomainMerchant name or vice versa
         if not wyc_by_name:
             from sqlalchemy import text
-            wyc_by_name_partial = db.query(WYCMerchant).filter(
-                text("lower(:mname) LIKE '%' || lower(name) || '%'").bindparams(mname=merchant_name)
-            ).all()
+
+            wyc_by_name_partial = (
+                db.query(WYCMerchant)
+                .filter(
+                    text("lower(:mname) LIKE '%' || lower(name) || '%'").bindparams(
+                        mname=merchant_name
+                    )
+                )
+                .all()
+            )
             for w in wyc_by_name_partial:
                 wyc_ids.add(w.id)
 
     if not wyc_ids:
         return []
 
-    return db.query(ChargerMerchant).filter(
-        ChargerMerchant.merchant_id.in_(list(wyc_ids)),
-    ).all()
+    return (
+        db.query(ChargerMerchant)
+        .filter(
+            ChargerMerchant.merchant_id.in_(list(wyc_ids)),
+        )
+        .all()
+    )
 
 
-def _sync_exclusive_to_driver_app(db: Session, merchant: DomainMerchant, title: str, description: str = "", is_active: bool = True):
+def _sync_exclusive_to_driver_app(
+    db: Session, merchant: DomainMerchant, title: str, description: str = "", is_active: bool = True
+):
     """
     Sync an exclusive offer to the driver-facing tables so it shows in the driver app.
     Updates: DomainMerchant perk_label, WYC Merchant perk_label, ChargerMerchant exclusive fields.
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     # Update DomainMerchant perk_label
@@ -734,16 +767,22 @@ def _sync_exclusive_to_driver_app(db: Session, merchant: DomainMerchant, title: 
 
     # Update ALL matching WYC Merchants (by place_id and by name — may be different records)
     from app.models.while_you_charge import ChargerMerchant
+
     wyc_merchants = []
     if merchant.google_place_id:
-        wyc_by_place = db.query(WYCMerchant).filter(WYCMerchant.place_id == merchant.google_place_id).first()
+        wyc_by_place = (
+            db.query(WYCMerchant).filter(WYCMerchant.place_id == merchant.google_place_id).first()
+        )
         if wyc_by_place:
             wyc_merchants.append(wyc_by_place)
     if merchant.name:
         from sqlalchemy import func as sqlfunc
-        wyc_by_name_all = db.query(WYCMerchant).filter(
-            sqlfunc.lower(WYCMerchant.name) == merchant.name.lower()
-        ).all()
+
+        wyc_by_name_all = (
+            db.query(WYCMerchant)
+            .filter(sqlfunc.lower(WYCMerchant.name) == merchant.name.lower())
+            .all()
+        )
         existing_ids = {w.id for w in wyc_merchants}
         for w in wyc_by_name_all:
             if w.id not in existing_ids:
@@ -754,22 +793,24 @@ def _sync_exclusive_to_driver_app(db: Session, merchant: DomainMerchant, title: 
         db.flush()
         logger.info(f"Synced exclusive to WYC merchant {wyc_merchant.id}: {title}")
 
-        charger_links = db.query(ChargerMerchant).filter(
-            ChargerMerchant.merchant_id == wyc_merchant.id
-        ).all()
+        charger_links = (
+            db.query(ChargerMerchant).filter(ChargerMerchant.merchant_id == wyc_merchant.id).all()
+        )
         for link in charger_links:
             link.exclusive_title = title if is_active else None
             link.exclusive_description = description if is_active else None
         if charger_links:
             db.flush()
-            logger.info(f"Synced exclusive to {len(charger_links)} charger-merchant links for WYC {wyc_merchant.id}")
+            logger.info(
+                f"Synced exclusive to {len(charger_links)} charger-merchant links for WYC {wyc_merchant.id}"
+            )
 
 
 @router.get("/{merchant_id}/exclusives", response_model=List[ExclusiveResponse])
 def list_exclusives(
     merchant_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_merchant_admin)
+    current_user: User = Depends(require_merchant_admin),
 ):
     """
     List all exclusives for a merchant.
@@ -778,18 +819,19 @@ def list_exclusives(
     merchant = AuthService.get_user_merchant(db, current_user.id, merchant_id=merchant_id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant not found or access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Merchant not found or access denied"
         )
 
-    from app.models.while_you_charge import ChargerMerchant
     import logging as _log
+
     _logger = _log.getLogger(__name__)
 
     # Find all ChargerMerchant links via the shared helper (place_id + name matching)
     all_cm_links = _find_all_charger_merchant_links(db, merchant)
     charger_links = [l for l in all_cm_links if l.exclusive_title]
-    _logger.info(f"list_exclusives: merchant={merchant.name!r}, place_id={merchant.google_place_id!r}, total_links={len(all_cm_links)}, with_title={len(charger_links)}")
+    _logger.info(
+        f"list_exclusives: merchant={merchant.name!r}, place_id={merchant.google_place_id!r}, total_links={len(all_cm_links)}, with_title={len(charger_links)}"
+    )
 
     # Deduplicate by title — multiple charger links may share the same exclusive offer
     exclusives = []
@@ -800,18 +842,20 @@ def list_exclusives(
         if title.lower() in seen_titles:
             continue
         seen_titles.add(title.lower())
-        exclusives.append(ExclusiveResponse(
-            id=f"cm_{link.id}",
-            merchant_id=merchant_id,
-            title=title,
-            description=link.exclusive_description or "",
-            daily_cap=None,
-            session_cap=None,
-            eligibility="charging_only",
-            is_active=True,
-            created_at=now_str,
-            updated_at=now_str,
-        ))
+        exclusives.append(
+            ExclusiveResponse(
+                id=f"cm_{link.id}",
+                merchant_id=merchant_id,
+                title=title,
+                description=link.exclusive_description or "",
+                daily_cap=None,
+                session_cap=None,
+                eligibility="charging_only",
+                is_active=True,
+                created_at=now_str,
+                updated_at=now_str,
+            )
+        )
 
     return exclusives
 
@@ -839,7 +883,7 @@ def create_exclusive(
     request: CreateExclusiveRequest,
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_merchant_admin)
+    current_user: User = Depends(require_merchant_admin),
 ):
     """
     Create an exclusive for a merchant.
@@ -849,17 +893,16 @@ def create_exclusive(
     merchant = AuthService.get_user_merchant(db, current_user.id, merchant_id=merchant_id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant not found or access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Merchant not found or access denied"
         )
-    
+
     # Set exclusive_title on ALL ChargerMerchant links for this merchant.
     # This is the same data the driver app reads — no FK issues.
     all_links = _find_all_charger_merchant_links(db, merchant)
     if not all_links:
         raise HTTPException(
             status_code=400,
-            detail="No charger links found for this merchant. A charger must be nearby to create an exclusive."
+            detail="No charger links found for this merchant. A charger must be nearby to create an exclusive.",
         )
     for cm_link in all_links:
         cm_link.exclusive_title = request.title
@@ -889,7 +932,7 @@ def create_exclusive(
         user_agent=http_request.headers.get("user-agent"),
         properties={
             "exclusive_id": f"cm_{first_link.id}",
-        }
+        },
     )
 
     now_str = datetime.utcnow().isoformat()
@@ -914,32 +957,41 @@ def update_exclusive(
     request: UpdateExclusiveRequest,
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_merchant_admin)
+    current_user: User = Depends(require_merchant_admin),
 ):
     """Update an exclusive."""
     merchant = AuthService.get_user_merchant(db, current_user.id, merchant_id=merchant_id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant not found or access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Merchant not found or access denied"
         )
 
     # Handle charger_merchant-based exclusives (cm_ prefix)
     if exclusive_id.startswith("cm_"):
-        from app.models.while_you_charge import ChargerMerchant
         import logging as _logging
+
+        from app.models.while_you_charge import ChargerMerchant
+
         _logger = _logging.getLogger(__name__)
         cm_pk = exclusive_id[3:]  # strip "cm_" prefix to get integer PK
         try:
-            link = db.query(ChargerMerchant).filter(
-                ChargerMerchant.id == int(cm_pk),
-            ).first()
+            link = (
+                db.query(ChargerMerchant)
+                .filter(
+                    ChargerMerchant.id == int(cm_pk),
+                )
+                .first()
+            )
         except (ValueError, TypeError):
             link = None
         if not link:
             raise HTTPException(status_code=404, detail="Exclusive not found")
         new_title = request.title if request.title is not None else link.exclusive_title
-        new_desc = request.description if request.description is not None else (link.exclusive_description or "")
+        new_desc = (
+            request.description
+            if request.description is not None
+            else (link.exclusive_description or "")
+        )
         is_active = True
         if request.is_active is not None and not request.is_active:
             is_active = False
@@ -956,23 +1008,30 @@ def update_exclusive(
                 wyc.perk_label = new_title if is_active else None
         merchant.perk_label = new_title if is_active else None
         db.commit()
-        _logger.info(f"Updated {len(all_links)} charger-merchant links across {len(wyc_ids)} WYC merchants: title={new_title!r}, active={is_active}")
+        _logger.info(
+            f"Updated {len(all_links)} charger-merchant links across {len(wyc_ids)} WYC merchants: title={new_title!r}, active={is_active}"
+        )
         now_str = datetime.utcnow().isoformat()
         return ExclusiveResponse(
             id=exclusive_id,
             merchant_id=merchant_id,
             title=new_title or "",
             description=new_desc,
-            daily_cap=None, session_cap=None,
-            eligibility="charging_only", is_active=is_active,
-            created_at=now_str, updated_at=now_str,
+            daily_cap=None,
+            session_cap=None,
+            eligibility="charging_only",
+            is_active=is_active,
+            created_at=now_str,
+            updated_at=now_str,
         )
 
     from app.models.while_you_charge import MerchantPerk
-    perk = db.query(MerchantPerk).filter(
-        MerchantPerk.id == int(exclusive_id),
-        MerchantPerk.merchant_id == merchant_id
-    ).first()
+
+    perk = (
+        db.query(MerchantPerk)
+        .filter(MerchantPerk.id == int(exclusive_id), MerchantPerk.merchant_id == merchant_id)
+        .first()
+    )
 
     if not perk:
         raise HTTPException(status_code=404, detail="Exclusive not found")
@@ -983,6 +1042,7 @@ def update_exclusive(
         perk.is_active = request.is_active
 
     import json
+
     try:
         metadata = json.loads(perk.description or "{}")
     except:
@@ -1001,7 +1061,9 @@ def update_exclusive(
 
     final_title = request.title if request.title is not None else perk.title
     final_active = request.is_active if request.is_active is not None else perk.is_active
-    _sync_exclusive_to_driver_app(db, merchant, final_title, request.description or "", final_active)
+    _sync_exclusive_to_driver_app(
+        db, merchant, final_title, request.description or "", final_active
+    )
     db.commit()
     db.refresh(perk)
 
@@ -1015,7 +1077,7 @@ def update_exclusive(
         eligibility=metadata.get("eligibility", "charging_only"),
         is_active=perk.is_active,
         created_at=perk.created_at.isoformat(),
-        updated_at=perk.updated_at.isoformat()
+        updated_at=perk.updated_at.isoformat(),
     )
 
 
@@ -1037,8 +1099,9 @@ def get_merchant_visits_portal(
     if not merchant:
         raise HTTPException(status_code=403, detail="Merchant not found or access denied")
 
-    from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
     from datetime import timedelta
+
+    from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
 
     # Resolve WYC merchant IDs from DomainMerchant (ExclusiveSession stores WYC IDs, not UUIDs)
     all_cm_links = _find_all_charger_merchant_links(db, merchant)
@@ -1051,9 +1114,14 @@ def get_merchant_visits_portal(
     # Also match by name (WYC merchants seeded with m_ prefix IDs)
     if merchant.name:
         from app.models.while_you_charge import Merchant as WYCMerchant
-        wyc_by_name = db.query(WYCMerchant).filter(
-            WYCMerchant.name.ilike(f"%{merchant.name.split()[0]}%{merchant.name.split()[-1]}%")
-        ).all()
+
+        wyc_by_name = (
+            db.query(WYCMerchant)
+            .filter(
+                WYCMerchant.name.ilike(f"%{merchant.name.split()[0]}%{merchant.name.split()[-1]}%")
+            )
+            .all()
+        )
         for wm in wyc_by_name:
             if wm.id not in wyc_merchant_ids:
                 wyc_merchant_ids.append(wm.id)
@@ -1062,13 +1130,15 @@ def get_merchant_visits_portal(
 
     if not wyc_merchant_ids:
         return {
-            "visits": [], "total": 0, "verified_count": 0,
-            "period": period, "limit": limit, "offset": offset,
+            "visits": [],
+            "total": 0,
+            "verified_count": 0,
+            "period": period,
+            "limit": limit,
+            "offset": offset,
         }
 
-    query = db.query(ExclusiveSession).filter(
-        ExclusiveSession.merchant_id.in_(wyc_merchant_ids)
-    )
+    query = db.query(ExclusiveSession).filter(ExclusiveSession.merchant_id.in_(wyc_merchant_ids))
 
     # Period filter
     now = datetime.utcnow()
@@ -1100,17 +1170,19 @@ def get_merchant_visits_portal(
             v_status = "REJECTED"
         else:
             v_status = "PARTIAL"
-        visits.append({
-            "id": str(s.id),
-            "timestamp": s.created_at.isoformat() if s.created_at else now.isoformat(),
-            "exclusive_id": str(s.id),
-            "exclusive_title": "",
-            "driver_id_anonymized": f"driver_{s.driver_id}" if s.driver_id else "unknown",
-            "verification_status": v_status,
-            "duration_minutes": None,
-            "charger_id": s.charger_id,
-            "location_name": None,
-        })
+        visits.append(
+            {
+                "id": str(s.id),
+                "timestamp": s.created_at.isoformat() if s.created_at else now.isoformat(),
+                "exclusive_id": str(s.id),
+                "exclusive_title": "",
+                "driver_id_anonymized": f"driver_{s.driver_id}" if s.driver_id else "unknown",
+                "verification_status": v_status,
+                "duration_minutes": None,
+                "charger_id": s.charger_id,
+                "location_name": None,
+            }
+        )
 
     return {
         "visits": visits,
@@ -1129,27 +1201,32 @@ def toggle_exclusive(
     http_request: Request,
     enabled: bool = Query(..., description="Enable or disable"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_merchant_admin)
+    current_user: User = Depends(require_merchant_admin),
 ):
     """Enable or disable an exclusive."""
     # Verify merchant belongs to user
     merchant = AuthService.get_user_merchant(db, current_user.id, merchant_id=merchant_id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant not found or access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Merchant not found or access denied"
         )
-    
+
     # Handle charger_merchant-based exclusives (cm_ prefix)
     if exclusive_id.startswith("cm_"):
-        from app.models.while_you_charge import ChargerMerchant
         import logging as _logging
+
+        from app.models.while_you_charge import ChargerMerchant
+
         _logger = _logging.getLogger(__name__)
         cm_pk = exclusive_id[3:]
         try:
-            link = db.query(ChargerMerchant).filter(
-                ChargerMerchant.id == int(cm_pk),
-            ).first()
+            link = (
+                db.query(ChargerMerchant)
+                .filter(
+                    ChargerMerchant.id == int(cm_pk),
+                )
+                .first()
+            )
         except (ValueError, TypeError):
             link = None
         if not link:
@@ -1167,20 +1244,21 @@ def toggle_exclusive(
                 wyc.perk_label = title if enabled else None
         merchant.perk_label = title if enabled else None
         db.commit()
-        _logger.info(f"Toggled {len(all_links)} charger-merchant links across {len(wyc_ids)} WYC merchants: enabled={enabled}")
+        _logger.info(
+            f"Toggled {len(all_links)} charger-merchant links across {len(wyc_ids)} WYC merchants: enabled={enabled}"
+        )
         return {"ok": True, "is_active": enabled}
 
     from app.models.while_you_charge import MerchantPerk
-    perk = db.query(MerchantPerk).filter(
-        MerchantPerk.id == int(exclusive_id),
-        MerchantPerk.merchant_id == merchant_id
-    ).first()
+
+    perk = (
+        db.query(MerchantPerk)
+        .filter(MerchantPerk.id == int(exclusive_id), MerchantPerk.merchant_id == merchant_id)
+        .first()
+    )
 
     if not perk:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Exclusive not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exclusive not found")
 
     perk.is_active = enabled
     # Sync to driver-facing tables
@@ -1201,13 +1279,13 @@ def toggle_exclusive(
         properties={
             "exclusive_id": exclusive_id,
             "enabled": enabled,
-        }
+        },
     )
-    
+
     # HubSpot: Merchant exclusive enable is not a standard lifecycle event
     # Per design, only driver lifecycle events are tracked
     # Merchant events can be added later if needed
-    
+
     return {"ok": True, "is_active": enabled}
 
 
@@ -1217,7 +1295,7 @@ def update_brand_image(
     http_request: Request,
     brand_image_url: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_merchant_admin)
+    current_user: User = Depends(require_merchant_admin),
 ):
     """
     Update merchant brand image URL override.
@@ -1226,21 +1304,18 @@ def update_brand_image(
     merchant = AuthService.get_user_merchant(db, current_user.id, merchant_id=merchant_id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant not found or access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Merchant not found or access denied"
         )
-    
+
     from app.models.while_you_charge import Merchant
+
     merchant_model = db.query(Merchant).filter(Merchant.id == merchant_id).first()
     if not merchant_model:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Merchant not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
     merchant_model.brand_image_url = brand_image_url
     db.commit()
-    
+
     # Analytics: Capture brand image update
     request_id = getattr(http_request.state, "request_id", None)
     analytics = get_analytics_client()
@@ -1254,9 +1329,9 @@ def update_brand_image(
         user_agent=http_request.headers.get("user-agent"),
         properties={
             "image_url": brand_image_url,
-        }
+        },
     )
-    
+
     return {"ok": True, "brand_image_url": brand_image_url}
 
 
@@ -1264,7 +1339,7 @@ def update_brand_image(
 def get_merchant_analytics(
     merchant_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_merchant_admin)
+    current_user: User = Depends(require_merchant_admin),
 ):
     """
     Get merchant analytics (MVP: activations, completes, unique drivers).
@@ -1273,10 +1348,9 @@ def get_merchant_analytics(
     merchant = AuthService.get_user_merchant(db, current_user.id, merchant_id=merchant_id)
     if not merchant:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Merchant not found or access denied"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Merchant not found or access denied"
         )
-    
+
     from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
 
     # Resolve WYC merchant IDs from DomainMerchant (ExclusiveSession stores WYC IDs, not UUIDs)
@@ -1296,109 +1370,103 @@ def get_merchant_analytics(
         }
 
     # Count activations (all exclusive sessions for this merchant)
-    activations = db.query(ExclusiveSession).filter(
-        ExclusiveSession.merchant_id.in_(wyc_merchant_ids)
-    ).count()
+    activations = (
+        db.query(ExclusiveSession)
+        .filter(ExclusiveSession.merchant_id.in_(wyc_merchant_ids))
+        .count()
+    )
 
     # Count completes
-    completes = db.query(ExclusiveSession).filter(
-        ExclusiveSession.merchant_id.in_(wyc_merchant_ids),
-        ExclusiveSession.status == ExclusiveSessionStatus.COMPLETED
-    ).count()
+    completes = (
+        db.query(ExclusiveSession)
+        .filter(
+            ExclusiveSession.merchant_id.in_(wyc_merchant_ids),
+            ExclusiveSession.status == ExclusiveSessionStatus.COMPLETED,
+        )
+        .count()
+    )
 
     # Count unique drivers
-    unique_drivers = db.query(ExclusiveSession.driver_id).filter(
-        ExclusiveSession.merchant_id.in_(wyc_merchant_ids)
-    ).distinct().count()
+    unique_drivers = (
+        db.query(ExclusiveSession.driver_id)
+        .filter(ExclusiveSession.merchant_id.in_(wyc_merchant_ids))
+        .distinct()
+        .count()
+    )
 
     return {
         "merchant_id": merchant_id,
         "activations": activations,
         "completes": completes,
         "unique_drivers": unique_drivers,
-        "completion_rate": round(completes / activations * 100, 2) if activations > 0 else 0
+        "completion_rate": round(completes / activations * 100, 2) if activations > 0 else 0,
     }
 
 
 # Favorites Endpoints
 @router.post("/{merchant_id}/favorite")
 def add_favorite(
-    merchant_id: str,
-    driver: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    merchant_id: str, driver: User = Depends(get_current_driver), db: Session = Depends(get_db)
 ):
     """Add a merchant to favorites (idempotent)"""
     # Verify merchant exists
     merchant = db.query(WYCMerchant).filter(WYCMerchant.id == merchant_id).first()
     if not merchant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Merchant not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
     # Check if already favorited
-    favorite = db.query(FavoriteMerchant).filter(
-        FavoriteMerchant.user_id == driver.id,
-        FavoriteMerchant.merchant_id == merchant_id
-    ).first()
-    
+    favorite = (
+        db.query(FavoriteMerchant)
+        .filter(FavoriteMerchant.user_id == driver.id, FavoriteMerchant.merchant_id == merchant_id)
+        .first()
+    )
+
     if favorite:
         # Already favorited, return success (idempotent)
         return {"ok": True, "is_favorite": True}
-    
+
     # Create favorite
-    favorite = FavoriteMerchant(
-        user_id=driver.id,
-        merchant_id=merchant_id
-    )
+    favorite = FavoriteMerchant(user_id=driver.id, merchant_id=merchant_id)
     db.add(favorite)
     db.commit()
-    
+
     return {"ok": True, "is_favorite": True}
 
 
 @router.delete("/{merchant_id}/favorite")
 def remove_favorite(
-    merchant_id: str,
-    driver: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    merchant_id: str, driver: User = Depends(get_current_driver), db: Session = Depends(get_db)
 ):
     """Remove a merchant from favorites"""
-    favorite = db.query(FavoriteMerchant).filter(
-        FavoriteMerchant.user_id == driver.id,
-        FavoriteMerchant.merchant_id == merchant_id
-    ).first()
-    
+    favorite = (
+        db.query(FavoriteMerchant)
+        .filter(FavoriteMerchant.user_id == driver.id, FavoriteMerchant.merchant_id == merchant_id)
+        .first()
+    )
+
     if favorite:
         db.delete(favorite)
         db.commit()
-    
+
     return {"ok": True, "is_favorite": False}
 
 
 # Share Endpoint
 @router.get("/{merchant_id}/share-link")
-def get_share_link(
-    merchant_id: str,
-    request: Request,
-    db: Session = Depends(get_db)
-):
+def get_share_link(merchant_id: str, request: Request, db: Session = Depends(get_db)):
     """Get shareable link for a merchant with optional referral param"""
     # Verify merchant exists
     merchant = db.query(WYCMerchant).filter(WYCMerchant.id == merchant_id).first()
     if not merchant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Merchant not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
     # Build share URL
     from app.core.config import settings
     from app.dependencies.driver import get_current_driver_optional
-    from app.dependencies.domain import oauth2_scheme
-    base_url = getattr(settings, 'FRONTEND_URL', 'https://app.nerava.network')
+
+    base_url = getattr(settings, "FRONTEND_URL", "https://app.nerava.network")
     url = f"{base_url}/merchant/{merchant_id}"
-    
+
     # Try to get authenticated user (optional)
     try:
         token = None
@@ -1407,7 +1475,7 @@ def get_share_link(
             token = auth_header[7:]
         if not token:
             token = request.cookies.get("access_token")
-        
+
         if token:
             driver = get_current_driver_optional(request, token, db)
             if driver:
@@ -1415,10 +1483,9 @@ def get_share_link(
     except:
         # If auth fails, continue without ref param
         pass
-    
+
     return {
         "url": url,
         "title": f"Check out {merchant.name}",
-        "description": merchant.description or f"Visit {merchant.name} while you charge"
+        "description": merchant.description or f"Visit {merchant.name} while you charge",
     }
-

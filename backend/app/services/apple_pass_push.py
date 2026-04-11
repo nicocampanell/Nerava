@@ -5,7 +5,7 @@ Sends silent push notifications to prompt Apple Wallet to refresh passes.
 """
 import logging
 import os
-from typing import Optional, Iterable
+from typing import Iterable
 
 from sqlalchemy.orm import Session
 

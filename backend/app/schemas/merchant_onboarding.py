@@ -1,9 +1,9 @@
 """
 Schemas for Merchant Onboarding API
 """
+from typing import List, Optional
+
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
 
 
 class GoogleAuthStartRequest(BaseModel):

@@ -5,22 +5,21 @@ Business logic for merchant onboarding, OAuth token management, location claims,
 """
 import logging
 import uuid
-import secrets
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List
+from typing import Dict, Optional
+
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.token_encryption import decrypt_token, encrypt_token
 from app.models import (
+    DomainMerchant,
     MerchantAccount,
     MerchantLocationClaim,
-    MerchantPlacementRule,
     MerchantPaymentMethod,
-    User,
-    DomainMerchant,
+    MerchantPlacementRule,
 )
 from app.models.merchant_oauth_token import MerchantOAuthToken
-from app.core.config import settings
-from app.core.token_encryption import encrypt_token, decrypt_token
 from app.services.google_business_profile import refresh_access_token
 
 logger = logging.getLogger(__name__)

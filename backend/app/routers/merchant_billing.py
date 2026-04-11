@@ -8,24 +8,24 @@ Handles subscription management via Stripe Checkout:
 - Stripe webhook for subscription events
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from typing import Optional
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import get_db
-from app.models import User
 from app.dependencies_domain import get_current_user
+from app.models import User
 from app.services.merchant_onboarding_service import create_or_get_merchant_account
 from app.services.merchant_subscription_service import (
-    create_checkout_session,
-    handle_checkout_completed,
-    handle_subscription_updated,
-    handle_subscription_deleted,
-    get_subscription,
     cancel_subscription,
+    create_checkout_session,
+    get_subscription,
+    handle_checkout_completed,
+    handle_subscription_deleted,
+    handle_subscription_updated,
 )
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,6 @@ async def get_payment_status(
     db: Session = Depends(get_db),
 ):
     """Returns card-on-file status and billing type for the merchant."""
-    from app.models.domain import DomainMerchant
     from app.services.auth_service import AuthService
 
     merchant = AuthService.get_user_merchant(db, current_user.id)
@@ -228,7 +227,6 @@ async def setup_card(
     if not stripe_module.api_key:
         raise HTTPException(status_code=500, detail="Stripe not configured")
 
-    from app.models.domain import DomainMerchant
     from app.services.auth_service import AuthService
 
     merchant = AuthService.get_user_merchant(db, current_user.id)
@@ -264,7 +262,6 @@ async def set_billing_type(
     db: Session = Depends(get_db),
 ):
     """Set the billing type: 'pay_as_you_go' or 'campaign'."""
-    from app.models.domain import DomainMerchant
     from app.services.auth_service import AuthService
 
     billing_type = request.get("billing_type")
@@ -290,7 +287,6 @@ async def remove_card(
     db: Session = Depends(get_db),
 ):
     """Remove the saved card and revert billing to free."""
-    from app.models.domain import DomainMerchant
     from app.services.auth_service import AuthService
 
     merchant = AuthService.get_user_merchant(db, current_user.id)

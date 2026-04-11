@@ -1,15 +1,16 @@
 """
 Twilio direct SMS OTP provider implementation (fallback)
 """
+import asyncio
 import logging
 import secrets
-import asyncio
-from typing import Optional
-from twilio.rest import Client
-from twilio.http.http_client import TwilioHttpClient
-from twilio.base.exceptions import TwilioException
-from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
+
+from sqlalchemy.orm import Session
+from twilio.base.exceptions import TwilioException
+from twilio.http.http_client import TwilioHttpClient
+from twilio.rest import Client
+
 from ...core.config import settings
 from ...core.security import hash_password, verify_password
 from ...models import OTPChallenge

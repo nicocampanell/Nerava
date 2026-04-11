@@ -1,9 +1,12 @@
 """
 Security scopes and authorization utilities.
 """
-from fastapi import HTTPException, Depends, Request
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+from fastapi import Depends, HTTPException, Request
+
 from app.security.jwt import jwt_manager
+
 
 def get_current_user(request: Request) -> Dict[str, Any]:
     """Get current user with scopes from JWT token."""

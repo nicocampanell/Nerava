@@ -14,9 +14,9 @@ from app.db import Base  # noqa: F401
 # Import all model modules to register them with Base.metadata
 # Import order matters for foreign key relationships, but SQLAlchemy handles this
 from app.models import *  # noqa: F401, F403  # Core models: User, UserPreferences, etc.
-from app.models_while_you_charge import *  # noqa: F401, F403  # Charger, Merchant, MerchantPerk, etc.
 from app.models_domain import *  # noqa: F401, F403  # Zone, EnergyEvent, DomainMerchant, DriverWallet, NovaTransaction, DomainChargingSession, StripePayment
 from app.models_vehicle import *  # noqa: F401, F403  # VehicleAccount, VehicleToken, VehicleTelemetry
+from app.models_while_you_charge import *  # noqa: F401, F403  # Charger, Merchant, MerchantPerk, etc.
 
 # Optional: Import other model modules if they exist
 try:

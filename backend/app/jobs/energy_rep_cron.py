@@ -2,8 +2,8 @@
 Cron job for daily energy reputation snapshots.
 """
 import logging
-from typing import Dict, Any
 from datetime import datetime
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def daily_snapshot() -> Dict[str, Any]:
     - Handle batch processing
     """
     
-    logger.info(f"Starting daily energy reputation snapshot", extra={
+    logger.info("Starting daily energy reputation snapshot", extra={
         "job": "energy_rep_cron"
     })
     
@@ -31,7 +31,7 @@ def daily_snapshot() -> Dict[str, Any]:
             "completed_at": datetime.utcnow().isoformat()
         }
         
-        logger.info(f"Daily energy reputation snapshot completed", extra={
+        logger.info("Daily energy reputation snapshot completed", extra={
             "job": "energy_rep_cron",
             "users_processed": result["users_processed"]
         })
@@ -39,7 +39,7 @@ def daily_snapshot() -> Dict[str, Any]:
         return result
         
     except Exception as e:
-        logger.error(f"Daily energy reputation snapshot failed", extra={
+        logger.error("Daily energy reputation snapshot failed", extra={
             "job": "energy_rep_cron",
             "error": str(e)
         })

@@ -11,12 +11,12 @@ This enables 2-poll-per-session detection:
 """
 import asyncio
 import logging
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional
-from contextlib import contextmanager
 
-from sqlalchemy import text
 from app.db import SessionLocal
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +132,9 @@ class ScheduledPollWorker:
         """
         from app.models.session_event import SessionEvent
         from app.models.tesla_connection import TeslaConnection
-        from app.services.tesla_oauth import get_tesla_oauth_service, get_valid_access_token
-        from app.services.session_event_service import SessionEventService
         from app.services.incentive_engine import IncentiveEngine
+        from app.services.session_event_service import SessionEventService
+        from app.services.tesla_oauth import get_tesla_oauth_service, get_valid_access_token
 
         session = db.query(SessionEvent).filter(
             SessionEvent.id == session_id
@@ -269,7 +269,10 @@ class ScheduledPollWorker:
 
             # Send push notification (best-effort)
             try:
-                from app.services.push_service import send_incentive_earned_push, send_push_notification
+                from app.services.push_service import (
+                    send_incentive_earned_push,
+                    send_push_notification,
+                )
                 if grant and grant.amount_cents > 0:
                     send_incentive_earned_push(db, driver_id, grant.amount_cents)
                 else:
@@ -287,7 +290,7 @@ class ScheduledPollWorker:
             logger.info(
                 f"ScheduledPoll: session {session_id} ended "
                 f"(duration={ended.duration_minutes if ended else '?'}min, "
-                f"incentive={'${:.2f}'.format(grant.amount_cents / 100) if grant else 'none'})"
+                f"incentive={f'${grant.amount_cents / 100:.2f}' if grant else 'none'})"
             )
 
 

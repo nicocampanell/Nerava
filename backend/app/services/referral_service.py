@@ -1,11 +1,13 @@
 """Referral system service."""
 from __future__ import annotations
+
 import logging
 import secrets
 import string
 from typing import Optional
-from sqlalchemy.orm import Session
+
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.models.referral import ReferralCode, ReferralRedemption
 

@@ -4,12 +4,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
 from app.dependencies_domain import get_current_user
+from app.models import User
 from app.services.referral_service import (
     get_or_create_code,
-    redeem_referral,
     get_referral_stats,
+    redeem_referral,
 )
 
 router = APIRouter(prefix="/v1/referrals", tags=["referrals"])

@@ -1,14 +1,15 @@
 """
 Loyalty Router — punch card programs for merchants and progress for drivers.
 """
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List, Dict, Any
 
 from app.db import get_db
+from app.dependencies_domain import get_current_user
 from app.models import User
-from app.dependencies_domain import require_admin, get_current_user
 from app.services import loyalty_service
 
 router = APIRouter(prefix="/v1/loyalty", tags=["loyalty"])

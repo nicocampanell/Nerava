@@ -2,13 +2,14 @@
 """
 Seed script to insert all 20 feature flags as disabled by default.
 """
-import sys
 import os
+import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models_extra import FeatureFlag
+
 
 def seed_feature_flags():
     """Insert all 20 feature flags with default disabled state."""

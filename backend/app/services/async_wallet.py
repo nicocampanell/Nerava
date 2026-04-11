@@ -1,7 +1,8 @@
 import asyncio
-from typing import Dict, Any
-from app.config import settings
+from typing import Any, Dict
+
 import httpx
+
 
 class AsyncWalletProcessor:
     def __init__(self):

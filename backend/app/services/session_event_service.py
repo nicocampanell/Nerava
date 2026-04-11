@@ -5,14 +5,16 @@ Creates SessionEvent records from Tesla API data (or other sources).
 Triggers incentive evaluation on session END, not session start.
 Polls one vehicle only, with backoff and caching.
 """
-import uuid
-import logging
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
 
+import logging
+import uuid
+from contextlib import suppress
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy import and_, desc
 
 from app.models.session_event import SessionEvent
 from app.models.tesla_connection import TeslaConnection
@@ -32,7 +34,8 @@ def _cache_cleanup() -> None:
         return
     now = datetime.utcnow()
     stale_keys = [
-        k for k, v in _charging_cache.items()
+        k
+        for k, v in _charging_cache.items()
         if (now - v.get("last_poll", datetime.min)).total_seconds() > _CACHE_EVICT_AGE_SECS
     ]
     for k in stale_keys:
@@ -40,10 +43,9 @@ def _cache_cleanup() -> None:
     # If still too large, remove oldest entries
     if len(_charging_cache) > _CACHE_MAX_SIZE:
         sorted_keys = sorted(
-            _charging_cache.keys(),
-            key=lambda k: _charging_cache[k].get("last_poll", datetime.min)
+            _charging_cache.keys(), key=lambda k: _charging_cache[k].get("last_poll", datetime.min)
         )
-        for k in sorted_keys[:len(_charging_cache) - _CACHE_MAX_SIZE]:
+        for k in sorted_keys[: len(_charging_cache) - _CACHE_MAX_SIZE]:
             _charging_cache.pop(k, None)
 
 
@@ -139,9 +141,12 @@ class SessionEventService:
         """
         # Use FOR UPDATE to prevent concurrent end_session calls from racing
         try:
-            session = db.query(SessionEvent).filter(
-                SessionEvent.id == session_event_id
-            ).with_for_update(skip_locked=True).first()
+            session = (
+                db.query(SessionEvent)
+                .filter(SessionEvent.id == session_event_id)
+                .with_for_update(skip_locked=True)
+                .first()
+            )
         except Exception:
             # SQLite doesn't support FOR UPDATE — fall back to regular query
             session = db.query(SessionEvent).filter(SessionEvent.id == session_event_id).first()
@@ -246,7 +251,9 @@ class SessionEventService:
                     return {
                         "session_active": True,
                         "session_id": active.id,
-                        "duration_minutes": int((datetime.utcnow() - active.session_start).total_seconds() / 60),
+                        "duration_minutes": int(
+                            (datetime.utcnow() - active.session_start).total_seconds() / 60
+                        ),
                         "kwh_delivered": active.kwh_delivered,
                         "cached": True,
                     }
@@ -260,9 +267,8 @@ class SessionEventService:
 
             # Get a valid (refreshed if needed) access token
             from app.services.tesla_oauth import get_valid_access_token
-            access_token = await get_valid_access_token(
-                db, tesla_connection, tesla_oauth_service
-            )
+
+            access_token = await get_valid_access_token(db, tesla_connection, tesla_oauth_service)
             if not access_token:
                 return {"session_active": False, "error": "token_expired"}
 
@@ -270,19 +276,21 @@ class SessionEventService:
             # Only wake vehicle if there's an active session or geofence trigger
             # Routine polls should NOT wake sleeping cars (saves ~100 wake calls/day)
             import asyncio
+
             import httpx
+
             active_before_poll = SessionEventService.get_active_session(db, driver_id)
-            should_wake = active_before_poll is not None or (device_lat is not None and device_lng is not None)
+            should_wake = active_before_poll is not None or (
+                device_lat is not None and device_lng is not None
+            )
             vehicle_data = None
             max_attempts = 3 if should_wake else 1
             for attempt in range(max_attempts):
                 try:
                     # Wake vehicle before data request only when justified
                     if attempt > 0 and should_wake:
-                        try:
+                        with suppress(Exception):
                             await tesla_oauth_service.wake_vehicle(access_token, vehicle_id)
-                        except Exception:
-                            pass
                         await asyncio.sleep(3)
 
                     vehicle_data = await tesla_oauth_service.get_vehicle_data(
@@ -294,11 +302,15 @@ class SessionEventService:
                         if should_wake and attempt < 2:
                             logger.info(
                                 "Vehicle %s returned 408 (attempt %d/%d), waking and retrying",
-                                vehicle_id, attempt + 1, max_attempts
+                                vehicle_id,
+                                attempt + 1,
+                                max_attempts,
                             )
                             continue
                         # Vehicle is asleep and no reason to wake — return early
-                        logger.info("Vehicle %s is asleep, skipping (no active session)", vehicle_id)
+                        logger.info(
+                            "Vehicle %s is asleep, skipping (no active session)", vehicle_id
+                        )
                         _charging_cache[cache_key] = {
                             "still_charging": False,
                             "last_poll": datetime.utcnow(),
@@ -333,11 +345,13 @@ class SessionEventService:
                     meta["device_lat"] = device_lat
                     meta["device_lng"] = device_lng
                     trail = list(meta.get("location_trail", []))
-                    trail.append({
-                        "lat": device_lat,
-                        "lng": device_lng,
-                        "ts": datetime.utcnow().isoformat(),
-                    })
+                    trail.append(
+                        {
+                            "lat": device_lat,
+                            "lng": device_lng,
+                            "ts": datetime.utcnow().isoformat(),
+                        }
+                    )
                     if len(trail) > 120:
                         trail = trail[-120:]
                     meta["location_trail"] = trail
@@ -345,7 +359,9 @@ class SessionEventService:
                     flag_modified(active_for_trail, "session_metadata")
                     active_for_trail.updated_at = datetime.utcnow()
                     db.commit()
-                    logger.info(f"Trail point added for driver {driver_id} despite Tesla error (total: {len(trail)})")
+                    logger.info(
+                        f"Trail point added for driver {driver_id} despite Tesla error (total: {len(trail)})"
+                    )
 
             # Auto-close stale sessions on poll error (>15 min since last update)
             stale = SessionEventService._close_stale_session(db, driver_id)
@@ -378,16 +394,17 @@ class SessionEventService:
         # Raw SQL fallback — bypasses ORM column mapping issues
         if not active:
             from sqlalchemy import text
+
             row = db.execute(
-                text("SELECT id FROM session_events "
-                     "WHERE driver_user_id = :did AND session_end IS NULL "
-                     "ORDER BY session_start DESC LIMIT 1"),
+                text(
+                    "SELECT id FROM session_events "
+                    "WHERE driver_user_id = :did AND session_end IS NULL "
+                    "ORDER BY session_start DESC LIMIT 1"
+                ),
                 {"did": driver_id},
             ).first()
             if row:
-                active = db.query(SessionEvent).filter(
-                    SessionEvent.id == str(row[0])
-                ).first()
+                active = db.query(SessionEvent).filter(SessionEvent.id == str(row[0])).first()
                 if active:
                     logger.warning(
                         f"Raw SQL found active session {active.id} missed by ORM "
@@ -435,7 +452,9 @@ class SessionEventService:
                 return {
                     "session_active": True,
                     "session_id": recently_ended.id,
-                    "duration_minutes": int((datetime.utcnow() - recently_ended.session_start).total_seconds() / 60),
+                    "duration_minutes": int(
+                        (datetime.utcnow() - recently_ended.session_start).total_seconds() / 60
+                    ),
                     "kwh_delivered": recently_ended.kwh_delivered,
                     "session_reopened": True,
                 }
@@ -448,6 +467,7 @@ class SessionEventService:
             if tesla_lat and tesla_lng:
                 try:
                     from app.services.intent_service import find_nearest_charger
+
                     result = find_nearest_charger(db, tesla_lat, tesla_lng, radius_m=500)
                     if result:
                         matched_charger, distance_m = result
@@ -464,15 +484,20 @@ class SessionEventService:
             if device_lat is not None and device_lng is not None:
                 metadata["device_lat"] = device_lat
                 metadata["device_lng"] = device_lng
-                metadata["location_trail"] = [{
-                    "lat": device_lat,
-                    "lng": device_lng,
-                    "ts": datetime.utcnow().isoformat(),
-                }]
+                metadata["location_trail"] = [
+                    {
+                        "lat": device_lat,
+                        "lng": device_lng,
+                        "ts": datetime.utcnow().isoformat(),
+                    }
+                ]
                 logger.info(f"Device location: {device_lat}, {device_lng}")
 
             session = SessionEventService.create_from_tesla(
-                db, driver_id, charge_state, vehicle_info,
+                db,
+                driver_id,
+                charge_state,
+                vehicle_info,
                 charger_id=matched_charger_id,
             )
             if metadata:
@@ -493,7 +518,9 @@ class SessionEventService:
             # Schedule server-side verification poll (smart halving)
             try:
                 session.next_poll_at = SessionEventService._calculate_next_poll_at(
-                    db, session, minutes_to_full=minutes_remaining,
+                    db,
+                    session,
+                    minutes_to_full=minutes_remaining,
                 )
                 db.flush()
                 logger.info(
@@ -510,6 +537,7 @@ class SessionEventService:
             if matched_charger_id:
                 try:
                     from app.models.domain import Charger
+
                     charger = db.query(Charger).filter(Charger.id == matched_charger_id).first()
                     if charger:
                         charger_name = charger.name
@@ -517,6 +545,7 @@ class SessionEventService:
                     pass
             try:
                 from app.services.push_service import send_charging_detected_push
+
                 send_charging_detected_push(db, driver_id, session.id, charger_name)
             except Exception as e:
                 logger.debug("Charging detected push failed (non-fatal): %s", e)
@@ -526,16 +555,25 @@ class SessionEventService:
                 try:
                     from app.models.while_you_charge import ChargerMerchant, Merchant
                     from app.services.push_service import send_nearby_merchant_push
-                    links = db.query(ChargerMerchant).filter(
-                        ChargerMerchant.charger_id == matched_charger_id,
-                        ChargerMerchant.exclusive_title.isnot(None),
-                        ChargerMerchant.exclusive_title != "",
-                    ).order_by(ChargerMerchant.distance_m.asc()).limit(1).all()
+
+                    links = (
+                        db.query(ChargerMerchant)
+                        .filter(
+                            ChargerMerchant.charger_id == matched_charger_id,
+                            ChargerMerchant.exclusive_title.isnot(None),
+                            ChargerMerchant.exclusive_title != "",
+                        )
+                        .order_by(ChargerMerchant.distance_m.asc())
+                        .limit(1)
+                        .all()
+                    )
                     for link in links:
                         merch = db.query(Merchant).filter(Merchant.id == link.merchant_id).first()
                         if merch:
                             send_nearby_merchant_push(
-                                db, driver_id, merch.name,
+                                db,
+                                driver_id,
+                                merch.name,
                                 exclusive_title=link.exclusive_title,
                                 charger_id=matched_charger_id,
                                 merchant_place_id=merch.place_id or merch.id,
@@ -593,10 +631,13 @@ class SessionEventService:
                 if not active.charger_id and tesla_lat and tesla_lng:
                     try:
                         from app.services.intent_service import find_nearest_charger
+
                         result = find_nearest_charger(db, tesla_lat, tesla_lng, radius_m=500)
                         if result:
                             active.charger_id = result[0].id
-                            logger.info(f"Backfilled charger_id={active.charger_id} on session {active.id}")
+                            logger.info(
+                                f"Backfilled charger_id={active.charger_id} on session {active.id}"
+                            )
                     except Exception:
                         pass
 
@@ -606,11 +647,13 @@ class SessionEventService:
                 meta["device_lat"] = device_lat
                 meta["device_lng"] = device_lng
                 trail = list(meta.get("location_trail", []))
-                trail.append({
-                    "lat": device_lat,
-                    "lng": device_lng,
-                    "ts": datetime.utcnow().isoformat(),
-                })
+                trail.append(
+                    {
+                        "lat": device_lat,
+                        "lng": device_lng,
+                        "ts": datetime.utcnow().isoformat(),
+                    }
+                )
                 # Keep last 120 points (~60 min at 30s intervals)
                 if len(trail) > 120:
                     trail = trail[-120:]
@@ -639,7 +682,9 @@ class SessionEventService:
             return {
                 "session_active": True,
                 "session_id": active.id,
-                "duration_minutes": int((datetime.utcnow() - active.session_start).total_seconds() / 60),
+                "duration_minutes": int(
+                    (datetime.utcnow() - active.session_start).total_seconds() / 60
+                ),
                 "kwh_delivered": active.kwh_delivered,
                 "minutes_to_full": mtf,
                 "battery_level": charge_state.get("battery_level"),
@@ -670,7 +715,8 @@ class SessionEventService:
 
             # Session ended — evaluate incentives (per review: pay on END)
             session = SessionEventService.end_session(
-                db, active.id,
+                db,
+                active.id,
                 ended_reason="unplugged",
                 battery_end_pct=charge_state.get("battery_level"),
                 kwh_delivered=charge_state.get("charge_energy_added"),
@@ -686,14 +732,19 @@ class SessionEventService:
                 if quality > 30:
                     try:
                         from app.models_domain import DriverWallet as DomainWallet
-                        wallet = db.query(DomainWallet).filter(
-                            DomainWallet.user_id == driver_id
-                        ).first()
+
+                        wallet = (
+                            db.query(DomainWallet).filter(DomainWallet.user_id == driver_id).first()
+                        )
                         if wallet:
-                            wallet.energy_reputation_score = (wallet.energy_reputation_score or 0) + 5
+                            wallet.energy_reputation_score = (
+                                wallet.energy_reputation_score or 0
+                            ) + 5
                             logger.info(
                                 "Awarded 5 base reputation points to driver %s "
-                                "(session %s, no incentive grant)", driver_id, session.id
+                                "(session %s, no incentive grant)",
+                                driver_id,
+                                session.id,
                             )
                     except Exception as e:
                         logger.debug("Base reputation award failed (non-fatal): %s", e)
@@ -702,8 +753,13 @@ class SessionEventService:
             if session and session.duration_minutes and session.duration_minutes > 0:
                 try:
                     from app.services.referral_service import grant_referral_rewards
+
                     if grant_referral_rewards(db, driver_id):
-                        logger.info("Referral rewards granted for driver %s on session %s", driver_id, session.id)
+                        logger.info(
+                            "Referral rewards granted for driver %s on session %s",
+                            driver_id,
+                            session.id,
+                        )
                 except Exception as e:
                     logger.debug("Referral reward grant failed (non-fatal): %s", e)
 
@@ -714,6 +770,7 @@ class SessionEventService:
             if grant and grant.amount_cents > 0:
                 try:
                     from app.services.push_service import send_incentive_earned_push
+
                     send_incentive_earned_push(db, driver_id, grant.amount_cents)
                 except Exception as push_err:
                     logger.debug("Push notification failed (non-fatal): %s", push_err)
@@ -817,7 +874,8 @@ class SessionEventService:
                 f"(last updated {stale.updated_at})"
             )
             ended = SessionEventService.end_session(
-                db, stale.id,
+                db,
+                stale.id,
                 ended_reason="stale_cleanup",
                 battery_end_pct=stale.battery_end_pct,
                 kwh_delivered=stale.kwh_delivered,
@@ -833,8 +891,11 @@ class SessionEventService:
                 # Grant referral rewards on first completed session (idempotent)
                 try:
                     from app.services.referral_service import grant_referral_rewards
+
                     if grant_referral_rewards(db, stale.driver_user_id):
-                        logger.info(f"Referral rewards granted for driver {stale.driver_user_id} on stale session {ended.id}")
+                        logger.info(
+                            f"Referral rewards granted for driver {stale.driver_user_id} on stale session {ended.id}"
+                        )
                 except Exception as e:
                     logger.debug(f"Referral reward grant failed (non-fatal): {e}")
 
@@ -853,17 +914,22 @@ class SessionEventService:
         """
         from app.services.incentive_engine import IncentiveEngine
 
-        session = db.query(SessionEvent).filter(
-            SessionEvent.id == session_event_id,
-            SessionEvent.driver_user_id == driver_id,
-            SessionEvent.session_end.is_(None),
-        ).first()
+        session = (
+            db.query(SessionEvent)
+            .filter(
+                SessionEvent.id == session_event_id,
+                SessionEvent.driver_user_id == driver_id,
+                SessionEvent.session_end.is_(None),
+            )
+            .first()
+        )
         if not session:
             return None
 
         logger.info(f"Manual session end for {session.id} by driver {driver_id}")
         ended = SessionEventService.end_session(
-            db, session.id,
+            db,
+            session.id,
             ended_reason="manual",
         )
 
@@ -878,8 +944,11 @@ class SessionEventService:
             # Grant referral rewards on first completed session (idempotent)
             try:
                 from app.services.referral_service import grant_referral_rewards
+
                 if grant_referral_rewards(db, driver_id):
-                    logger.info(f"Referral rewards granted for driver {driver_id} on manual session {ended.id}")
+                    logger.info(
+                        f"Referral rewards granted for driver {driver_id} on manual session {ended.id}"
+                    )
             except Exception as e:
                 logger.debug(f"Referral reward grant failed (non-fatal): {e}")
             db.commit()
@@ -950,13 +1019,20 @@ class SessionEventService:
                 return False
 
         # Geo radius
-        if campaign.rule_geo_center_lat is not None and campaign.rule_geo_center_lng is not None and campaign.rule_geo_radius_m:
+        if (
+            campaign.rule_geo_center_lat is not None
+            and campaign.rule_geo_center_lng is not None
+            and campaign.rule_geo_radius_m
+        ):
             if session.lat is None or session.lng is None:
                 return False
             from app.services.incentive_engine import IncentiveEngine
+
             dist = IncentiveEngine._haversine_m(
-                campaign.rule_geo_center_lat, campaign.rule_geo_center_lng,
-                session.lat, session.lng,
+                campaign.rule_geo_center_lat,
+                campaign.rule_geo_center_lng,
+                session.lat,
+                session.lng,
             )
             if dist > campaign.rule_geo_radius_m:
                 return False
@@ -964,6 +1040,7 @@ class SessionEventService:
         # Time of day
         if campaign.rule_time_start and campaign.rule_time_end:
             from app.services.incentive_engine import IncentiveEngine
+
             session_hour_min = session.session_start.strftime("%H:%M")
             if not IncentiveEngine._time_in_window(
                 session_hour_min, campaign.rule_time_start, campaign.rule_time_end

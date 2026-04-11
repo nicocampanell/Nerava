@@ -1,14 +1,13 @@
 """Community pool ledger service."""
 
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from typing import Dict, Optional
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
 from app.services.events import get_event_by_id
 from app.utils.log import get_logger
-from app.utils.dbjson import as_db_json
-import json
 
 logger = get_logger("pool")
 

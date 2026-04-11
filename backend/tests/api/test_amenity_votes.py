@@ -34,7 +34,7 @@ def test_merchant(db: Session):
 @pytest.fixture
 def auth_token(test_user, db: Session):
     """Create auth token for test user"""
-    from app.services.auth_service import RefreshTokenService
+    from app.services.refresh_token_service import RefreshTokenService
     _, refresh_token = RefreshTokenService.create_refresh_token(db, test_user)
     db.commit()
     

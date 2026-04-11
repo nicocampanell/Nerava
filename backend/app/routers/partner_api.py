@@ -4,6 +4,7 @@ Partner Incentive API Router — X-Partner-Key authenticated endpoints.
 External partners submit charging sessions and receive incentive evaluations.
 Supports candidate/pending sessions, webhook delivery, and reward breakdowns.
 """
+
 import logging
 from typing import Optional, Tuple
 
@@ -14,14 +15,13 @@ from app.dependencies import get_db
 from app.dependencies.partner_auth import get_current_partner, require_partner_scope
 from app.models.partner import Partner, PartnerAPIKey
 from app.models.session_event import SessionEvent
-from app.models.campaign import Campaign
 from app.schemas.partner import (
     PartnerSessionIngestRequest,
     PartnerSessionUpdateRequest,
-    PartnerSessionResponse,
 )
-from app.services.partner_session_service import PartnerSessionService
 from app.services.campaign_service import CampaignService
+from app.services.geo import haversine_m
+from app.services.partner_session_service import PartnerSessionService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/partners", tags=["partner-api"])
@@ -31,20 +31,22 @@ async def _fire_session_webhook(partner, session_data):
     """Fire partner.session.resolved webhook in background."""
     try:
         from app.services.webhook_delivery_service import WebhookDeliveryService
-        await WebhookDeliveryService.deliver(
-            partner, "partner.session.resolved", session_data
-        )
+
+        await WebhookDeliveryService.deliver(partner, "partner.session.resolved", session_data)
     except Exception as e:
         logger.error(f"Webhook delivery failed for partner {partner.slug}: {e}")
 
 
 # --- Session Endpoints ---
 
+
 @router.post("/sessions", status_code=202)
 def ingest_session(
     req: PartnerSessionIngestRequest,
     background_tasks: BackgroundTasks,
-    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("sessions:write")),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
+        require_partner_scope("sessions:write")
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -95,7 +97,9 @@ def ingest_session(
 def list_sessions(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("sessions:read")),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
+        require_partner_scope("sessions:read")
+    ),
     db: Session = Depends(get_db),
 ):
     """List this partner's submitted sessions."""
@@ -110,7 +114,9 @@ def list_sessions(
 @router.get("/sessions/{partner_session_id}")
 def get_session(
     partner_session_id: str,
-    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("sessions:read")),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
+        require_partner_scope("sessions:read")
+    ),
     db: Session = Depends(get_db),
 ):
     """Get a specific session by the partner's session ID."""
@@ -127,7 +133,9 @@ def update_session(
     partner_session_id: str,
     req: PartnerSessionUpdateRequest,
     background_tasks: BackgroundTasks,
-    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("sessions:write")),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
+        require_partner_scope("sessions:write")
+    ),
     db: Session = Depends(get_db),
 ):
     """Update telemetry or complete a session."""
@@ -147,14 +155,15 @@ def update_session(
 
     is_new = result.pop("_is_new", None)
 
-    # Fire webhook when session transitions to completed
-    if result.get("status") == "completed" and partner.webhook_enabled:
+    # Fire webhook only on the first completion transition (not on replay)
+    if is_new and result.get("status") == "completed" and partner.webhook_enabled:
         background_tasks.add_task(_fire_session_webhook, partner, result)
 
     return result
 
 
 # --- Grant Endpoints ---
+
 
 @router.get("/grants")
 def list_grants(
@@ -171,13 +180,16 @@ def list_grants(
 
 # --- Campaign Discovery ---
 
+
 @router.get("/campaigns/available")
 def list_available_campaigns(
     lat: Optional[float] = Query(None),
     lng: Optional[float] = Query(None),
     charger_network: Optional[str] = Query(None),
     connector_type: Optional[str] = Query(None),
-    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(require_partner_scope("campaigns:read")),
+    partner_and_key: Tuple[Partner, PartnerAPIKey] = Depends(
+        require_partner_scope("campaigns:read")
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -189,7 +201,7 @@ def list_available_campaigns(
 
     results = []
     for c in campaigns:
-        if not getattr(c, 'allow_partner_sessions', True):
+        if not getattr(c, "allow_partner_sessions", True):
             continue
         if c.rule_partner_ids and partner.id not in c.rule_partner_ids:
             continue
@@ -201,25 +213,39 @@ def list_available_campaigns(
         if connector_type and c.rule_connector_types:
             if connector_type not in c.rule_connector_types:
                 continue
+        # Geo filtering: skip campaigns whose geo radius doesn't contain the caller
+        if (
+            lat is not None
+            and lng is not None
+            and c.rule_geo_center_lat is not None
+            and c.rule_geo_center_lng is not None
+            and c.rule_geo_radius_m is not None
+        ):
+            dist = haversine_m(lat, lng, c.rule_geo_center_lat, c.rule_geo_center_lng)
+            if dist > c.rule_geo_radius_m:
+                continue
 
-        results.append({
-            "campaign_id": c.id,
-            "name": c.name,
-            "sponsor_name": c.sponsor_name,
-            "cost_per_session_cents": c.cost_per_session_cents,
-            "rule_min_duration_minutes": c.rule_min_duration_minutes,
-            "charger_networks": c.rule_charger_networks,
-            "connector_types": c.rule_connector_types,
-            "start_date": c.start_date.isoformat() if c.start_date else None,
-            "end_date": c.end_date.isoformat() if c.end_date else None,
-            "allow_partner_sessions": c.allow_partner_sessions,
-            "rule_min_trust_tier": c.rule_min_trust_tier,
-        })
+        results.append(
+            {
+                "campaign_id": c.id,
+                "name": c.name,
+                "sponsor_name": c.sponsor_name,
+                "cost_per_session_cents": c.cost_per_session_cents,
+                "rule_min_duration_minutes": c.rule_min_duration_minutes,
+                "charger_networks": c.rule_charger_networks,
+                "connector_types": c.rule_connector_types,
+                "start_date": c.start_date.isoformat() if c.start_date else None,
+                "end_date": c.end_date.isoformat() if c.end_date else None,
+                "allow_partner_sessions": c.allow_partner_sessions,
+                "rule_min_trust_tier": c.rule_min_trust_tier,
+            }
+        )
 
     return {"campaigns": results}
 
 
 # --- Partner Profile ---
+
 
 @router.get("/me")
 def get_partner_profile(
@@ -230,16 +256,24 @@ def get_partner_profile(
     partner, _ = partner_and_key
     source = f"partner_{partner.slug}"
 
-    total_sessions = db.query(SessionEvent).filter(
-        SessionEvent.source == source,
-    ).count()
+    total_sessions = (
+        db.query(SessionEvent)
+        .filter(
+            SessionEvent.source == source,
+        )
+        .count()
+    )
 
     from app.models.session_event import IncentiveGrant
-    total_grants = db.query(IncentiveGrant).join(
-        SessionEvent, IncentiveGrant.session_event_id == SessionEvent.id
-    ).filter(
-        SessionEvent.source == source,
-    ).count()
+
+    total_grants = (
+        db.query(IncentiveGrant)
+        .join(SessionEvent, IncentiveGrant.session_event_id == SessionEvent.id)
+        .filter(
+            SessionEvent.source == source,
+        )
+        .count()
+    )
 
     return {
         "id": partner.id,

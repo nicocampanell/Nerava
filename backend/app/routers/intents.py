@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+import math
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.db import get_db
 from app.dependencies_domain import get_current_user
-from app.models import User, ChargeIntent
-import uuid
-import math
+from app.models import ChargeIntent, User
 
 router = APIRouter()
 

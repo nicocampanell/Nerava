@@ -4,15 +4,16 @@ Virtual Cards Router
 Endpoints for virtual card generation and management.
 Feature-flagged with VIRTUAL_CARD_ENABLED.
 """
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
-from datetime import datetime
-import uuid
 import logging
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
 
-from ..db import get_db
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from ..core.config import flag_enabled
+from ..db import get_db
 from ..dependencies_domain import get_current_user
 from ..models import User
 

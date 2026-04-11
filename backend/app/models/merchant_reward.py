@@ -6,18 +6,27 @@ Covers:
 - RewardClaim: Driver claims a merchant reward (before purchase)
 - ReceiptSubmission: Receipt photo upload + OCR verification
 """
-import uuid
 import enum
+import uuid
 from datetime import datetime
+
 from sqlalchemy import (
-    Column, String, Integer, Float, DateTime, ForeignKey,
-    JSON, Text, Index, Enum as SQLEnum,
+    JSON,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
 )
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 
 from app.db import Base
-
 
 # ---------------------------------------------------------------------------
 # Helpers

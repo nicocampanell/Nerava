@@ -5,9 +5,9 @@ Provides an interface for sending emails. Currently implements ConsoleEmailSende
 for development. Future implementations can add MailgunEmailSender, SendGridEmailSender, etc.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
-import logging
 
 logger = logging.getLogger(__name__)
 

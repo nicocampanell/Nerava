@@ -12,9 +12,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from ...core.config import settings
-from ...core.security import hash_password, verify_password
 from ...core.email_sender import get_email_sender
+from ...core.security import hash_password, verify_password
 from ...models.email_otp_challenge import EmailOTPChallenge
 from .otp_provider import OTPProvider
 

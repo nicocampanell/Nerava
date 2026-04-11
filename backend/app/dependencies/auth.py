@@ -1,11 +1,10 @@
 """
 Authentication dependencies for role-based access control
 """
-from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
-from jose import jwt, JWTError
+from fastapi import HTTPException, Request, status
+from jose import JWTError, jwt
+
 from ..core.config import settings
-from ..core.security import settings as security_settings
 
 
 def get_current_user_role(request: Request) -> str:

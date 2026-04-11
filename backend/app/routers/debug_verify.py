@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.db import SessionLocal
-from app.config import settings
+from sqlalchemy.orm import Session
 
+from app.config import settings
+from app.db import SessionLocal
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 

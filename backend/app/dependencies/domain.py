@@ -4,17 +4,18 @@ Role-based access control dependencies
 """
 import os
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from jose import jwt
-from fastapi.security import OAuth2PasswordBearer
 
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt
+from sqlalchemy.orm import Session
+
+from ..core.config import settings
+from ..core.env import is_local_env
 from ..db import get_db
 from ..models import User
 from ..models.admin_role import AdminRole, has_permission
 from ..services.auth_service import AuthService
-from ..core.config import settings
-from ..core.env import is_local_env
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
@@ -91,8 +92,9 @@ def get_current_user(
     # Dev fallback: create default user if it doesn't exist
     if not user and DEV_ALLOW_ANON_USER_ENABLED:
         try:
-            from ..models import User as UserModel
             import uuid
+
+            from ..models import User as UserModel
             # Create a default user for dev
             default_user = UserModel(
                 id=1,

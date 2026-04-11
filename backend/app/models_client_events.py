@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey, func
-from sqlalchemy.orm import relationship
-from app.db import Base
 import json
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
+
+from app.db import Base
 
 
 class ClientEvent(Base):

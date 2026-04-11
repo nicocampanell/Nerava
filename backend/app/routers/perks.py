@@ -3,12 +3,13 @@ Perks Router
 Handles perk unlock endpoint
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
 from app.dependencies_domain import get_current_user
+from app.models import User
 from app.schemas.perks import (
     PerkUnlockRequest,
     PerkUnlockResponse,

@@ -3,24 +3,24 @@ Merchant Reports API Router
 
 Provides endpoints for merchant reporting functionality and self-service insights.
 """
-from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func, text, and_, cast, Integer as SQLInteger
 from datetime import datetime, timedelta
+from math import asin, cos, radians, sin, sqrt
 from typing import Optional
-from math import radians, sin, cos, asin, sqrt
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import Integer as SQLInteger
+from sqlalchemy import and_, cast, func
+from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies.domain import require_admin, require_merchant_admin
 from app.models import User
 from app.models.session_event import SessionEvent
 from app.models.while_you_charge import Charger
-from app.models.domain import DomainMerchant
-from app.dependencies.domain import require_admin, require_merchant_admin
 from app.services.auth_service import AuthService
 from app.services.merchant_reports import (
-    get_merchant_report,
     MerchantReport,
-    DEFAULT_AVG_TICKET_CENTS
+    get_merchant_report,
 )
 from app.utils.log import get_logger
 
@@ -284,8 +284,8 @@ def get_merchant_insights(
     session_details = None
     customer_details = None
     try:
-        from app.services.merchant_subscription_service import is_pro
         from app.services.merchant_onboarding_service import create_or_get_merchant_account
+        from app.services.merchant_subscription_service import is_pro
         merchant_account = create_or_get_merchant_account(db, user.id)
         has_pro = is_pro(db, merchant_account.id)
 

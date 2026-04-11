@@ -7,12 +7,12 @@ Reuses existing SessionEventService methods for session management.
 """
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.tesla_connection import TeslaConnection
 from app.models.session_event import SessionEvent
+from app.models.tesla_connection import TeslaConnection
 from app.services.session_event_service import SessionEventService
 
 logger = logging.getLogger(__name__)
@@ -304,8 +304,8 @@ class TelemetryProcessor:
             # Try to match charger if not set
             if not session.charger_id:
                 try:
-                    from app.services.intent_service import find_nearest_charger
                     from app.db import SessionLocal
+                    from app.services.intent_service import find_nearest_charger
                     db = SessionLocal()
                     try:
                         result = find_nearest_charger(db, float(lat), float(lng), radius_m=500)

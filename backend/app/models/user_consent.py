@@ -3,8 +3,10 @@ User Consent model for GDPR compliance
 Tracks user consent for analytics, marketing, etc.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 

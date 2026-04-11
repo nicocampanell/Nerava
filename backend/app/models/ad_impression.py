@@ -2,9 +2,11 @@
 AdImpression model — tracks driver-side impressions of merchant listings for CPM billing.
 """
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Index
-from ..db import Base
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class AdImpression(Base):

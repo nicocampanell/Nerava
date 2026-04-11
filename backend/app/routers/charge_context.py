@@ -6,19 +6,19 @@ Returns nearby merchants for a given charging location.
 No "intent" language — this is purely context for what's near the charger.
 """
 import logging
-from typing import Optional, List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.db import get_db
-from app.models import User
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
-from app.dependencies.driver import get_current_driver, get_current_driver_optional
-from app.services.geo import haversine_m
-from app.services.analytics import get_analytics_client
 from app.core.config import settings
+from app.db import get_db
+from app.dependencies.driver import get_current_driver_optional
+from app.models import User
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
+from app.services.analytics import get_analytics_client
+from app.services.geo import haversine_m
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ async def get_nearby_context(
                     walk_minutes = cm.walk_duration_s // 60 if cm.walk_duration_s else None
 
             # Count active arrivals for social proof
-            from app.models.arrival_session import ArrivalSession, ACTIVE_STATUSES
+            from app.models.arrival_session import ACTIVE_STATUSES, ArrivalSession
             active_count = (
                 db.query(ArrivalSession)
                 .filter(

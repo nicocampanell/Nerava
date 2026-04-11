@@ -4,21 +4,22 @@ Campaigns Router — Sponsor/admin campaign management.
 CRUD for campaigns, grant listing, budget management.
 Used by the campaign portal (console.nerava.network).
 """
+from datetime import datetime
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List, Dict, Any
-from datetime import datetime
 
 from ..db import get_db
 from ..dependencies.domain import get_current_user
 from ..dependencies.driver import get_current_driver
-from ..models.user import User
+from ..models import Charger
 from ..models.campaign import Campaign
 from ..models.session_event import IncentiveGrant, SessionEvent
+from ..models.user import User
 from ..services.campaign_service import CampaignService
 from ..services.geo import haversine_m
-from ..models import Charger
 
 router = APIRouter(prefix="/v1/campaigns", tags=["campaigns"])
 
@@ -168,8 +169,8 @@ async def get_driver_active_campaigns(
     driver: User = Depends(get_current_driver),
 ):
     """Return active campaigns relevant to the driver's location."""
-    from app.routers.chargers import _match_campaign_reward
     from app.models.while_you_charge import Charger
+    from app.routers.chargers import _match_campaign_reward
 
     active = CampaignService.get_active_campaigns(db)
     results = []
@@ -330,6 +331,7 @@ async def create_campaign_checkout(
         raise HTTPException(status_code=400, detail="Campaign is already funded")
 
     import stripe as stripe_module
+
     from ..core.config import settings
 
     if not settings.STRIPE_SECRET_KEY:
@@ -504,8 +506,9 @@ async def browse_chargers(
     current_user: User = Depends(get_current_user),
 ):
     """Browse all chargers in the database for campaign targeting."""
-    from sqlalchemy import func, outerjoin
     from datetime import timedelta
+
+    from sqlalchemy import func
 
     query = db.query(Charger)
 
@@ -580,8 +583,9 @@ async def get_charger_utilization(
     current_user: User = Depends(get_current_user),
 ):
     """Get session counts per charger for utilization dashboard."""
-    from sqlalchemy import func
     from datetime import timedelta
+
+    from sqlalchemy import func
 
     since = datetime.utcnow() - timedelta(days=since_days)
     query = (

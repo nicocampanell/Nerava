@@ -6,19 +6,19 @@ Creates:
 - Asadas Grill merchant (enriched from Google Places)
 - Primary merchant override link
 """
-import sys
 import asyncio
+import sys
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
-from app.services.google_places_new import search_text, place_details
-from app.services.merchant_enrichment import enrich_from_google_places
 import logging
+
+from app.db import SessionLocal
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
+from app.services.google_places_new import place_details, search_text
+from app.services.merchant_enrichment import enrich_from_google_places
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -172,7 +172,7 @@ async def seed_canyon_ridge_override():
             override.exclusive_description = "Free Margarita (Charging Exclusive)"
             override.distance_m = distance_m
             override.walk_duration_s = walk_duration_s
-            logger.info(f"✅ Updated existing ChargerMerchant link to primary")
+            logger.info("✅ Updated existing ChargerMerchant link to primary")
         else:
             # Create new primary override link
             override = ChargerMerchant(
@@ -187,7 +187,7 @@ async def seed_canyon_ridge_override():
                 exclusive_description="Free Margarita (Charging Exclusive)",
             )
             db.add(override)
-            logger.info(f"✅ Created primary merchant override")
+            logger.info("✅ Created primary merchant override")
         
         db.commit()
         

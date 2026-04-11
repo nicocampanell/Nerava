@@ -3,10 +3,10 @@ PostHog Events Router
 Provides API endpoints for manually triggering PostHog events via Swagger.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
-import os
 
 from app.services.analytics import get_analytics_client
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import base64
 import json
-from math import radians, cos, sin, asin, sqrt
+from math import asin, cos, radians, sin, sqrt
 from typing import List, Optional, Tuple
-from sqlalchemy import text
-from app.db import SessionLocal
 
+from sqlalchemy import text
+
+from app.db import SessionLocal
 
 ALLOWED_FIELDS = {
     "id",

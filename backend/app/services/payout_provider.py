@@ -6,7 +6,6 @@ the correct provider (Stripe or Dwolla) per wallet.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass

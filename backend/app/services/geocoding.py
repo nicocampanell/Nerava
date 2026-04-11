@@ -2,9 +2,10 @@
 Google Geocoding API service for resolving addresses/places to lat/lng.
 Uses the existing GOOGLE_PLACES_API_KEY from config.
 """
-import os
-import httpx
 import logging
+import os
+
+import httpx
 
 logger = logging.getLogger(__name__)
 

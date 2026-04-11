@@ -5,20 +5,19 @@ Provides daily aggregations for sessions, drivers, revenue, and campaigns.
 All endpoints require admin auth and accept a `days` query parameter.
 """
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import func, distinct, case
+from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies_domain import require_admin
 from app.models import User
-from app.models.session_event import SessionEvent, IncentiveGrant
 from app.models.campaign import Campaign
 from app.models.driver_wallet import Payout
-from app.dependencies_domain import require_admin
-
+from app.models.session_event import IncentiveGrant, SessionEvent
 
 router = APIRouter(prefix="/v1/admin/analytics", tags=["admin-analytics"])
 
@@ -326,8 +325,9 @@ def get_all_availability_latest(
     admin: User = Depends(require_admin),
 ):
     """Get the latest availability snapshot for all monitored chargers."""
-    from app.models.charger_availability import ChargerAvailabilitySnapshot
     from sqlalchemy import func
+
+    from app.models.charger_availability import ChargerAvailabilitySnapshot
 
     # Subquery for max recorded_at per charger
     latest_sub = (

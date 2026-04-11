@@ -1,10 +1,12 @@
 """
 Service for fetching merchant activation counts (today)
 """
-from datetime import datetime, date
+from datetime import datetime
 from typing import Dict
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+
 from app.models.exclusive_session import ExclusiveSession, ExclusiveSessionStatus
 
 

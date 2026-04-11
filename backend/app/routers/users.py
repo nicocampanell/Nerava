@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-from app.services.db_user import get_user_by_id, upsert_user_prefs, DEFAULT_PREFS
+
+from app.services.db_user import DEFAULT_PREFS, get_user_by_id, upsert_user_prefs
 
 router = APIRouter(prefix="/v1/users", tags=["users"])
 

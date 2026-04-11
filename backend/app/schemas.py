@@ -1,6 +1,8 @@
 from datetime import time
 from typing import List, Optional
+
 from pydantic import BaseModel, EmailStr
+
 
 class Token(BaseModel):
     access_token: str

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Query, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
-from app.db import get_db
+from sqlalchemy.orm import Session
 
+from app.db import get_db
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 

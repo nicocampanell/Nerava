@@ -1,12 +1,13 @@
-from datetime import datetime, time
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Time, Index
-from sqlalchemy.orm import relationship
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
+
 from ..db import Base
 
 # Import demo models (keep demo separate)
 try:
-    from ..models_demo import DemoState, DemoSeedLog, ApiKey
+    from ..models_demo import ApiKey, DemoSeedLog, DemoState  # noqa: F401
 except ImportError:
     # If models_demo doesn't exist, define stubs to avoid import errors
     pass
@@ -18,32 +19,37 @@ except Exception:
 
 # --- existing: User & UserPreferences live here already ---
 
+
 class CreditLedger(Base):
     __tablename__ = "credit_ledger"
     id = Column(Integer, primary_key=True)
     user_ref = Column(String, index=True, nullable=False)  # email or "USER_ID" string (compat)
-    cents = Column(Integer, nullable=False)                # +earn / -spend
-    reason = Column(String, default="ADJUST")              # OFF_PEAK_AWARD / REDEEM / ADJUST
+    cents = Column(Integer, nullable=False)  # +earn / -spend
+    reason = Column(String, default="ADJUST")  # OFF_PEAK_AWARD / REDEEM / ADJUST
     meta = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 
 class IncentiveRule(Base):
     __tablename__ = "incentive_rules"
     id = Column(Integer, primary_key=True)
-    code = Column(String, unique=True, index=True)         # "OFF_PEAK_BASE"
+    code = Column(String, unique=True, index=True)  # "OFF_PEAK_BASE"
     active = Column(Boolean, default=True)
-    params = Column(JSON, default=dict)                    # {"cents":25,"window":["22:00","06:00"]}
+    params = Column(JSON, default=dict)  # {"cents":25,"window":["22:00","06:00"]}
+
 
 class UtilityEvent(Base):
     __tablename__ = "utility_events"
     id = Column(Integer, primary_key=True)
-    provider = Column(String, index=True)                  # "austin_energy"
-    kind = Column(String)                                   # "DR_EVENT","RATE_WINDOW"
-    window = Column(JSON, default=dict)                     # {"start":"...","end":"..."}
+    provider = Column(String, index=True)  # "austin_energy"
+    kind = Column(String)  # "DR_EVENT","RATE_WINDOW"
+    window = Column(JSON, default=dict)  # {"start":"...","end":"..."}
     payload = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+
 # --- Social / Community Pool ---
+
 
 class Follow(Base):
     __tablename__ = "follows"
@@ -51,6 +57,7 @@ class Follow(Base):
     follower_id = Column(String, index=True, nullable=False)
     followee_id = Column(String, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 
 class RewardEvent(Base):
     __tablename__ = "reward_events"
@@ -63,6 +70,7 @@ class RewardEvent(Base):
     meta = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+
 class FollowerShare(Base):
     __tablename__ = "follower_shares"
     id = Column(Integer, primary_key=True)
@@ -71,6 +79,7 @@ class FollowerShare(Base):
     cents = Column(Integer, nullable=False)
     settled = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 
 class CommunityPeriod(Base):
     __tablename__ = "community_periods"
@@ -81,7 +90,9 @@ class CommunityPeriod(Base):
     total_distributed_cents = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+
 # --- Group Challenges ---
+
 
 class Challenge(Base):
     __tablename__ = "challenges"
@@ -94,6 +105,7 @@ class Challenge(Base):
     sponsor_merchant_id = Column(String, index=True)  # Optional sponsor
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+
 class Participation(Base):
     __tablename__ = "participations"
     id = Column(Integer, primary_key=True)
@@ -103,11 +115,13 @@ class Participation(Base):
     points = Column(Integer, default=0)  # Points earned
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+
 class FeatureFlag(Base):
     __tablename__ = "feature_flags"
     key = Column(String, primary_key=True)
     enabled = Column(Boolean, default=False)
     env = Column(String, default="prod")  # prod/staging/dev
+
 
 # Dual-Radius Verification Model
 class DualZoneSession(Base):
@@ -118,21 +132,20 @@ class DualZoneSession(Base):
     merchant_id = Column(String, index=True, nullable=False)
 
     # timestamps
-    started_at = Column(DateTime, default=datetime.utcnow, index=True)   # app-side start
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)  # app-side start
     charger_entered_at = Column(DateTime, nullable=True)
     merchant_entered_at = Column(DateTime, nullable=True)
     verified_at = Column(DateTime, nullable=True)
 
     # parameters
-    charger_radius_m = Column(Integer, default=40)   # R1
-    merchant_radius_m = Column(Integer, default=100) # R2
-    dwell_threshold_s = Column(Integer, default=300) # 5 min
+    charger_radius_m = Column(Integer, default=40)  # R1
+    merchant_radius_m = Column(Integer, default=100)  # R2
+    dwell_threshold_s = Column(Integer, default=300)  # 5 min
 
     # computed
     dwell_seconds = Column(Integer, default=0)
     status = Column(String, default="pending")  # pending|verified|expired
     meta = Column(JSON, default=dict)
 
+
 Index("ix_dual_zone_user_active", DualZoneSession.user_id, DualZoneSession.status)
-
-

@@ -2,12 +2,13 @@
 Merchant enrichment service for syncing Google Places API data to Merchant model.
 """
 import logging
-from typing import Optional, Dict, List
 from datetime import datetime, timedelta
+from typing import Dict, Optional
+
 from sqlalchemy.orm import Session
 
 from app.models.while_you_charge import Merchant
-from app.services.google_places_new import place_details, get_open_status, get_photo_url
+from app.services.google_places_new import get_open_status, get_photo_url, place_details
 
 logger = logging.getLogger(__name__)
 

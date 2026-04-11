@@ -4,16 +4,17 @@ Provides get_current_driver with dev fallback support
 """
 import os
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from jose import jwt
 
-from ..db import get_db
-from ..models import User
+from fastapi import Depends, HTTPException, Request, status
+from jose import jwt
+from sqlalchemy.orm import Session
+
 from ..core.config import settings
 from ..core.env import is_local_env
-from .domain import oauth2_scheme
+from ..db import get_db
+from ..models import User
 from ..services.auth_service import AuthService
+from .domain import oauth2_scheme
 
 DEV_ALLOW_ANON_DRIVER_ENABLED = (
     os.getenv("NERAVA_DEV_ALLOW_ANON_DRIVER", "false").lower() == "true" 
@@ -132,7 +133,7 @@ def get_current_driver(
             db.add(default_user)
             db.commit()
             db.refresh(default_user)
-            print(f"[AUTH][DEV] Created default driver user (id=1)")
+            print("[AUTH][DEV] Created default driver user (id=1)")
             user = default_user
         except Exception as e:
             # If creation fails (e.g., user already exists), try to fetch again

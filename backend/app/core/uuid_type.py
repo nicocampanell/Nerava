@@ -5,8 +5,8 @@ This module provides a UUID type that works seamlessly with both SQLite and Post
 For SQLite, UUIDs are stored as CHAR(36) strings. For PostgreSQL, native UUID type is used.
 """
 import uuid
-from sqlalchemy import TypeDecorator, String
-from sqlalchemy.dialects import postgresql
+
+from sqlalchemy import String, TypeDecorator
 
 
 class UUIDType(TypeDecorator):

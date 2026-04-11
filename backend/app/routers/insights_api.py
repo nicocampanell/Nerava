@@ -1,9 +1,9 @@
 from fastapi import APIRouter
-from app.domains.schemas import InsightsReq
-from app.services.events2 import event_insights
-from app.services import merchant_analytics
-from app.db import SessionLocal
 
+from app.db import SessionLocal
+from app.domains.schemas import InsightsReq
+from app.services import merchant_analytics
+from app.services.events2 import event_insights
 
 router = APIRouter(prefix="/v1/insights", tags=["insights"])
 

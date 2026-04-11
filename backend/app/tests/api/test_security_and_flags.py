@@ -1,11 +1,12 @@
 """
 Comprehensive tests for security, feature flags, and API endpoints.
 """
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
+
+import pytest
+from app.core.config import clear_flag_cache
 from app.main_simple import app
-from app.core.config import flag_enabled, clear_flag_cache
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

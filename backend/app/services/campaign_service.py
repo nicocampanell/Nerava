@@ -7,13 +7,13 @@ Key mechanics per review:
 - Driver caps enforced
 - Refund/clawback support
 """
-import uuid
 import logging
+import uuid
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, text, func
 
 from app.models.campaign import Campaign
 from app.models.session_event import IncentiveGrant

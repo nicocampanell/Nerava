@@ -1,11 +1,13 @@
 """
 JWT token handling for authentication
 """
-import jwt
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
+import jwt
 from fastapi import HTTPException, status
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)

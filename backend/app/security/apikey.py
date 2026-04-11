@@ -1,9 +1,11 @@
 """
 API key validation and scoping.
 """
-from fastapi import HTTPException, Header, Depends
-from typing import Optional, Dict, Any
 import os
+from typing import Optional
+
+from fastapi import Header, HTTPException
+
 from app.core.config import is_demo
 
 # Mock API key storage - in production this would be in database

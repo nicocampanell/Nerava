@@ -2,9 +2,10 @@
 Database JSON handling utilities (dialect-aware)
 """
 import json
-from sqlalchemy import inspect, Engine
 from typing import Any, Dict
+
 from app.config import settings
+from sqlalchemy import Engine, inspect
 
 
 def as_db_json(value: Dict[str, Any], engine: Engine = None) -> Any:

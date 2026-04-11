@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Nerava Demo Runner — investor-friendly narration + color highlighting.
 
@@ -8,9 +7,13 @@ Adds:
 - Utility-seeded incentive event: webhook → award_off_peak → wallet history
 """
 
-import os, json, sys, traceback
-import httpx
+import json
+import os
+import sys
+import traceback
 from datetime import datetime, timedelta
+
+import httpx
 
 BASE = os.getenv("NERAVA_URL", "http://127.0.0.1:8000")
 LAT  = float(os.getenv("NERAVA_LAT", "30.4021"))

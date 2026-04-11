@@ -2,27 +2,26 @@
 Domain Charge Party MVP Driver Router
 Driver-specific endpoints for charging sessions and Nova operations
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import func, text
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
-from zoneinfo import ZoneInfo
+
 import uuid
-import math
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from cachetools import TTLCache
-from app.db import get_db
-from app.models import User
-from app.models_domain import DomainMerchant, DomainChargingSession, NovaTransaction
-from app.services.nova_service import NovaService
-from app.dependencies_domain import get_current_user
-from app.dependencies_driver import get_current_driver, get_current_driver_optional
-from app.services.auth_service import AuthService
-from app.services.incentives import get_offpeak_state
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
-from app.models.domain import DriverWallet
+from app.db import get_db
+from app.dependencies_driver import get_current_driver, get_current_driver_optional
+from app.models import User
+from app.models_domain import DomainChargingSession, DomainMerchant, NovaTransaction
+from app.services.geo import haversine_m
+from app.services.incentives import get_offpeak_state
+from app.services.nova_service import NovaService
 
 # Location check response cache — keyed by rounded coordinates
 # Reduces DB load for repeated location checks from the same area
@@ -92,28 +91,29 @@ def join_charge_party(
     event_slug: str,
     request: JoinChargePartyRequest,
     user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Join a charge party event and create a charging session.
-    
+
     New events are configured via EnergyEvent rows (event_slug, zone_slug),
     not by adding new endpoints. This endpoint works for any active event.
     """
     from app.models_domain import EnergyEvent
-    
+
     # Look up event by slug
-    event = db.query(EnergyEvent).filter(
-        EnergyEvent.slug == event_slug,
-        EnergyEvent.status == "active"
-    ).first()
-    
+    event = (
+        db.query(EnergyEvent)
+        .filter(EnergyEvent.slug == event_slug, EnergyEvent.status == "active")
+        .first()
+    )
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Event '{event_slug}' not found or not active"
+            detail=f"Event '{event_slug}' not found or not active",
         )
-    
+
     # Create charging session with event_id
     session_id = str(uuid.uuid4())
     session = DomainChargingSession(
@@ -122,15 +122,16 @@ def join_charge_party(
         charger_provider="tesla" if request.charger_id else "manual",
         start_time=datetime.utcnow(),
         event_id=event.id,
-        verified=False
+        verified=False,
     )
     db.add(session)
     db.commit()
     db.refresh(session)
-    
+
     # Initialize old sessions table entry for verify_dwell bridge
     # TODO: Migrate verify_dwell to work directly with DomainChargingSession
     from app.services.session_service import SessionService
+
     SessionService.initialize_verify_dwell_session(
         db=db,
         session_id=session_id,
@@ -138,29 +139,10 @@ def join_charge_party(
         charger_id=request.charger_id,
         merchant_id=request.merchant_id,
         user_lat=request.user_lat,
-        user_lng=request.user_lng
-    )
-    
-    return JoinChargePartyResponse(
-        session_id=session_id,
-        event_id=event_slug,
-        status="started"
+        user_lng=request.user_lng,
     )
 
-
-def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculate distance between two points in meters"""
-    R = 6371000  # Earth radius in meters
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    delta_phi = math.radians(lat2 - lat1)
-    delta_lambda = math.radians(lon2 - lon1)
-    
-    a = (math.sin(delta_phi / 2) ** 2 +
-         math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    
-    return R * c
+    return JoinChargePartyResponse(session_id=session_id, event_id=event_slug, status="started")
 
 
 @router.get("/merchants/nearby")
@@ -172,48 +154,59 @@ async def get_nearby_merchants(
     q: Optional[str] = Query(None, description="Search query (merchant name)"),
     category: Optional[str] = Query(None, description="Category filter (e.g., coffee, food)"),
     nova_only: bool = Query(True, description="Filter to Nova-accepting merchants only"),
-    max_distance_to_charger_m: Optional[int] = Query(None, description="Maximum distance to charger in meters"),
-    while_you_charge: bool = Query(False, description="Filter to merchants within 0.5 miles (805m) of nearest charger"),
+    max_distance_to_charger_m: Optional[int] = Query(
+        None, description="Maximum distance to charger in meters"
+    ),
+    while_you_charge: bool = Query(
+        False, description="Filter to merchants within 0.5 miles (805m) of nearest charger"
+    ),
     user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get nearby merchants in a zone.
-    
+
     Bridge to while_you_charge service to get full merchant data with perks, logos, walk times.
     Returns the same shape as the pilot while_you_charge endpoint for compatibility.
-    
+
     Zones are data-scoped (configured via Zone rows), not path-scoped.
     New zones/events don't require new endpoints.
     """
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(
         "Nearby merchants requested",
         extra={
-            "lat": lat, "lng": lng, "zone_slug": zone_slug, "radius_m": radius_m,
-            "q": q, "category": category, "nova_only": nova_only,
-            "max_distance_to_charger_m": max_distance_to_charger_m, "while_you_charge": while_you_charge, "user_id": user.id
-        }
+            "lat": lat,
+            "lng": lng,
+            "zone_slug": zone_slug,
+            "radius_m": radius_m,
+            "q": q,
+            "category": category,
+            "nova_only": nova_only,
+            "max_distance_to_charger_m": max_distance_to_charger_m,
+            "while_you_charge": while_you_charge,
+            "user_id": user.id,
+        },
     )
     # For now, bridge to the Domain hub view which has all the merchant data we need
     # TODO: Eventually refactor to query DomainMerchant + enrich with perks/logo/walk_time
     if zone_slug == "domain_austin":
-        from app.services.while_you_charge import get_domain_hub_view_async, build_recommended_merchants_from_chargers
-        from app.utils.pwa_responses import shape_charger, shape_merchant
         from app.models.while_you_charge import ChargerMerchant, MerchantPerk
-        
+        from app.services.while_you_charge import (
+            build_recommended_merchants_from_chargers,
+            get_domain_hub_view_async,
+        )
+        from app.utils.pwa_responses import shape_charger, shape_merchant
+
         # Get Domain hub view with chargers and merchants
         hub_view = await get_domain_hub_view_async(db)
-        
+
         # Get shaped chargers with merchants
         shaped_chargers = []
         for charger in hub_view.get("chargers", []):
-            shaped = shape_charger(
-                charger,
-                user_lat=lat,
-                user_lng=lng
-            )
+            shaped = shape_charger(charger, user_lat=lat, user_lng=lng)
             # Attach merchants if present
             if "merchants" in charger:
                 shaped_merchants = []
@@ -221,11 +214,7 @@ async def get_nearby_merchants(
                     # Convert walk_minutes to walk_time_s if needed
                     if "walk_minutes" in merchant and "walk_time_s" not in merchant:
                         merchant["walk_time_s"] = merchant["walk_minutes"] * 60
-                    shaped_m = shape_merchant(
-                        merchant,
-                        user_lat=lat,
-                        user_lng=lng
-                    )
+                    shaped_m = shape_merchant(merchant, user_lat=lat, user_lng=lng)
                     # Ensure walk_time_seconds for aggregation
                     if "walk_time_s" in shaped_m:
                         shaped_m["walk_time_seconds"] = shaped_m["walk_time_s"]
@@ -237,23 +226,28 @@ async def get_nearby_merchants(
                     shaped_merchants.append(shaped_m)
                 shaped["merchants"] = shaped_merchants
             shaped_chargers.append(shaped)
-        
+
         # Build recommended merchants from chargers (same logic as pilot endpoint)
         recommended_merchants = build_recommended_merchants_from_chargers(shaped_chargers, limit=20)
-        
+
         # Enrich merchants with distance_to_charger_m and nova_accepted
-        merchant_ids = [m.get("id") or m.get("merchant_id") for m in recommended_merchants if m.get("id") or m.get("merchant_id")]
-        
+        merchant_ids = [
+            m.get("id") or m.get("merchant_id")
+            for m in recommended_merchants
+            if m.get("id") or m.get("merchant_id")
+        ]
+
         # Get Merchant records to access cached fields (primary_category, nearest_charger_distance_m)
         from app.models.while_you_charge import Merchant
+
         merchant_records = db.query(Merchant).filter(Merchant.id.in_(merchant_ids)).all()
         merchant_cache = {m.id: m for m in merchant_records}
-        
+
         # Get ChargerMerchant links for distance_to_charger_m (fallback if cached field not available)
-        charger_merchant_links = db.query(ChargerMerchant).filter(
-            ChargerMerchant.merchant_id.in_(merchant_ids)
-        ).all()
-        
+        charger_merchant_links = (
+            db.query(ChargerMerchant).filter(ChargerMerchant.merchant_id.in_(merchant_ids)).all()
+        )
+
         # Build map: merchant_id -> best (shortest) distance_to_charger_m (from ChargerMerchant, fallback)
         distance_map = {}
         for link in charger_merchant_links:
@@ -261,73 +255,95 @@ async def get_nearby_merchants(
             distance = link.distance_m
             if merchant_id not in distance_map or distance < distance_map[merchant_id]:
                 distance_map[merchant_id] = distance
-        
+
         # Get MerchantPerk to determine nova_accepted
-        perks = db.query(MerchantPerk).filter(
-            MerchantPerk.merchant_id.in_(merchant_ids),
-            MerchantPerk.is_active == True
-        ).all()
-        
+        perks = (
+            db.query(MerchantPerk)
+            .filter(MerchantPerk.merchant_id.in_(merchant_ids), MerchantPerk.is_active == True)
+            .all()
+        )
+
         # Build map: merchant_id -> (has_active_perk, nova_reward)
         perk_map = {}
         for perk in perks:
             merchant_id = perk.merchant_id
             if merchant_id not in perk_map or perk.nova_reward > perk_map[merchant_id][1]:
                 perk_map[merchant_id] = (True, perk.nova_reward)
-        
+
         # Enrich each merchant with cached fields, distance_to_charger_m, and nova_accepted
         enriched_merchants = []
         for merchant in recommended_merchants:
             merchant_id = merchant.get("id") or merchant.get("merchant_id")
             if not merchant_id:
                 continue
-            
+
             # Get cached fields from Merchant model (defensive - handle missing columns)
             merchant_record = merchant_cache.get(merchant_id)
             if merchant_record:
                 try:
                     # Use cached nearest_charger_distance_m if available
-                    if hasattr(merchant_record, 'nearest_charger_distance_m') and merchant_record.nearest_charger_distance_m is not None:
-                        merchant["nearest_charger_distance_m"] = merchant_record.nearest_charger_distance_m
-                        merchant["distance_to_charger_m"] = merchant_record.nearest_charger_distance_m
+                    if (
+                        hasattr(merchant_record, "nearest_charger_distance_m")
+                        and merchant_record.nearest_charger_distance_m is not None
+                    ):
+                        merchant["nearest_charger_distance_m"] = (
+                            merchant_record.nearest_charger_distance_m
+                        )
+                        merchant["distance_to_charger_m"] = (
+                            merchant_record.nearest_charger_distance_m
+                        )
                     else:
                         # Fallback to ChargerMerchant distance
-                        merchant["distance_to_charger_m"] = int(round(distance_map[merchant_id])) if merchant_id in distance_map else None
+                        merchant["distance_to_charger_m"] = (
+                            int(round(distance_map[merchant_id]))
+                            if merchant_id in distance_map
+                            else None
+                        )
                         merchant["nearest_charger_distance_m"] = merchant["distance_to_charger_m"]
-                    
+
                     # Add primary_category (defensive - handle missing column)
-                    if hasattr(merchant_record, 'primary_category') and merchant_record.primary_category:
+                    if (
+                        hasattr(merchant_record, "primary_category")
+                        and merchant_record.primary_category
+                    ):
                         merchant["primary_category"] = merchant_record.primary_category
                     else:
                         merchant["primary_category"] = merchant.get("category", "other")
                 except (AttributeError, KeyError) as e:
                     # Fallback if column doesn't exist in database
-                    logger.warning(f"Merchant {merchant_id} missing schema columns, using fallbacks: {e}")
-                    merchant["distance_to_charger_m"] = int(round(distance_map[merchant_id])) if merchant_id in distance_map else None
+                    logger.warning(
+                        f"Merchant {merchant_id} missing schema columns, using fallbacks: {e}"
+                    )
+                    merchant["distance_to_charger_m"] = (
+                        int(round(distance_map[merchant_id]))
+                        if merchant_id in distance_map
+                        else None
+                    )
                     merchant["nearest_charger_distance_m"] = merchant["distance_to_charger_m"]
                     merchant["primary_category"] = merchant.get("category", "other")
             else:
                 # Fallback if merchant record not found
-                merchant["distance_to_charger_m"] = int(round(distance_map[merchant_id])) if merchant_id in distance_map else None
+                merchant["distance_to_charger_m"] = (
+                    int(round(distance_map[merchant_id])) if merchant_id in distance_map else None
+                )
                 merchant["nearest_charger_distance_m"] = merchant["distance_to_charger_m"]
                 merchant["primary_category"] = merchant.get("category", "other")
-            
+
             # Add nova_accepted
             has_perk, nova_reward = perk_map.get(merchant_id, (False, 0))
             merchant["nova_accepted"] = has_perk and nova_reward > 0
-            
+
             # Ensure nova_reward is set (use from perk if available)
             if has_perk and nova_reward > 0:
                 merchant["nova_reward"] = nova_reward
-            
+
             enriched_merchants.append(merchant)
-        
+
         # Apply filters
         filtered = []
         for merchant in enriched_merchants:
             # Filter by radius (distance from user)
             if lat and lng:
-                from app.services.verify_dwell import haversine_m
                 merchant_lat = merchant.get("lat")
                 merchant_lng = merchant.get("lng")
                 if merchant_lat and merchant_lng:
@@ -335,44 +351,50 @@ async def get_nearby_merchants(
                     if distance > radius_m:
                         continue
                     merchant["distance_m"] = int(round(distance))
-            
+
             # Filter by nova_only
             if nova_only and not merchant.get("nova_accepted", False):
                 continue
-            
+
             # Filter by name search (q)
             if q:
                 merchant_name = merchant.get("name", "").lower()
                 if q.lower() not in merchant_name:
                     continue
-            
+
             # Filter by category (use primary_category if available, fallback to category)
             if category:
                 merchant_primary_category = merchant.get("primary_category", "").lower()
                 merchant_category = merchant.get("category", "").lower()
-                category_match = merchant_primary_category == category.lower() or merchant_category == category.lower()
+                category_match = (
+                    merchant_primary_category == category.lower()
+                    or merchant_category == category.lower()
+                )
                 if not category_match:
                     continue
-            
+
             # Filter by while_you_charge (merchants within 805m of nearest charger)
             if while_you_charge:
                 nearest_distance = merchant.get("nearest_charger_distance_m")
                 if nearest_distance is None or nearest_distance > 805:
                     continue
-            
+
             # Filter by max_distance_to_charger_m (backward compatibility)
             if max_distance_to_charger_m is not None:
-                distance_to_charger = merchant.get("distance_to_charger_m") or merchant.get("nearest_charger_distance_m")
+                distance_to_charger = merchant.get("distance_to_charger_m") or merchant.get(
+                    "nearest_charger_distance_m"
+                )
                 if distance_to_charger is None or distance_to_charger > max_distance_to_charger_m:
                     continue
-            
+
             filtered.append(merchant)
-        
+
         # Sort by distance_to_charger_m ascending
-        filtered.sort(key=lambda m: m.get("distance_to_charger_m") or float('inf'))
-        
+        filtered.sort(key=lambda m: m.get("distance_to_charger_m") or float("inf"))
+
         # Add activation counts for each merchant
         from app.services.merchant_activation_counts import get_merchant_activation_counts
+
         for merchant in filtered:
             merchant_id = merchant.get("id") or merchant.get("merchant_id")
             if merchant_id:
@@ -382,45 +404,53 @@ async def get_nearby_merchants(
             else:
                 merchant["activations_today"] = 0
                 merchant["verified_visits_today"] = 0
-        
+
         return filtered
     else:
         # For other zones, fall back to DomainMerchant query
         # TODO: Enrich with perks/logo/walk_time data
-        merchants = db.query(DomainMerchant).filter(
-            DomainMerchant.zone_slug == zone_slug,
-            DomainMerchant.status == "active"
-        ).all()
-        
+        merchants = (
+            db.query(DomainMerchant)
+            .filter(DomainMerchant.zone_slug == zone_slug, DomainMerchant.status == "active")
+            .all()
+        )
+
         nearby = []
         for merchant in merchants:
-            distance = haversine_distance(lat, lng, merchant.lat, merchant.lng)
+            distance = haversine_m(lat, lng, merchant.lat, merchant.lng)
             if distance <= radius_m:
                 address = merchant.addr_line1
                 if merchant.city:
-                    address = f"{address}, {merchant.city}, {merchant.state}" if address else f"{merchant.city}, {merchant.state}"
-                
+                    address = (
+                        f"{address}, {merchant.city}, {merchant.state}"
+                        if address
+                        else f"{merchant.city}, {merchant.state}"
+                    )
+
                 # Add activation counts
                 from app.services.merchant_activation_counts import get_merchant_activation_counts
+
                 counts = get_merchant_activation_counts(db, merchant.id)
-                
-                nearby.append({
-                    "id": merchant.id,
-                    "merchant_id": merchant.id,
-                    "name": merchant.name,
-                    "lat": merchant.lat,
-                    "lng": merchant.lng,
-                    "zone_slug": merchant.zone_slug,
-                    "address": address,
-                    "phone": merchant.public_phone,
-                    "nova_reward": 10,  # Default
-                    "walk_time_s": 0,
-                    "walk_time_seconds": 0,
-                    "distance_m": int(round(distance)),
-                    "activations_today": counts["activations_today"],
-                    "verified_visits_today": counts["verified_visits_today"]
-                })
-        
+
+                nearby.append(
+                    {
+                        "id": merchant.id,
+                        "merchant_id": merchant.id,
+                        "name": merchant.name,
+                        "lat": merchant.lat,
+                        "lng": merchant.lng,
+                        "zone_slug": merchant.zone_slug,
+                        "address": address,
+                        "phone": merchant.public_phone,
+                        "nova_reward": 10,  # Default
+                        "walk_time_s": 0,
+                        "walk_time_seconds": 0,
+                        "distance_m": int(round(distance)),
+                        "activations_today": counts["activations_today"],
+                        "verified_visits_today": counts["verified_visits_today"],
+                    }
+                )
+
         return nearby
 
 
@@ -429,57 +459,67 @@ async def get_merchants_for_charger(
     charger_id: str = Query(..., description="Charger ID"),
     state: str = Query("charging", description="State: 'pre-charge' or 'charging'"),
     open_only: bool = Query(False, description="Filter to open merchants only"),
-    user: Optional[User] = Depends(get_current_driver_optional),  # Optional auth - endpoint excluded from middleware
-    db: Session = Depends(get_db)
+    user: Optional[User] = Depends(
+        get_current_driver_optional
+    ),  # Optional auth - endpoint excluded from middleware
+    db: Session = Depends(get_db),
 ):
     """
     Get merchants for a specific charger with primary override support.
-    
+
     In pre-charge state: Returns only the primary merchant if override exists.
     In charging state: Returns primary merchant first, then secondary merchants (up to 3 total).
     """
     import logging
+
     from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
     from app.services.merchant_enrichment import enrich_from_google_places, format_open_until
-    from app.services.verify_dwell import haversine_m
-    
+
     logger = logging.getLogger(__name__)
     user_id = user.id if user else "anonymous"
     logger.info(
         f"Merchants for charger requested: charger_id={charger_id}, state={state}, open_only={open_only}, user_id={user_id}"
     )
-    
+
     # Load charger
     charger = db.query(Charger).filter(Charger.id == charger_id).first()
     if not charger:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Charger '{charger_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Charger '{charger_id}' not found"
         )
-    
+
     # Check for primary merchant override
-    primary_override = db.query(ChargerMerchant).filter(
-        ChargerMerchant.charger_id == charger_id,
-        ChargerMerchant.is_primary == True
-    ).first()
-    
+    primary_override = (
+        db.query(ChargerMerchant)
+        .filter(ChargerMerchant.charger_id == charger_id, ChargerMerchant.is_primary == True)
+        .first()
+    )
+
     if primary_override:
         # Load primary merchant
-        primary_merchant = db.query(Merchant).filter(Merchant.id == primary_override.merchant_id).first()
+        primary_merchant = (
+            db.query(Merchant).filter(Merchant.id == primary_override.merchant_id).first()
+        )
         if not primary_merchant:
-            logger.warning(f"Primary override exists but merchant {primary_override.merchant_id} not found")
+            logger.warning(
+                f"Primary override exists but merchant {primary_override.merchant_id} not found"
+            )
             return []
-        
+
         # Enrich from Google Places if needed
         if primary_merchant.place_id:
-            await enrich_from_google_places(db, primary_merchant, primary_merchant.place_id, force_refresh=False)
+            await enrich_from_google_places(
+                db, primary_merchant, primary_merchant.place_id, force_refresh=False
+            )
             db.refresh(primary_merchant)
-        
+
         # Apply open_only filter (only filter if explicitly False, not if None/unknown)
         if open_only and primary_merchant.open_now is False:
-            logger.info(f"Primary merchant {primary_merchant.id} filtered out (open_now=False, open_only=True)")
+            logger.info(
+                f"Primary merchant {primary_merchant.id} filtered out (open_now=False, open_only=True)"
+            )
             return []
-        
+
         # Build response for primary merchant
         # Calculate walk time if not set (approximate: 80m/min walking speed)
         walk_time_s = primary_override.walk_duration_s
@@ -487,72 +527,97 @@ async def get_merchants_for_charger(
             walk_time_s = int(round(primary_override.distance_m / 80 * 60))
         elif not walk_time_s:
             walk_time_s = 180  # Default 3 minutes
-        
+
         # Get activation counts
         from app.services.merchant_activation_counts import get_merchant_activation_counts
+
         counts = get_merchant_activation_counts(db, primary_merchant.id)
-        
+
         response = {
             "id": primary_merchant.id,
             "merchant_id": primary_merchant.id,
-            "place_id": primary_merchant.place_id or primary_merchant.id,  # Frontend expects place_id
+            "place_id": primary_merchant.place_id
+            or primary_merchant.id,  # Frontend expects place_id
             "name": primary_merchant.name,
             "lat": primary_merchant.lat,
             "lng": primary_merchant.lng,
             "address": primary_merchant.address,
             "phone": primary_merchant.phone,
-            "logo_url": primary_merchant.primary_photo_url or primary_merchant.photo_url or primary_merchant.logo_url,
-            "photo_url": primary_merchant.primary_photo_url or primary_merchant.photo_url or primary_merchant.logo_url,  # Also include photo_url for compatibility
+            "logo_url": primary_merchant.primary_photo_url
+            or primary_merchant.photo_url
+            or primary_merchant.logo_url,
+            "photo_url": primary_merchant.primary_photo_url
+            or primary_merchant.photo_url
+            or primary_merchant.logo_url,  # Also include photo_url for compatibility
             "photo_urls": primary_merchant.photo_urls or [],
             "category": primary_merchant.category or primary_merchant.primary_category,
-            "types": [primary_merchant.category or primary_merchant.primary_category or "restaurant"] if primary_merchant.category or primary_merchant.primary_category else ["restaurant"],
+            "types": (
+                [primary_merchant.category or primary_merchant.primary_category or "restaurant"]
+                if primary_merchant.category or primary_merchant.primary_category
+                else ["restaurant"]
+            ),
             "is_primary": True,
             "exclusive_title": primary_override.exclusive_title,
             "exclusive_description": primary_override.exclusive_description,
-            "open_now": primary_merchant.open_now if primary_merchant.open_now is not None else True,  # Default to True if not set
-            "open_until": format_open_until(primary_merchant.hours_json) if primary_merchant.hours_json else None,
+            "open_now": (
+                primary_merchant.open_now if primary_merchant.open_now is not None else True
+            ),  # Default to True if not set
+            "open_until": (
+                format_open_until(primary_merchant.hours_json)
+                if primary_merchant.hours_json
+                else None
+            ),
             "rating": primary_merchant.rating,
             "user_rating_count": primary_merchant.user_rating_count,
             "walk_time_s": walk_time_s,
             "walk_time_seconds": walk_time_s,
-            "distance_m": int(round(primary_override.distance_m)) if primary_override.distance_m else 0,
+            "distance_m": (
+                int(round(primary_override.distance_m)) if primary_override.distance_m else 0
+            ),
             "activations_today": counts["activations_today"],
             "verified_visits_today": counts["verified_visits_today"],
         }
-        
+
         # In pre-charge state with suppress_others, return only primary
         if state == "pre-charge" and primary_override.suppress_others:
             return [response]
-        
+
         # In charging state, get secondary merchants (up to 2 more = 3 total)
         if state == "charging":
             # Get other merchants for this charger (non-primary)
-            other_links = db.query(ChargerMerchant).filter(
-                ChargerMerchant.charger_id == charger_id,
-                ChargerMerchant.is_primary == False,
-                ChargerMerchant.merchant_id != primary_merchant.id
-            ).order_by(ChargerMerchant.distance_m.asc()).limit(2).all()
-            
+            other_links = (
+                db.query(ChargerMerchant)
+                .filter(
+                    ChargerMerchant.charger_id == charger_id,
+                    ChargerMerchant.is_primary == False,
+                    ChargerMerchant.merchant_id != primary_merchant.id,
+                )
+                .order_by(ChargerMerchant.distance_m.asc())
+                .limit(2)
+                .all()
+            )
+
             results = [response]  # Start with primary
-            
+
             for link in other_links:
                 merchant = db.query(Merchant).filter(Merchant.id == link.merchant_id).first()
                 if not merchant:
                     continue
-                
+
                 # Apply open_only filter
                 if open_only:
                     # Refresh status if needed
                     if merchant.place_id:
                         from app.services.merchant_enrichment import refresh_open_status
+
                         await refresh_open_status(db, merchant, force_refresh=False)
                         db.refresh(merchant)
                     if merchant.open_now is False:
                         continue
-                
+
                 # Get activation counts
                 counts = get_merchant_activation_counts(db, merchant.id)
-                
+
                 # Build secondary merchant response
                 secondary_response = {
                     "id": merchant.id,
@@ -562,12 +627,16 @@ async def get_merchants_for_charger(
                     "lng": merchant.lng,
                     "address": merchant.address,
                     "phone": merchant.phone,
-                    "logo_url": merchant.primary_photo_url or merchant.photo_url or merchant.logo_url,
+                    "logo_url": merchant.primary_photo_url
+                    or merchant.photo_url
+                    or merchant.logo_url,
                     "photo_urls": merchant.photo_urls or [],
                     "category": merchant.category or merchant.primary_category,
                     "is_primary": False,
                     "open_now": merchant.open_now,
-                    "open_until": format_open_until(merchant.hours_json) if merchant.hours_json else None,
+                    "open_until": (
+                        format_open_until(merchant.hours_json) if merchant.hours_json else None
+                    ),
                     "rating": merchant.rating,
                     "user_rating_count": merchant.user_rating_count,
                     "walk_time_s": link.walk_duration_s,
@@ -577,41 +646,47 @@ async def get_merchants_for_charger(
                     "verified_visits_today": counts["verified_visits_today"],
                 }
                 results.append(secondary_response)
-            
+
             return results
-        
+
         # Default: return primary only
         return [response]
-    
+
     # No primary override - use existing nearby merchants logic
     # For now, delegate to nearby endpoint logic but filter by charger
     # This is a simplified version - in production you might want to enhance this
     logger.info(f"No primary override for charger {charger_id}, using default merchant search")
-    
+
     # Get merchants linked to this charger
-    charger_merchant_links = db.query(ChargerMerchant).filter(
-        ChargerMerchant.charger_id == charger_id
-    ).order_by(ChargerMerchant.distance_m.asc()).limit(10).all()
-    
+    charger_merchant_links = (
+        db.query(ChargerMerchant)
+        .filter(ChargerMerchant.charger_id == charger_id)
+        .order_by(ChargerMerchant.distance_m.asc())
+        .limit(10)
+        .all()
+    )
+
     results = []
     for link in charger_merchant_links:
         merchant = db.query(Merchant).filter(Merchant.id == link.merchant_id).first()
         if not merchant:
             continue
-        
+
         # Apply open_only filter
         if open_only:
             if merchant.place_id:
                 from app.services.merchant_enrichment import refresh_open_status
+
                 await refresh_open_status(db, merchant, force_refresh=False)
                 db.refresh(merchant)
             if merchant.open_now is False:
                 continue
-        
+
         # Get activation counts
         from app.services.merchant_activation_counts import get_merchant_activation_counts
+
         counts = get_merchant_activation_counts(db, merchant.id)
-        
+
         result = {
             "id": merchant.id,
             "merchant_id": merchant.id,
@@ -635,7 +710,7 @@ async def get_merchants_for_charger(
             "verified_visits_today": counts["verified_visits_today"],
         }
         results.append(result)
-    
+
     # Limit to 3 for charging state, 1 for pre-charge
     if state == "pre-charge":
         return results[:1]
@@ -647,26 +722,23 @@ async def get_merchants_for_charger(
 def redeem_nova(
     request: RedeemNovaRequest,
     user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Redeem Nova from driver to merchant"""
-    import uuid
-    from fastapi import Header
-    from typing import Optional
-    
+
     # Require idempotency key in non-local environments
     from app.core.env import is_local_env
-    
-    idempotency_key = request.idempotency_key if hasattr(request, 'idempotency_key') else None
+
+    idempotency_key = request.idempotency_key if hasattr(request, "idempotency_key") else None
     if not idempotency_key:
         if not is_local_env():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="idempotency_key is required in non-local environment"
+                detail="idempotency_key is required in non-local environment",
             )
         # In local, generate deterministic idempotency key from request (dev only)
         idempotency_key = f"redeem_{user.id}_{request.merchant_id}_{request.amount}_{request.session_id or 'none'}"
-    
+
     try:
         result = NovaService.redeem_from_driver(
             db=db,
@@ -674,74 +746,68 @@ def redeem_nova(
             merchant_id=request.merchant_id,
             amount=request.amount,
             session_id=request.session_id,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
         )
         return RedeemNovaResponse(**result)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Redemption failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Redemption failed: {str(e)}"
         )
 
 
 @router.get("/me/wallet")
-def get_driver_wallet(
-    user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
-):
+def get_driver_wallet(user: User = Depends(get_current_driver), db: Session = Depends(get_db)):
     """Get driver wallet balance"""
     wallet = NovaService.get_driver_wallet(db, user.id)
     return {
         "nova_balance": wallet.nova_balance,
-        "energy_reputation_score": wallet.energy_reputation_score
+        "energy_reputation_score": wallet.energy_reputation_score,
     }
 
 
 @router.get("/me/wallet/summary")
 def get_driver_wallet_summary(
-    user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    user: User = Depends(get_current_driver), db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get comprehensive wallet summary for driver.
-    
+
     Returns all wallet data needed by the UI including balance, conversion rate,
     charging status, off-peak state, reputation tier, and recent activity.
     """
     # Get driver wallet and refresh to ensure we have latest data
     wallet = NovaService.get_driver_wallet(db, user.id)
     db.refresh(wallet)  # Ensure we get the latest reputation score and balance
-    
+
     # Get conversion rate from settings
     conversion_rate_cents = settings.NOVA_TO_USD_CONVERSION_RATE_CENTS
-    
+
     # Calculate USD equivalent
     nova_balance = wallet.nova_balance or 0
     nova_balance_cents = nova_balance * conversion_rate_cents
     usd_cents = nova_balance_cents
     usd_dollars = usd_cents / 100.0
     usd_equivalent = f"${usd_dollars:.2f}"
-    
+
     # Get charging detected status
     charging_detected = wallet.charging_detected or False
-    
+
     # Get timezone (check user preferences if available, else use default)
     tz_str = settings.DEFAULT_TIMEZONE
     # TODO: Check user.preferences.timezone if field exists in future
     tz = ZoneInfo(tz_str)
-    
+
     # Calculate off-peak state
     now = datetime.now(tz)
     offpeak_active, window_ends_in_seconds = get_offpeak_state(now, tz)
-    
+
     # Calculate reputation tier using service (with error handling)
-    from app.services.reputation import compute_reputation
     import logging
+
+    from app.services.reputation import compute_reputation
+
     logger = logging.getLogger(__name__)
     reputation_score = wallet.energy_reputation_score or 0
     try:
@@ -750,27 +816,30 @@ def get_driver_wallet_summary(
         logger.error(f"Error computing reputation for user {user.id}: {e}", exc_info=True)
         # Fallback to Bronze tier (0 points)
         reputation = compute_reputation(0)
-    
+
     # Get recent activity (last 5 items)
     activities = []
-    
+
     # Aggregate charging sessions by day
     # Query: Group sessions by date and sum Nova earned
     # SQLite: Use DATE() function to extract date from start_time
     # PostgreSQL: Use DATE() or CAST(... AS DATE)
-    daily_sessions = db.query(
-        func.date(DomainChargingSession.start_time).label('session_date'),
-        func.count(DomainChargingSession.id).label('session_count'),
-        func.max(DomainChargingSession.start_time).label('latest_time')
-    ).filter(
-        DomainChargingSession.driver_user_id == user.id,
-        DomainChargingSession.start_time.isnot(None)
-    ).group_by(
-        func.date(DomainChargingSession.start_time)
-    ).order_by(
-        func.date(DomainChargingSession.start_time).desc()
-    ).limit(5).all()
-    
+    daily_sessions = (
+        db.query(
+            func.date(DomainChargingSession.start_time).label("session_date"),
+            func.count(DomainChargingSession.id).label("session_count"),
+            func.max(DomainChargingSession.start_time).label("latest_time"),
+        )
+        .filter(
+            DomainChargingSession.driver_user_id == user.id,
+            DomainChargingSession.start_time.isnot(None),
+        )
+        .group_by(func.date(DomainChargingSession.start_time))
+        .order_by(func.date(DomainChargingSession.start_time).desc())
+        .limit(5)
+        .all()
+    )
+
     # For each day, calculate total Nova earned from related transactions
     for day_result in daily_sessions:
         session_date_raw = day_result.session_date
@@ -781,6 +850,7 @@ def get_driver_wallet_summary(
         # Normalize to datetime.date for datetime.combine()
         if isinstance(session_date_raw, str):
             from datetime import date as date_type
+
             session_date = date_type.fromisoformat(session_date_raw)
         else:
             session_date = session_date_raw
@@ -788,46 +858,59 @@ def get_driver_wallet_summary(
         # Get all sessions for this day
         day_start = datetime.combine(session_date, datetime.min.time())
         day_end = datetime.combine(session_date, datetime.max.time())
-        
-        day_sessions = db.query(DomainChargingSession.id).filter(
-            DomainChargingSession.driver_user_id == user.id,
-            DomainChargingSession.start_time >= day_start,
-            DomainChargingSession.start_time <= day_end
-        ).all()
-        
+
+        day_sessions = (
+            db.query(DomainChargingSession.id)
+            .filter(
+                DomainChargingSession.driver_user_id == user.id,
+                DomainChargingSession.start_time >= day_start,
+                DomainChargingSession.start_time <= day_end,
+            )
+            .all()
+        )
+
         session_ids = [s.id for s in day_sessions]
-        
+
         # Sum Nova earned from transactions linked to these sessions
         # Handle missing payload_hash column gracefully
         try:
-            total_nova = db.query(
-                func.sum(NovaTransaction.amount)
-            ).filter(
-                NovaTransaction.session_id.in_(session_ids),
-                NovaTransaction.type == 'driver_earn',
-                NovaTransaction.driver_user_id == user.id
-            ).scalar() or 0
+            total_nova = (
+                db.query(func.sum(NovaTransaction.amount))
+                .filter(
+                    NovaTransaction.session_id.in_(session_ids),
+                    NovaTransaction.type == "driver_earn",
+                    NovaTransaction.driver_user_id == user.id,
+                )
+                .scalar()
+                or 0
+            )
         except Exception as e:
             if "no such column" in str(e).lower() and "payload_hash" in str(e).lower():
                 # Column doesn't exist - use raw SQL
                 from sqlalchemy import text
+
                 if session_ids:
-                    placeholders = ','.join([':id' + str(i) for i in range(len(session_ids))])
-                    params = {f'id{i}': sid for i, sid in enumerate(session_ids)}
-                    params['user_id'] = user.id
-                    result = db.execute(text(f"""
+                    placeholders = ",".join([":id" + str(i) for i in range(len(session_ids))])
+                    params = {f"id{i}": sid for i, sid in enumerate(session_ids)}
+                    params["user_id"] = user.id
+                    result = db.execute(
+                        text(
+                            f"""
                         SELECT COALESCE(SUM(amount), 0)
                         FROM nova_transactions
                         WHERE session_id IN ({placeholders})
                         AND type = 'driver_earn'
                         AND driver_user_id = :user_id
-                    """), params)
+                    """
+                        ),
+                        params,
+                    )
                     total_nova = result.scalar() or 0
                 else:
                     total_nova = 0
             else:
                 raise
-        
+
         # Fallback: If no Nova transactions found but sessions exist, estimate Nova earned
         # This handles cases where sessions exist but Nova wasn't granted yet (demo/legacy data)
         # NOTE: This is a demo fallback - in production, Nova should always be granted via transactions
@@ -836,66 +919,81 @@ def get_driver_wallet_summary(
             # Use 10 Nova per session (10 Nova = $1.00 at 10¢/Nova conversion rate)
             # This ensures the UI shows a non-zero amount for demo data
             total_nova = session_count * 10  # 10 Nova per session as demo fallback
-        
+
         # Build aggregated activity item
-        activities.append({
-            "id": f"charging_day_{session_date.isoformat()}",
-            "type": "charging_session",
-            "aggregation": "daily",
-            "session_date": session_date.isoformat(),
-            "session_count": int(session_count),
-            "nova_earned": int(total_nova),
-            "amount_cents": int(total_nova * conversion_rate_cents),
-            "created_at": latest_time.isoformat() if latest_time else None,
-            # Note: is_off_peak omitted - do not infer off-peak status per day
-        })
-    
+        activities.append(
+            {
+                "id": f"charging_day_{session_date.isoformat()}",
+                "type": "charging_session",
+                "aggregation": "daily",
+                "session_date": session_date.isoformat(),
+                "session_count": int(session_count),
+                "nova_earned": int(total_nova),
+                "amount_cents": int(total_nova * conversion_rate_cents),
+                "created_at": latest_time.isoformat() if latest_time else None,
+                # Note: is_off_peak omitted - do not infer off-peak status per day
+            }
+        )
+
     # Aggregate Nova earned transactions (driver_earn without session_id) by day
     # Query: Group driver_earn transactions by date and sum amounts
     try:
-        daily_nova_earned = db.query(
-            func.date(NovaTransaction.created_at).label('transaction_date'),
-            func.sum(NovaTransaction.amount).label('total_amount'),
-            func.count(NovaTransaction.id).label('transaction_count'),
-            func.max(NovaTransaction.created_at).label('latest_time')
-        ).filter(
-            NovaTransaction.driver_user_id == user.id,
-            NovaTransaction.type == 'driver_earn',
-            NovaTransaction.session_id.is_(None)  # Only transactions without session_id (not from charging sessions)
-        ).group_by(
-            func.date(NovaTransaction.created_at)
-        ).order_by(
-            func.date(NovaTransaction.created_at).desc()
-        ).limit(5).all()
+        daily_nova_earned = (
+            db.query(
+                func.date(NovaTransaction.created_at).label("transaction_date"),
+                func.sum(NovaTransaction.amount).label("total_amount"),
+                func.count(NovaTransaction.id).label("transaction_count"),
+                func.max(NovaTransaction.created_at).label("latest_time"),
+            )
+            .filter(
+                NovaTransaction.driver_user_id == user.id,
+                NovaTransaction.type == "driver_earn",
+                NovaTransaction.session_id.is_(
+                    None
+                ),  # Only transactions without session_id (not from charging sessions)
+            )
+            .group_by(func.date(NovaTransaction.created_at))
+            .order_by(func.date(NovaTransaction.created_at).desc())
+            .limit(5)
+            .all()
+        )
     except Exception as e:
         if "no such column" in str(e).lower() and "payload_hash" in str(e).lower():
             # Column doesn't exist - use raw SQL
             from sqlalchemy import text
-            result = db.execute(text("""
+
+            result = db.execute(
+                text(
+                    """
                 SELECT DATE(created_at) as transaction_date,
                        SUM(amount) as total_amount,
                        COUNT(id) as transaction_count,
                        MAX(created_at) as latest_time
                 FROM nova_transactions
-                WHERE driver_user_id = :user_id 
+                WHERE driver_user_id = :user_id
                 AND type = 'driver_earn'
                 AND session_id IS NULL
                 GROUP BY DATE(created_at)
                 ORDER BY DATE(created_at) DESC
                 LIMIT 5
-            """), {"user_id": user.id})
+            """
+                ),
+                {"user_id": user.id},
+            )
             rows = result.fetchall()
             daily_nova_earned = []
             for row in rows:
-                daily_nova_earned.append({
-                    "transaction_date": row[0],
-                    "total_amount": row[1] or 0,
-                    "transaction_count": row[2] or 0,
-                    "latest_time": row[3]
-                })
+                daily_nova_earned.append(
+                    {
+                        "transaction_date": row[0],
+                        "total_amount": row[1] or 0,
+                        "transaction_count": row[2] or 0,
+                        "latest_time": row[3],
+                    }
+                )
         else:
             raise
-    
+
     # Add aggregated daily Nova earned transactions
     for day_result in daily_nova_earned:
         if isinstance(day_result, dict):
@@ -908,68 +1006,90 @@ def get_driver_wallet_summary(
             total_amount = day_result.total_amount or 0
             transaction_count = day_result.transaction_count or 0
             latest_time = day_result.latest_time
-        
+
         # Normalize date
         if isinstance(transaction_date_raw, str):
             from datetime import date as date_type
+
             transaction_date = date_type.fromisoformat(transaction_date_raw)
         else:
             transaction_date = transaction_date_raw
-        
-        activities.append({
-            "id": f"nova_earned_day_{transaction_date.isoformat()}",
-            "type": "nova_transaction",
-            "transaction_type": "driver_earn",
-            "aggregation": "daily",
-            "transaction_date": transaction_date.isoformat(),
-            "transaction_count": int(transaction_count),
-            "amount": int(total_amount),
-            "amount_cents": int(total_amount * conversion_rate_cents),
-            "created_at": latest_time.isoformat() if latest_time and hasattr(latest_time, 'isoformat') else (latest_time if latest_time else None)
-        })
-    
+
+        activities.append(
+            {
+                "id": f"nova_earned_day_{transaction_date.isoformat()}",
+                "type": "nova_transaction",
+                "transaction_type": "driver_earn",
+                "aggregation": "daily",
+                "transaction_date": transaction_date.isoformat(),
+                "transaction_count": int(transaction_count),
+                "amount": int(total_amount),
+                "amount_cents": int(total_amount * conversion_rate_cents),
+                "created_at": (
+                    latest_time.isoformat()
+                    if latest_time and hasattr(latest_time, "isoformat")
+                    else (latest_time if latest_time else None)
+                ),
+            }
+        )
+
     # Get other Nova transactions (redemptions, grants, etc.) - exclude driver_earn (already aggregated above)
     # Use raw SQL to avoid selecting payload_hash if column doesn't exist
     try:
         # Try querying with payload_hash first (if column exists)
-        nova_transactions = db.query(NovaTransaction).filter(
-            NovaTransaction.driver_user_id == user.id,
-            NovaTransaction.type != 'driver_earn'  # Exclude all driver_earn (now aggregated by day)
-        ).order_by(NovaTransaction.created_at.desc()).limit(5).all()
+        nova_transactions = (
+            db.query(NovaTransaction)
+            .filter(
+                NovaTransaction.driver_user_id == user.id,
+                NovaTransaction.type
+                != "driver_earn",  # Exclude all driver_earn (now aggregated by day)
+            )
+            .order_by(NovaTransaction.created_at.desc())
+            .limit(5)
+            .all()
+        )
     except Exception as e:
         if "no such column" in str(e).lower() and "payload_hash" in str(e).lower():
             # Column doesn't exist - query without selecting payload_hash explicitly
             # Use raw SQL to select only columns that exist
             from sqlalchemy import text
-            result = db.execute(text("""
-                SELECT id, type, driver_user_id, merchant_id, amount, stripe_payment_id, 
+
+            result = db.execute(
+                text(
+                    """
+                SELECT id, type, driver_user_id, merchant_id, amount, stripe_payment_id,
                        session_id, event_id, metadata, idempotency_key, created_at
                 FROM nova_transactions
-                WHERE driver_user_id = :user_id 
+                WHERE driver_user_id = :user_id
                 AND type != 'driver_earn'
                 ORDER BY created_at DESC
                 LIMIT 5
-            """), {"user_id": user.id})
+            """
+                ),
+                {"user_id": user.id},
+            )
             rows = result.fetchall()
             # Convert to dict format for compatibility
             nova_transactions = []
             for row in rows:
-                nova_transactions.append({
-                    "id": row[0],
-                    "type": row[1],
-                    "driver_user_id": row[2],
-                    "merchant_id": row[3],
-                    "amount": row[4],
-                    "stripe_payment_id": row[5],
-                    "session_id": row[6],
-                    "event_id": row[7],
-                    "transaction_meta": row[8] if row[8] else {},
-                    "idempotency_key": row[9],
-                    "created_at": row[10]
-                })
+                nova_transactions.append(
+                    {
+                        "id": row[0],
+                        "type": row[1],
+                        "driver_user_id": row[2],
+                        "merchant_id": row[3],
+                        "amount": row[4],
+                        "stripe_payment_id": row[5],
+                        "session_id": row[6],
+                        "event_id": row[7],
+                        "transaction_meta": row[8] if row[8] else {},
+                        "idempotency_key": row[9],
+                        "created_at": row[10],
+                    }
+                )
         else:
             raise
-    
+
     for tx in nova_transactions:
         # Handle both ORM objects and dicts
         if isinstance(tx, dict):
@@ -984,43 +1104,64 @@ def get_driver_wallet_summary(
             tx_amount = tx.amount
             tx_created_at = tx.created_at
             tx_merchant_id = tx.merchant_id
-        
-        activities.append({
-            "id": tx_id,
-            "type": "nova_transaction",
-            "transaction_type": tx_type,
-            "amount": tx_amount,
-            "amount_cents": tx_amount * conversion_rate_cents if tx_type in ['driver_earn', 'admin_grant'] else -(tx_amount * conversion_rate_cents),
-            "created_at": tx_created_at.isoformat() if hasattr(tx_created_at, 'isoformat') and tx_created_at else (tx_created_at if tx_created_at else None),
-            "merchant_id": tx_merchant_id
-        })
-    
+
+        activities.append(
+            {
+                "id": tx_id,
+                "type": "nova_transaction",
+                "transaction_type": tx_type,
+                "amount": tx_amount,
+                "amount_cents": (
+                    tx_amount * conversion_rate_cents
+                    if tx_type in ["driver_earn", "admin_grant"]
+                    else -(tx_amount * conversion_rate_cents)
+                ),
+                "created_at": (
+                    tx_created_at.isoformat()
+                    if hasattr(tx_created_at, "isoformat") and tx_created_at
+                    else (tx_created_at if tx_created_at else None)
+                ),
+                "merchant_id": tx_merchant_id,
+            }
+        )
+
     # Get wallet transactions if CreditLedger table exists
     try:
         from app.models_extra import CreditLedger
-        transactions = db.query(CreditLedger).filter(
-            CreditLedger.user_ref == str(user.id)
-        ).order_by(CreditLedger.id.desc()).limit(5).all()
-        
+
+        transactions = (
+            db.query(CreditLedger)
+            .filter(CreditLedger.user_ref == str(user.id))
+            .order_by(CreditLedger.id.desc())
+            .limit(5)
+            .all()
+        )
+
         for tx in transactions:
-            activities.append({
-                "id": str(tx.id),
-                "type": "wallet_transaction",
-                "amount_cents": tx.cents,
-                "reason": tx.reason,
-                "created_at": tx.created_at.isoformat() if hasattr(tx, 'created_at') and tx.created_at else None,
-                "meta": tx.meta if hasattr(tx, 'meta') else {}
-            })
+            activities.append(
+                {
+                    "id": str(tx.id),
+                    "type": "wallet_transaction",
+                    "amount_cents": tx.cents,
+                    "reason": tx.reason,
+                    "created_at": (
+                        tx.created_at.isoformat()
+                        if hasattr(tx, "created_at") and tx.created_at
+                        else None
+                    ),
+                    "meta": tx.meta if hasattr(tx, "meta") else {},
+                }
+            )
     except Exception:
         # CreditLedger table might not exist - skip wallet transactions
         pass
-    
+
     # Sort by most recent and limit to 5
-    activities.sort(key=lambda x: (
-        x.get("start_time") or x.get("created_at") or "1970-01-01"
-    ), reverse=True)
+    activities.sort(
+        key=lambda x: (x.get("start_time") or x.get("created_at") or "1970-01-01"), reverse=True
+    )
     recent_activity = activities[:5]
-    
+
     return {
         "nova_balance": nova_balance,
         "nova_balance_cents": nova_balance_cents,
@@ -1031,7 +1172,7 @@ def get_driver_wallet_summary(
         "window_ends_in_seconds": window_ends_in_seconds,
         "reputation": reputation,
         "recent_activity": recent_activity,
-        "last_updated_at": datetime.utcnow().isoformat() + "Z"
+        "last_updated_at": datetime.utcnow().isoformat() + "Z",
     }
 
 
@@ -1039,57 +1180,74 @@ def get_driver_wallet_summary(
 def get_driver_activity(
     limit: int = Query(50, ge=1, le=100, description="Number of activities to return"),
     user: User = Depends(get_current_driver),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get driver activity/transactions.
-    
+
     Returns recent charging sessions and wallet transactions for the driver.
     """
     activities = []
-    
+
     # Get recent charging sessions
-    sessions = db.query(DomainChargingSession).filter(
-        DomainChargingSession.driver_user_id == user.id
-    ).order_by(DomainChargingSession.start_time.desc()).limit(limit).all()
-    
+    sessions = (
+        db.query(DomainChargingSession)
+        .filter(DomainChargingSession.driver_user_id == user.id)
+        .order_by(DomainChargingSession.start_time.desc())
+        .limit(limit)
+        .all()
+    )
+
     for session in sessions:
-        activities.append({
-            "id": session.id,
-            "type": "charging_session",
-            "status": "verified" if session.verified else "pending",
-            "kwh": session.kwh_estimate,
-            "start_time": session.start_time.isoformat() if session.start_time else None,
-            "end_time": session.end_time.isoformat() if session.end_time else None,
-            "verified": session.verified,
-            "verification_source": session.verification_source
-        })
-    
+        activities.append(
+            {
+                "id": session.id,
+                "type": "charging_session",
+                "status": "verified" if session.verified else "pending",
+                "kwh": session.kwh_estimate,
+                "start_time": session.start_time.isoformat() if session.start_time else None,
+                "end_time": session.end_time.isoformat() if session.end_time else None,
+                "verified": session.verified,
+                "verification_source": session.verification_source,
+            }
+        )
+
     # Get wallet transactions if CreditLedger table exists
     try:
         from app.models_extra import CreditLedger
-        transactions = db.query(CreditLedger).filter(
-            CreditLedger.user_ref == user.id
-        ).order_by(CreditLedger.id.desc()).limit(limit).all()
-        
+
+        transactions = (
+            db.query(CreditLedger)
+            .filter(CreditLedger.user_ref == user.id)
+            .order_by(CreditLedger.id.desc())
+            .limit(limit)
+            .all()
+        )
+
         for tx in transactions:
-            activities.append({
-                "id": str(tx.id),
-                "type": "wallet_transaction",
-                "amount_cents": tx.cents,
-                "reason": tx.reason,
-                "created_at": tx.created_at.isoformat() if hasattr(tx, 'created_at') and tx.created_at else None,
-                "meta": tx.meta if hasattr(tx, 'meta') else {}
-            })
+            activities.append(
+                {
+                    "id": str(tx.id),
+                    "type": "wallet_transaction",
+                    "amount_cents": tx.cents,
+                    "reason": tx.reason,
+                    "created_at": (
+                        tx.created_at.isoformat()
+                        if hasattr(tx, "created_at") and tx.created_at
+                        else None
+                    ),
+                    "meta": tx.meta if hasattr(tx, "meta") else {},
+                }
+            )
     except Exception:
         # CreditLedger table might not exist - skip wallet transactions
         pass
-    
+
     # Sort by most recent (by timestamp if available)
-    activities.sort(key=lambda x: (
-        x.get("start_time") or x.get("created_at") or "1970-01-01"
-    ), reverse=True)
-    
+    activities.sort(
+        key=lambda x: (x.get("start_time") or x.get("created_at") or "1970-01-01"), reverse=True
+    )
+
     # Return only the requested limit
     return activities[:limit]
 
@@ -1125,20 +1283,20 @@ def ping_session_v1(
 ):
     """
     Ping a session to update location and verification status.
-    
+
     Canonical v1 endpoint - replaces /v1/pilot/verify_ping
     """
     from app.services.session_service import SessionService
-    
+
     result = SessionService.ping_session(
         db=db,
         session_id=session_id,
         driver_user_id=current_user.id,
         lat=payload.lat,
         lng=payload.lng,
-        accuracy_m=50.0  # Default accuracy
+        accuracy_m=50.0,  # Default accuracy
     )
-    
+
     return SessionPingResponse(**result)
 
 
@@ -1150,17 +1308,13 @@ def cancel_session_v1(
 ):
     """
     Cancel a charging session.
-    
+
     Canonical v1 endpoint - replaces /v1/pilot/session/cancel
     """
     from app.services.session_service import SessionService
-    
-    SessionService.cancel_session(
-        db=db,
-        session_id=session_id,
-        driver_user_id=current_user.id
-    )
-    
+
+    SessionService.cancel_session(db=db, session_id=session_id, driver_user_id=current_user.id)
+
     return None  # 204 No Content
 
 
@@ -1183,10 +1337,11 @@ def check_location(
     Returns charger proximity information.
     Supports demo static driver mode via DEMO_STATIC_DRIVER_ENABLED.
     """
+    import logging
     import os
+
     from app.models_while_you_charge import Charger
 
-    import logging
     logger = logging.getLogger(__name__)
 
     # Check for demo static driver mode
@@ -1197,9 +1352,7 @@ def check_location(
         demo_charger_id = os.getenv("DEMO_STATIC_CHARGER_ID", "demo_charger_1")
         logger.info(f"[Driver][Location] Demo mode: returning static charger {demo_charger_id}")
         return LocationCheckResponse(
-            in_charger_radius=True,
-            nearest_charger_id=demo_charger_id,
-            distance_m=0.0
+            in_charger_radius=True, nearest_charger_id=demo_charger_id, distance_m=0.0
         )
 
     # Check TTLCache — round to 4 decimal places (~11m) for cache key
@@ -1215,14 +1368,11 @@ def check_location(
     # Find nearest charger
     CHARGER_RADIUS_M = 150  # Same as exclusive activation radius
 
-    # Import haversine function
-    from app.services.verify_dwell import haversine_m
-
     # Query chargers and calculate distance
     chargers = db.query(Charger).all()
 
     nearest_charger = None
-    min_distance = float('inf')
+    min_distance = float("inf")
 
     for charger in chargers:
         if charger.lat and charger.lng:
@@ -1242,11 +1392,10 @@ def check_location(
     response = LocationCheckResponse(
         in_charger_radius=in_radius,
         nearest_charger_id=str(nearest_charger.id) if nearest_charger else None,
-        distance_m=min_distance if nearest_charger else None
+        distance_m=min_distance if nearest_charger else None,
     )
 
     # Store in cache
     _location_check_cache[cache_key] = response
 
     return response
-

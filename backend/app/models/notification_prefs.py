@@ -2,8 +2,10 @@
 Notification preferences model
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, Boolean, DateTime, ForeignKey
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import relationship
+
 from ..db import Base
 
 

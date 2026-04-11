@@ -3,10 +3,12 @@ Models for Vehicle Onboarding (Anti-Fraud)
 - VehicleOnboarding: Stores vehicle verification photos and status
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index
+
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class VehicleOnboarding(Base):

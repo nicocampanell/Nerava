@@ -2,10 +2,9 @@
 Test suite for all 20 feature flag endpoints.
 Tests both flag OFF (404) and flag ON (200) scenarios.
 """
-import pytest
-from fastapi.testclient import TestClient
-from app.main_simple import app
 from app.core.config import clear_flag_cache
+from app.main_simple import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -297,7 +296,7 @@ class TestFeatureFlags:
     
     def test_fleet_flag_off(self):
         """Test fleet endpoint when flag is OFF."""
-        response = client.get(f"/v1/fleet/overview?org_id=ORG123")
+        response = client.get("/v1/fleet/overview?org_id=ORG123")
         assert response.status_code == 404
         assert "Feature not enabled" in response.json()["detail"]
     
@@ -307,7 +306,7 @@ class TestFeatureFlags:
         os.environ["FEATURE_FLEET_WORKPLACE"] = "true"
         clear_flag_cache()
         
-        response = client.get(f"/v1/fleet/overview?org_id=ORG123")
+        response = client.get("/v1/fleet/overview?org_id=ORG123")
         assert response.status_code == 200
         data = response.json()
         assert "org_id" in data

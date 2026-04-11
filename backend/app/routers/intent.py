@@ -6,13 +6,15 @@ import logging
 import time
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from cachetools import TTLCache
 
+from cachetools import TTLCache
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
 from app.db import get_db
-from app.models import User, Charger
 from app.dependencies_domain import get_current_user_optional
+from app.models import User
 from app.schemas.intent import (
     CaptureIntentRequest,
     CaptureIntentResponse,
@@ -20,15 +22,13 @@ from app.schemas.intent import (
     MerchantSummary,
     NextActions,
 )
+from app.services.analytics import get_analytics_client
 from app.services.intent_service import (
     create_intent_session,
+    find_nearest_chargers,
     get_merchants_for_intent,
     requires_vehicle_onboarding,
-    find_nearest_chargers,
 )
-from app.core.config import settings
-from app.services.analytics import get_analytics_client
-from fastapi import Request
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,10 @@ async def capture_intent(
         charger_distance_m = None
 
         # Find nearest chargers (works for both auth and anon)
-        from app.services.intent_service import find_nearest_charger, assign_confidence_tier, validate_location_accuracy
+        from app.services.intent_service import (
+            assign_confidence_tier,
+            validate_location_accuracy,
+        )
 
         if not validate_location_accuracy(request.accuracy_m):
             raise ValueError(f"Location accuracy {request.accuracy_m}m exceeds threshold {settings.LOCATION_ACCURACY_THRESHOLD_M}m")
@@ -155,7 +158,7 @@ async def capture_intent(
         # Enrich chargers with exclusive merchant perk info (gold star on map)
         # Only shows when a merchant has an exclusive offer (e.g. "Free Margarita", "$6 off")
         try:
-            from app.models.while_you_charge import ChargerMerchant, Merchant
+            from app.models.while_you_charge import ChargerMerchant
             charger_ids_list = [cs.id for cs in chargers_list]
             if charger_ids_list:
                 perk_links = (
@@ -180,8 +183,8 @@ async def capture_intent(
 
         # Enrich chargers with campaign reward info
         try:
-            from app.services.campaign_service import CampaignService
             from app.routers.chargers import _get_reward_for_charger
+            from app.services.campaign_service import CampaignService
             active_campaigns = CampaignService.get_active_campaigns(db)
             for cs in chargers_list:
                 charger_obj = next((c for c, _ in charger_results if c.id == cs.id), None)

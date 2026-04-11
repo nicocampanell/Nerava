@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
 from datetime import datetime
-from app.db import get_engine
+
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
+
+from app.db import get_engine
 
 router = APIRouter()
 

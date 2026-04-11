@@ -14,13 +14,14 @@ Run:
   pytest -q nerava-backend-v9/app/tests/test_demo.py
 """
 
-import os, json, time
+import json
+import os
+import time
 from datetime import datetime, timedelta
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main_simple import app
+from fastapi.testclient import TestClient
 
 USER = os.getenv("NERAVA_USER", "demo@nerava.app")
 LAT = float(os.getenv("NERAVA_LAT", "30.4021"))

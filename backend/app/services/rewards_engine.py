@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from sqlalchemy.orm import Session
-from ..models_extra import RewardEvent, Follow, FollowerShare, CommunityPeriod
+
+from ..models_extra import CommunityPeriod, Follow, FollowerShare, RewardEvent
 from ..services.ledger import record_reward_proof
 
 COMMUNITY_PCT = 0.10

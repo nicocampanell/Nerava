@@ -4,9 +4,10 @@ Startup validation functions.
 These functions validate critical configuration before the application starts.
 They are called during application startup and will raise ValueError if validation fails.
 """
+import logging
 import os
 import re
-import logging
+
 from app.core.config import settings
 from app.core.env import is_local_env
 
@@ -32,7 +33,7 @@ def validate_jwt_secret():
             "CRITICAL SECURITY ERROR: JWT secret must be set and not use default value in non-local environment. "
             f"ENV={os.getenv('ENV', 'dev')}. Set JWT_SECRET or NERAVA_SECRET_KEY environment variable."
         )
-        print(f"[Startup] Missing required env var: JWT_SECRET (must be a secure random value, not 'dev-secret' or 'dev-secret-change-me')", flush=True)
+        print("[Startup] Missing required env var: JWT_SECRET (must be a secure random value, not 'dev-secret' or 'dev-secret-change-me')", flush=True)
         logger.error(error_msg)
         raise ValueError(error_msg)
     
@@ -73,7 +74,7 @@ def validate_redis_url():
             f"ENV={os.getenv('ENV', 'dev')}. Redis is required for rate limiting in production. "
             "Please set REDIS_URL environment variable to a valid Redis connection string."
         )
-        print(f"[Startup] Redis URL validation failed: REDIS_URL not configured", flush=True)
+        print("[Startup] Redis URL validation failed: REDIS_URL not configured", flush=True)
         logger.error(error_msg)
         raise ValueError(error_msg)
     
@@ -90,7 +91,7 @@ def validate_dev_flags():
             "CRITICAL: NERAVA_DEV_ALLOW_ANON_USER cannot be enabled in non-local environment. "
             f"ENV={os.getenv('ENV', 'dev')}. This is a security risk."
         )
-        print(f"[Startup] Dev flag violation: NERAVA_DEV_ALLOW_ANON_USER is enabled (security risk)", flush=True)
+        print("[Startup] Dev flag violation: NERAVA_DEV_ALLOW_ANON_USER is enabled (security risk)", flush=True)
         logger.error(error_msg)
         raise ValueError(error_msg)
     
@@ -99,7 +100,7 @@ def validate_dev_flags():
             "CRITICAL: NERAVA_DEV_ALLOW_ANON_DRIVER cannot be enabled in non-local environment. "
             f"ENV={os.getenv('ENV', 'dev')}. This is a security risk."
         )
-        print(f"[Startup] Dev flag violation: NERAVA_DEV_ALLOW_ANON_DRIVER is enabled (security risk)", flush=True)
+        print("[Startup] Dev flag violation: NERAVA_DEV_ALLOW_ANON_DRIVER is enabled (security risk)", flush=True)
         logger.error(error_msg)
         raise ValueError(error_msg)
     
@@ -275,8 +276,8 @@ def ensure_merchant_schema():
     Runs in all environments to fix schema mismatches.
     """
     try:
-        from sqlalchemy import text
         from app.db import SessionLocal
+        from sqlalchemy import text
 
         db = SessionLocal()
         try:
@@ -319,8 +320,8 @@ def ensure_verified_visits_table():
     This handles cases where Alembic migrations are out of sync with the database.
     """
     try:
-        from sqlalchemy import text
         from app.db import SessionLocal
+        from sqlalchemy import text
 
         db = SessionLocal()
         try:
@@ -385,8 +386,8 @@ def check_schema_payload_hash():
         return  # Skip check in non-local environments
     
     try:
-        from sqlalchemy import text
         from app.db import SessionLocal
+        from sqlalchemy import text
         
         db = SessionLocal()
         try:

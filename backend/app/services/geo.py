@@ -1,7 +1,7 @@
 """
 Geographic utility functions
 """
-from math import radians, sin, cos, asin, sqrt
+from math import asin, cos, radians, sin, sqrt
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

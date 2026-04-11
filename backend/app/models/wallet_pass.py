@@ -2,12 +2,14 @@
 Model for Wallet Pass States
 Tracks active wallet passes tied to intent sessions and merchants
 """
-from datetime import datetime, timedelta
-from sqlalchemy import Column, String, DateTime, Enum as SQLEnum, Index
-from sqlalchemy.orm import relationship
-from ..db import Base
-from ..core.uuid_type import UUIDType
 import enum
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Index, String
+from sqlalchemy import Enum as SQLEnum
+
+from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class WalletPassStateEnum(str, enum.Enum):

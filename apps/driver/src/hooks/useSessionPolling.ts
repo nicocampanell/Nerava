@@ -1,6 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useActiveChargingSession, pollChargingSession, type PollSessionResponse } from '../services/api'
+import { useActiveChargingSession, pollChargingSession, ApiError, type PollSessionResponse } from '../services/api'
+
+/** Returns true for auth errors that should stop polling (no retry). */
+function isAuthError(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return true
+    if (err.code === 'refresh_failed' || err.code === 'no_refresh_token') return true
+  }
+  return false
+}
 
 interface SessionPollingState {
   isActive: boolean
@@ -49,43 +58,92 @@ export function useSessionPolling() {
   const incentiveShownRef = useRef<string | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollIntervalRef = useRef<number>(60000) // start at 60s
-  const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inFlightRef = useRef(false)
 
   // Smart polling: adjusts interval based on charging state
+  // Uses chained setTimeout (not setInterval) to prevent overlapping polls
   useEffect(() => {
     if (!authToken) return
+    let cancelled = false
+
+    const schedulePoll = (delayMs: number) => {
+      if (cancelled) return
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current)
+      timeoutIdRef.current = setTimeout(doPoll, delayMs)
+    }
 
     const doPoll = async () => {
+      if (cancelled || inFlightRef.current) return
+      inFlightRef.current = true
       try {
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
-              const speed = pos.coords.speed
-              if (speed !== null && speed > 5) {
-                console.log(`[SessionPolling] Skipping poll — moving at ${speed.toFixed(1)} m/s`)
-                // Moving = not charging, slow down polls
-                updateInterval(300000)
-                return
+              if (cancelled) { inFlightRef.current = false; return }
+              try {
+                const speed = pos.coords.speed
+                if (speed !== null && speed > 5) {
+                  console.log(`[SessionPolling] Skipping poll — moving at ${speed.toFixed(1)} m/s`)
+                  // Moving = not charging, slow down polls
+                  updateInterval(300000)
+                  if (!cancelled) schedulePoll(pollIntervalRef.current)
+                  return
+                }
+                const result = await pollChargingSession(pos.coords.latitude, pos.coords.longitude)
+                queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
+                adjustInterval(result)
+                if (!cancelled) schedulePoll(pollIntervalRef.current)
+              } catch (err) {
+                if (isAuthError(err)) {
+                  // Auth failed — stop polling entirely, broadcast session-expired
+                  console.warn('[SessionPolling] Auth error, stopping poll', err)
+                  window.dispatchEvent(new CustomEvent('nerava:session-expired'))
+                  return
+                }
+                // Transient error — retry after 30s
+                if (!cancelled) schedulePoll(30000)
+              } finally {
+                inFlightRef.current = false
               }
-              const result = await pollChargingSession(pos.coords.latitude, pos.coords.longitude)
-              queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
-              adjustInterval(result)
             },
             async () => {
-              const result = await pollChargingSession()
-              queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
-              adjustInterval(result)
+              if (cancelled) { inFlightRef.current = false; return }
+              try {
+                const result = await pollChargingSession()
+                queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
+                adjustInterval(result)
+                if (!cancelled) schedulePoll(pollIntervalRef.current)
+              } catch (err) {
+                if (isAuthError(err)) {
+                  console.warn('[SessionPolling] Auth error, stopping poll', err)
+                  return
+                }
+                if (!cancelled) schedulePoll(30000)
+              } finally {
+                inFlightRef.current = false
+              }
             },
             { timeout: 5000, maximumAge: 30000 }
           )
+          // Note: inFlightRef is cleared inside the callbacks above
+          return
         } else {
           const result = await pollChargingSession()
           queryClient.invalidateQueries({ queryKey: ['charging-sessions', 'active'] })
           adjustInterval(result)
+          if (!cancelled) schedulePoll(pollIntervalRef.current)
         }
-      } catch {
-        // On error, back off to 5 min
-        updateInterval(300000)
+      } catch (err) {
+        if (isAuthError(err)) {
+          console.warn('[SessionPolling] Auth error, stopping poll', err)
+          window.dispatchEvent(new CustomEvent('nerava:session-expired'))
+          return
+        }
+        // On transient error, retry after 30s
+        if (!cancelled) schedulePoll(30000)
+      } finally {
+        inFlightRef.current = false
       }
     }
 
@@ -123,19 +181,14 @@ export function useSessionPolling() {
       if (newMs === pollIntervalRef.current) return
       console.log(`[SessionPolling] Interval changed: ${pollIntervalRef.current / 1000}s → ${newMs / 1000}s`)
       pollIntervalRef.current = newMs
-      // Restart the interval with the new timing
-      if (intervalIdRef.current) clearInterval(intervalIdRef.current)
-      intervalIdRef.current = setInterval(doPoll, newMs)
     }
 
-    // Initial poll after 5s delay
-    const initialTimeout = setTimeout(doPoll, 5000)
-    // Start with 60s interval
-    intervalIdRef.current = setInterval(doPoll, 60000)
+    // Initial poll after 5s delay, then chain via setTimeout
+    schedulePoll(5000)
 
     return () => {
-      clearTimeout(initialTimeout)
-      if (intervalIdRef.current) clearInterval(intervalIdRef.current)
+      cancelled = true
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current)
     }
   }, [queryClient, authToken])
 

@@ -1,21 +1,22 @@
 """
 Application lifespan management for startup and shutdown events
 """
-import asyncio
 import logging
 import os
 import re
 from contextlib import asynccontextmanager
+
 from sqlalchemy import text
+
+from app.analytics.batch_writer import analytics_batch_writer
 from app.config import settings
 from app.services.async_wallet import async_wallet
 from app.services.cache import cache
+from app.subscribers.wallet_credit import *  # Import to register subscribers
 from app.workers.outbox_relay import outbox_relay
 from app.workers.prewarm import cache_prewarmer
 from app.workers.scheduled_polls import scheduled_poll_worker
 from app.workers.weekly_merchant_report import weekly_merchant_report_worker
-from app.analytics.batch_writer import analytics_batch_writer
-from app.subscribers.wallet_credit import *  # Import to register subscribers
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +86,11 @@ async def lifespan(app):
 
         # One-time exclusive title fix (safe to remove after first deploy)
         try:
-            from app.db import SessionLocal
-            from app.models.while_you_charge import Merchant as WYCMerchant, ChargerMerchant
             from sqlalchemy import func
+
+            from app.db import SessionLocal
+            from app.models.while_you_charge import ChargerMerchant
+            from app.models.while_you_charge import Merchant as WYCMerchant
             _db = SessionLocal()
             _fixes = {"heights pizzeria": "Free Garlic Knots"}
             for _pattern, _title in _fixes.items():

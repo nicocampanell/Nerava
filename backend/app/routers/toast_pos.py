@@ -7,18 +7,18 @@ view connection status, retrieve average order value, and disconnect.
 All endpoints require merchant_admin role authentication.
 """
 import logging
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.db import get_db
-from app.models import User
-from app.dependencies.domain import require_merchant_admin
-from app.services.auth_service import AuthService
-from app.services.merchant_onboarding_service import create_or_get_merchant_account
-from app.services import toast_pos_service
 from app.core.config import settings
+from app.db import get_db
+from app.dependencies.domain import require_merchant_admin
+from app.models import User
+from app.services import toast_pos_service
+from app.services.merchant_onboarding_service import create_or_get_merchant_account
 
 logger = logging.getLogger(__name__)
 

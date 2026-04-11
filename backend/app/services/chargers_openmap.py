@@ -1,7 +1,9 @@
 # app/services/chargers_openmap.py
 from __future__ import annotations
-import os, time, math
-from typing import List, Dict, Any, Tuple
+
+import time
+from typing import Any, Dict, List, Tuple
+
 import requests
 
 OPENCHARGEMAP_API_KEY = "a6ffbff8-a8d5-4314-a0fb-0e599d05f72f"

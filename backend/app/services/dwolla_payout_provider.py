@@ -8,7 +8,7 @@ import logging
 import os
 import uuid
 
-from app.services.payout_provider import PayoutProvider, AccountStatus
+from app.services.payout_provider import AccountStatus, PayoutProvider
 
 logger = logging.getLogger(__name__)
 

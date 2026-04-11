@@ -1,8 +1,10 @@
 """Funding source model for bank accounts/debit cards linked via Plaid."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
-from ..db import Base
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 class FundingSource(Base):

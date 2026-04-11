@@ -1,3 +1,5 @@
+import os
+
 """
 PWA Response Shaping Utilities
 
@@ -6,26 +8,26 @@ Helpers for normalizing API responses to be PWA-friendly:
 - Consistent object shapes
 - Remove internal fields
 """
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 def google_photo_url(photo_reference: Optional[str], max_width: int = 160) -> Optional[str]:
     """
     Convert Google Places photo reference to a full photo URL.
-    
+
     Args:
         photo_reference: Google Places photo_reference string
         max_width: Maximum width in pixels (default 160)
-    
+
     Returns:
         Full Google Places photo URL or None if photo_reference is missing
     """
     if not photo_reference:
         return None
-    
+
     # Hardcoded API key (matches other Google Places integrations)
-    API_KEY = "AIzaSyAs0PVYXj3-ztRXCjdd0ztUGUSjQR73FFg"
-    
+    API_KEY = os.getenv("GOOGLE_API_KEY", "")
+
     return (
         "https://maps.googleapis.com/maps/api/place/photo"
         f"?maxwidth={max_width}"
@@ -46,16 +48,21 @@ def normalize_number(value: Any) -> int:
         return 0
 
 
-def shape_charger(charger: Dict[str, Any], user_lat: Optional[float] = None, user_lng: Optional[float] = None, merchants: Optional[List[Dict]] = None) -> Dict[str, Any]:
+def shape_charger(
+    charger: Dict[str, Any],
+    user_lat: Optional[float] = None,
+    user_lng: Optional[float] = None,
+    merchants: Optional[List[Dict]] = None,
+) -> Dict[str, Any]:
     """
     Shape charger object for PWA consumption.
-    
+
     Args:
         charger: Charger dict to shape
         user_lat: Optional user latitude for distance calculation
         user_lng: Optional user longitude for distance calculation
         merchants: Optional list of merchants to attach to this charger
-    
+
     Returns consistent shape:
     {
         "id": str,
@@ -74,40 +81,40 @@ def shape_charger(charger: Dict[str, Any], user_lat: Optional[float] = None, use
         "lat": float(charger.get("lat", 0)),
         "lng": float(charger.get("lng", 0)),
     }
-    
+
     # Optional fields
     if "network_name" in charger:
         result["network_name"] = str(charger.get("network_name", ""))
-    
+
     # Distance if user location provided
     if user_lat is not None and user_lng is not None:
-        from app.services.verify_dwell import haversine_m
-        distance = haversine_m(
-            user_lat, user_lng,
-            result["lat"], result["lng"]
-        )
+        from app.services.geo import haversine_m
+
+        distance = haversine_m(user_lat, user_lng, result["lat"], result["lng"])
         result["distance_m"] = normalize_number(distance)
-    
+
     # Walk time (if provided in charger dict)
     if "walk_time_s" in charger:
         result["walk_time_s"] = normalize_number(charger.get("walk_time_s"))
     elif "walk_duration_s" in charger:
         result["walk_time_s"] = normalize_number(charger.get("walk_duration_s"))
-    
+
     # Attach merchants if provided (merchants should already be shaped separately)
     if merchants is not None:
         result["merchants"] = merchants
     elif "merchants" in charger:
         # Keep existing merchants array if already present
         result["merchants"] = charger["merchants"]
-    
+
     return result
 
 
-def shape_merchant(merchant: Dict[str, Any], user_lat: Optional[float] = None, user_lng: Optional[float] = None) -> Dict[str, Any]:
+def shape_merchant(
+    merchant: Dict[str, Any], user_lat: Optional[float] = None, user_lng: Optional[float] = None
+) -> Dict[str, Any]:
     """
     Shape merchant object for PWA consumption.
-    
+
     Returns consistent shape:
     {
         "id": str,
@@ -127,21 +134,21 @@ def shape_merchant(merchant: Dict[str, Any], user_lat: Optional[float] = None, u
         "lat": float(merchant.get("lat", 0)),
         "lng": float(merchant.get("lng", 0)),
     }
-    
+
     # Optional fields
     if "category" in merchant:
         result["category"] = str(merchant.get("category", ""))
-    
+
     # Nova reward (important for perk display)
     if "nova_reward" in merchant:
         result["nova_reward"] = normalize_number(merchant.get("nova_reward", 0))
-    
+
     # Logo URL - handle multiple sources (prioritize actual photos over generic icons):
     # 1. photo_url (Google Places photo reference) - convert to full URL (best option)
     # 2. Direct logo_url (if already a full URL, but prefer photo_url if both exist)
     # 3. icon (from Google Places icon) - fallback
     logo_url = None
-    
+
     # Prioritize photo_url over logo_url (photos are better than generic icons)
     if "photo_url" in merchant and merchant.get("photo_url"):
         photo_ref = merchant.get("photo_url")
@@ -170,7 +177,7 @@ def shape_merchant(merchant: Dict[str, Any], user_lat: Optional[float] = None, u
             else:
                 # Assume Google Places photo reference - convert to full URL
                 logo_url = google_photo_url(logo_url_str)
-    
+
     # If still no logo, try icon (Google Places generic icon) as last resort
     # For now, include even generic icons so we can see what merchants have
     # TODO: Once we confirm merchants have proper photos, we can filter generic icons
@@ -178,7 +185,7 @@ def shape_merchant(merchant: Dict[str, Any], user_lat: Optional[float] = None, u
         icon_val = merchant.get("icon", "")
         if icon_val and str(icon_val).strip():
             logo_url = str(icon_val).strip()
-    
+
     # Include logo_url if we have any URL (even generic icons for debugging)
     if logo_url and logo_url.strip():
         result["logo_url"] = logo_url.strip()
@@ -187,16 +194,14 @@ def shape_merchant(merchant: Dict[str, Any], user_lat: Optional[float] = None, u
         # Explicitly set to None if it was in the original but empty
         # This helps frontend distinguish between "not present" and "explicitly empty"
         pass  # Don't include it if it's empty
-    
+
     # Distance if user location provided
     if user_lat is not None and user_lng is not None:
-        from app.services.verify_dwell import haversine_m
-        distance = haversine_m(
-            user_lat, user_lng,
-            result["lat"], result["lng"]
-        )
+        from app.services.geo import haversine_m
+
+        distance = haversine_m(user_lat, user_lng, result["lat"], result["lng"])
         result["distance_m"] = normalize_number(distance)
-    
+
     # Walk time (if provided)
     if "walk_time_s" in merchant:
         result["walk_time_s"] = normalize_number(merchant.get("walk_time_s"))
@@ -205,18 +210,18 @@ def shape_merchant(merchant: Dict[str, Any], user_lat: Optional[float] = None, u
     elif "walk_minutes" in merchant:
         # Convert walk_minutes to walk_time_s
         result["walk_time_s"] = normalize_number(merchant.get("walk_minutes", 0) * 60)
-    
+
     return result
 
 
 def shape_error(error_type: str, message: str) -> Dict[str, Any]:
     """
     Shape error response for PWA consumption.
-    
+
     Args:
         error_type: "NotFound" | "BadRequest" | "Unauthorized" | "Internal"
         message: Human-readable error message
-    
+
     Returns:
         {
             "error": {
@@ -225,10 +230,4 @@ def shape_error(error_type: str, message: str) -> Dict[str, Any]:
             }
         }
     """
-    return {
-        "error": {
-            "type": error_type,
-            "message": message
-        }
-    }
-
+    return {"error": {"type": error_type, "message": message}}

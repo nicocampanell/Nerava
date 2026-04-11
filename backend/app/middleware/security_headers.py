@@ -3,10 +3,11 @@ Security headers middleware.
 
 Adds standard security headers to all responses.
 """
-import os
+
+from app.core.config import settings
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from fastapi import Request
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -14,7 +15,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app: ASGIApp):
         super().__init__(app)
-        self.is_prod = os.getenv("ENV", "dev") == "prod"
+        self.is_prod = settings.is_prod
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)

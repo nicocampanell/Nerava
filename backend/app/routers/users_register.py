@@ -1,11 +1,12 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr
-from typing import Optional
 from sqlalchemy.orm import Session
 
+from ..core.security import hash_password
 from ..db import get_db
 from ..models import User, UserPreferences
-from ..core.security import hash_password
 
 router = APIRouter(prefix="/v1/users", tags=["users"])
 

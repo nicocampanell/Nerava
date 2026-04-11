@@ -7,29 +7,30 @@ merchant confirmation, driver feedback, and active session lookup.
 """
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies.driver import get_current_driver
 from app.models import User
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
 from app.models.arrival_session import (
-    ArrivalSession, ACTIVE_STATUSES, TERMINAL_STATUSES, VALID_TRANSITIONS,
+    ACTIVE_STATUSES,
+    TERMINAL_STATUSES,
+    ArrivalSession,
 )
-from app.models.queued_order import QueuedOrder, QueuedOrderStatus
+from app.models.billing_event import BillingEvent
 from app.models.merchant_notification_config import MerchantNotificationConfig
 from app.models.merchant_pos_credentials import MerchantPOSCredentials
-from app.models.billing_event import BillingEvent
-from app.dependencies.driver import get_current_driver
-from app.services.geo import haversine_m
-from app.services.pos_adapter import get_pos_adapter
-from app.services.notification_service import notify_merchant
+from app.models.queued_order import QueuedOrder, QueuedOrderStatus
+from app.models.while_you_charge import Charger, Merchant
 from app.services.analytics import get_analytics_client
-from app.core.config import settings
+from app.services.geo import haversine_m
+from app.services.notification_service import notify_merchant
+from app.services.pos_adapter import get_pos_adapter
 from app.utils.ev_browser import detect_ev_browser
 
 logger = logging.getLogger(__name__)

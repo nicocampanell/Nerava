@@ -5,11 +5,16 @@ The database engine is created lazily on first access to avoid blocking
 during module import. This is critical for containerized deployments
 where the database might not be immediately available.
 """
+
+import logging
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
+
 from .config import settings
-import sys
+
+logger = logging.getLogger(__name__)
 
 # Global engine instance (lazily initialized)
 _engine = None
@@ -28,24 +33,30 @@ def get_engine():
     global _engine
     if _engine is None:
         # Production safety: Require DATABASE_URL and reject SQLite
-        if settings.ENV == "prod":
+        if settings.is_prod:
             if not settings.database_url:
                 error_msg = "CRITICAL: DATABASE_URL is required in production"
-                print(f"[DB] {error_msg}", flush=True)
+                logger.error(error_msg)
                 raise ValueError(error_msg)
-            
+
             if settings.database_url.startswith("sqlite"):
                 error_msg = (
                     "CRITICAL: SQLite database is not supported in production. "
                     "Please use PostgreSQL (e.g., RDS, managed Postgres)."
                 )
-                print(f"[DB] {error_msg}", flush=True)
+                logger.error(error_msg)
                 raise ValueError(error_msg)
-        
-        # Log database URL safely (only scheme and first few chars, not full connection string)
-        db_url_safe = settings.database_url[:30] + "..." if len(settings.database_url) > 30 else settings.database_url
-        print(f"[DB] Creating database engine for: {db_url_safe}", flush=True)
-        
+
+        # Log database URL safely (only scheme, no credentials)
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(settings.database_url)
+            db_url_safe = f"{parsed.scheme}://{parsed.hostname or 'unknown'}/**"
+        except Exception:
+            db_url_safe = "(unparseable)"
+        logger.info("Creating database engine for: %s", db_url_safe)
+
         try:
             # Configure pooling for production (Postgres)
             # For SQLite (dev only), use different settings
@@ -56,7 +67,7 @@ def get_engine():
                     poolclass=QueuePool,
                     pool_size=5,
                     max_overflow=0,
-                    connect_args={"check_same_thread": False}
+                    connect_args={"check_same_thread": False},
                 )
             else:
                 # PostgreSQL: Production-ready pooling
@@ -68,9 +79,9 @@ def get_engine():
                     pool_pre_ping=True,
                     pool_recycle=3600,
                 )
-            print("[DB] Database engine created successfully", flush=True)
+            logger.info("Database engine created successfully")
         except Exception as e:
-            print(f"[DB] ERROR creating database engine: {e}", flush=True)
+            logger.error("Error creating database engine: %s", e)
             raise
     return _engine
 
@@ -89,6 +100,7 @@ class SessionLocal:
     Wrapper class that provides backwards-compatible SessionLocal behavior
     while using lazy engine initialization.
     """
+
     _instance = None
 
     def __new__(cls):
@@ -111,8 +123,8 @@ def get_db():
         db.close()
 
 
-# Legacy compatibility: expose engine property for code that imports it directly
-# This will trigger lazy initialization when accessed
-@property
+# Legacy compatibility: expose engine as a plain function for code that imports it directly
+# This will trigger lazy initialization when called
 def engine():
+    """Get the database engine (for legacy imports)."""
     return get_engine()

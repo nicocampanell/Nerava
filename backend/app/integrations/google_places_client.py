@@ -2,17 +2,18 @@
 Google Places API client
 https://developers.google.com/maps/documentation/places/web-service
 """
+import asyncio
 import json
 import logging
 import os
-import httpx
-import asyncio
 import time
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from app.core.retry import retry_with_backoff
+import httpx
+
 from app.cache.layers import LayeredCache
 from app.config import settings
+from app.core.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ async def _record_circuit_breaker_success():
 
 # Google Places API key from environment variable
 import os
+
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
 if not GOOGLE_PLACES_API_KEY:
     logging.getLogger(__name__).warning(

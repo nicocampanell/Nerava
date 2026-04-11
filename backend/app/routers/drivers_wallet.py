@@ -3,19 +3,19 @@ Driver wallet endpoints - balance, history, and Nova redemption
 Consolidates wallet-related routes for drivers
 """
 from datetime import datetime
-from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Depends
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models.extra import CreditLedger, IncentiveRule
-from ..models.domain import DriverWallet
-from ..services.nova_service import NovaService
-from ..services.incentives import calc_award_cents
-from ..services.nova import cents_to_nova
 from ..dependencies_driver import get_current_driver
 from ..models import User
+from ..models.extra import CreditLedger, IncentiveRule
+from ..services.incentives import calc_award_cents
+from ..services.nova import cents_to_nova
+from ..services.nova_service import NovaService
 
 router = APIRouter(prefix="/v1/drivers", tags=["drivers-wallet"])
 

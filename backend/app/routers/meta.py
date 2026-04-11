@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 import json
-from datetime import datetime
 import os
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.db import get_db
 
@@ -197,8 +198,9 @@ def debug_abuse(
         })
     
     # Compute current risk score
-    from app.services.fraud import compute_risk_score
     from datetime import datetime
+
+    from app.services.fraud import compute_risk_score
     risk_result = compute_risk_score(db, user_id=user_id, now=datetime.utcnow())
     
     return {

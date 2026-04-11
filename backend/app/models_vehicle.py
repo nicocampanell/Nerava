@@ -2,8 +2,8 @@
 # Import from new location for backward compatibility
 from .models.vehicle import (
     VehicleAccount,
-    VehicleToken,
     VehicleTelemetry,
+    VehicleToken,
 )
 
 __all__ = [

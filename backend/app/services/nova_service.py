@@ -2,22 +2,21 @@
 Nova Service - Nova balance management and transactions
 for Domain Charge Party MVP
 """
-from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from sqlalchemy.exc import OperationalError
+import hashlib
+import json
+import logging
 import uuid
 from datetime import datetime
-import logging
-import json
-import hashlib
+from typing import Any, Dict, Optional
+
+from sqlalchemy import and_
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
 from app.models_domain import (
-    DriverWallet,
     DomainMerchant,
+    DriverWallet,
     NovaTransaction,
-    DomainChargingSession,
-    StripePayment
 )
 from app.services.wallet_activity import mark_wallet_activity
 
@@ -113,7 +112,7 @@ class NovaService:
                         from fastapi import HTTPException
                         raise HTTPException(
                             status_code=409,
-                            detail=f"Idempotency key conflict: same key with different payload"
+                            detail="Idempotency key conflict: same key with different payload"
                         )
                 except OperationalError as e:
                     if "no such column" in str(e).lower() and "payload_hash" in str(e).lower():
@@ -301,7 +300,7 @@ class NovaService:
                         from fastapi import HTTPException
                         raise HTTPException(
                             status_code=409,
-                            detail=f"Idempotency key conflict: same key with different payload"
+                            detail="Idempotency key conflict: same key with different payload"
                         )
                 except OperationalError as e:
                     if "no such column" in str(e).lower() and "payload_hash" in str(e).lower():
@@ -463,7 +462,7 @@ class NovaService:
         
         # Emit nova_redeemed and first_redemption_completed events (non-blocking)
         try:
-            from app.events.domain import NovaRedeemedEvent, FirstRedemptionCompletedEvent
+            from app.events.domain import FirstRedemptionCompletedEvent, NovaRedeemedEvent
             from app.events.outbox import store_outbox_event
             from app.models.domain import MerchantRedemption
             
@@ -552,7 +551,7 @@ class NovaService:
                         from fastapi import HTTPException
                         raise HTTPException(
                             status_code=409,
-                            detail=f"Idempotency key conflict: same key with different payload"
+                            detail="Idempotency key conflict: same key with different payload"
                         )
                 except OperationalError as e:
                     if "no such column" in str(e).lower() and "payload_hash" in str(e).lower():

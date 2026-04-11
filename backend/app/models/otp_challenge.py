@@ -1,8 +1,10 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Boolean, DateTime
-from sqlalchemy.dialects import sqlite
-from ..db import Base
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
+
 UUID_TYPE = UUIDType  # Alias for backward compatibility
 
 

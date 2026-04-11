@@ -4,21 +4,24 @@ Stripe Payout Service - Driver Express Account Payouts
 Production-ready skeleton with mock mode for development.
 Set STRIPE_SECRET_KEY and ENABLE_STRIPE_PAYOUTS=true for production.
 """
+
 import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import text, func
 
 logger = logging.getLogger(__name__)
 
 # Feature flags from environment
 ENABLE_STRIPE_PAYOUTS = os.getenv("ENABLE_STRIPE_PAYOUTS", "false").lower() == "true"
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_PAYOUT_WEBHOOK_SECRET", os.getenv("STRIPE_WEBHOOK_SECRET", ""))
+STRIPE_WEBHOOK_SECRET = os.getenv(
+    "STRIPE_PAYOUT_WEBHOOK_SECRET", os.getenv("STRIPE_WEBHOOK_SECRET", "")
+)
 
 # Business rules
 MINIMUM_WITHDRAWAL_CENTS = 100  # $1 minimum
@@ -36,11 +39,13 @@ def calculate_withdrawal_fee(amount_cents: int) -> int:
     fee = STRIPE_FIXED_FEE_CENTS + int(amount_cents * STRIPE_PERCENT_FEE)
     return fee
 
+
 # Initialize Stripe if key is available
 stripe = None
 if STRIPE_SECRET_KEY:
     try:
         import stripe as stripe_module
+
         stripe = stripe_module
         stripe.api_key = STRIPE_SECRET_KEY
         logger.info("Stripe payout service initialized with live key")
@@ -77,8 +82,10 @@ class PayoutService:
 
         # Always report Stripe as provider when Dwolla is disabled
         dwolla_enabled = os.getenv("ENABLE_DWOLLA_PAYOUTS", "false").lower() == "true"
-        wallet_provider = getattr(wallet, 'payout_provider', 'stripe') or 'stripe'
-        effective_provider = wallet_provider if (wallet_provider == 'dwolla' and dwolla_enabled) else 'stripe'
+        wallet_provider = getattr(wallet, "payout_provider", "stripe") or "stripe"
+        effective_provider = (
+            wallet_provider if (wallet_provider == "dwolla" and dwolla_enabled) else "stripe"
+        )
 
         return {
             "wallet_id": wallet.id,
@@ -90,7 +97,7 @@ class PayoutService:
             "total_earned_cents": wallet.total_earned_cents,
             "total_withdrawn_cents": wallet.total_withdrawn_cents,
             "payout_provider": effective_provider,
-            "bank_verified": getattr(wallet, 'bank_verified', False),
+            "bank_verified": getattr(wallet, "bank_verified", False),
         }
 
     @staticmethod
@@ -121,14 +128,20 @@ class PayoutService:
         """Credit a driver's wallet (e.g., from CLO reward)"""
         from ..models.driver_wallet import DriverWallet, WalletLedger
 
-        wallet = db.query(DriverWallet).filter(
-            DriverWallet.driver_id == driver_id
-        ).with_for_update().first()
+        wallet = (
+            db.query(DriverWallet)
+            .filter(DriverWallet.driver_id == driver_id)
+            .with_for_update()
+            .first()
+        )
         if not wallet:
             wallet_data = PayoutService.get_or_create_wallet(db, driver_id)
-            wallet = db.query(DriverWallet).filter(
-                DriverWallet.driver_id == driver_id
-            ).with_for_update().first()
+            wallet = (
+                db.query(DriverWallet)
+                .filter(DriverWallet.driver_id == driver_id)
+                .with_for_update()
+                .first()
+            )
 
         # Update balance (row locked via with_for_update to prevent lost updates)
         wallet.balance_cents += amount_cents
@@ -150,7 +163,9 @@ class PayoutService:
         db.add(ledger)
         db.commit()
 
-        logger.info(f"Credited {amount_cents} cents to driver {driver_id} wallet for {reference_type}")
+        logger.info(
+            f"Credited {amount_cents} cents to driver {driver_id} wallet for {reference_type}"
+        )
         return {"new_balance_cents": wallet.balance_cents, "ledger_id": ledger.id}
 
     @staticmethod
@@ -178,7 +193,9 @@ class PayoutService:
             wallet.stripe_onboarding_complete = True
             wallet.updated_at = datetime.utcnow()
             db.commit()
-            logger.info(f"[MOCK] Created mock Stripe account {mock_account_id} for driver {driver_id}")
+            logger.info(
+                f"[MOCK] Created mock Stripe account {mock_account_id} for driver {driver_id}"
+            )
             return {
                 "stripe_account_id": mock_account_id,
                 "status": "mock_created",
@@ -228,7 +245,9 @@ class PayoutService:
             raise ValueError(f"Failed to create payout account: {str(e)}")
 
     @staticmethod
-    def create_account_link(db: Session, driver_id: int, return_url: str, refresh_url: str) -> Dict[str, Any]:
+    def create_account_link(
+        db: Session, driver_id: int, return_url: str, refresh_url: str
+    ) -> Dict[str, Any]:
         """Create Stripe account onboarding link"""
         from ..models.driver_wallet import DriverWallet
 
@@ -299,7 +318,9 @@ class PayoutService:
             }
 
     @staticmethod
-    def check_withdrawal_eligibility(db: Session, driver_id: int, amount_cents: int) -> Tuple[bool, str]:
+    def check_withdrawal_eligibility(
+        db: Session, driver_id: int, amount_cents: int
+    ) -> Tuple[bool, str]:
         """Check if driver is eligible for withdrawal"""
         from ..models.driver_wallet import DriverWallet, Payout
 
@@ -321,11 +342,11 @@ class PayoutService:
         # Check payout account based on active provider
         # When Dwolla is disabled, always check Stripe regardless of wallet.payout_provider
         dwolla_enabled = os.getenv("ENABLE_DWOLLA_PAYOUTS", "false").lower() == "true"
-        provider = getattr(wallet, 'payout_provider', 'stripe') or 'stripe'
-        if provider == 'dwolla' and dwolla_enabled:
-            if not getattr(wallet, 'external_account_id', None):
+        provider = getattr(wallet, "payout_provider", "stripe") or "stripe"
+        if provider == "dwolla" and dwolla_enabled:
+            if not getattr(wallet, "external_account_id", None):
                 return False, "Payout account not set up"
-            if not getattr(wallet, 'bank_verified', False) and not _is_mock_mode():
+            if not getattr(wallet, "bank_verified", False) and not _is_mock_mode():
                 return False, "Bank account not linked"
         else:
             if not wallet.stripe_account_id:
@@ -335,25 +356,39 @@ class PayoutService:
 
         # Check daily withdrawal limit (fraud prevention)
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        daily_withdrawals = db.query(Payout).filter(
-            Payout.driver_id == driver_id,
-            Payout.created_at >= today_start,
-            Payout.status.in_(["pending", "processing", "paid"]),
-        ).count()
+        daily_withdrawals = (
+            db.query(Payout)
+            .filter(
+                Payout.driver_id == driver_id,
+                Payout.created_at >= today_start,
+                Payout.status.in_(["pending", "processing", "paid"]),
+            )
+            .count()
+        )
         if daily_withdrawals >= MAX_DAILY_WITHDRAWALS:
             return False, f"Maximum {MAX_DAILY_WITHDRAWALS} withdrawals per day"
 
         # Check weekly limit (fraud prevention)
         from datetime import timedelta
+
         week_start = datetime.utcnow() - timedelta(days=7)
-        weekly_total = db.query(Payout).filter(
-            Payout.driver_id == driver_id,
-            Payout.created_at >= week_start,
-            Payout.status.in_(["pending", "processing", "paid"]),
-        ).with_entities(func.sum(Payout.amount_cents)).scalar() or 0
+        weekly_total = (
+            db.query(Payout)
+            .filter(
+                Payout.driver_id == driver_id,
+                Payout.created_at >= week_start,
+                Payout.status.in_(["pending", "processing", "paid"]),
+            )
+            .with_entities(func.sum(Payout.amount_cents))
+            .scalar()
+            or 0
+        )
 
         if weekly_total + amount_cents > WEEKLY_WITHDRAWAL_LIMIT_CENTS:
-            return False, f"Weekly withdrawal limit of ${WEEKLY_WITHDRAWAL_LIMIT_CENTS / 100:.2f} exceeded"
+            return (
+                False,
+                f"Weekly withdrawal limit of ${WEEKLY_WITHDRAWAL_LIMIT_CENTS / 100:.2f} exceeded",
+            )
 
         return True, "Eligible"
 
@@ -375,9 +410,12 @@ class PayoutService:
         fee_cents = calculate_withdrawal_fee(amount_cents)
         total_debit = amount_cents + fee_cents
 
-        wallet = db.query(DriverWallet).filter(
-            DriverWallet.driver_id == driver_id
-        ).with_for_update().first()
+        wallet = (
+            db.query(DriverWallet)
+            .filter(DriverWallet.driver_id == driver_id)
+            .with_for_update()
+            .first()
+        )
 
         # Re-validate balance after acquiring row lock (prevents race condition)
         if wallet.balance_cents < total_debit:
@@ -446,15 +484,15 @@ class PayoutService:
     @staticmethod
     def _process_transfer(db: Session, payout) -> Dict[str, Any]:
         """Process the transfer via the appropriate provider (Stripe or Dwolla)."""
-        from ..models.driver_wallet import DriverWallet, Payout
+        from ..models.driver_wallet import DriverWallet
         from .payout_provider import get_provider
 
         wallet = db.query(DriverWallet).filter(DriverWallet.id == payout.wallet_id).first()
         # Always route to Stripe unless Dwolla is explicitly enabled
-        provider_name = getattr(wallet, 'payout_provider', 'stripe') or 'stripe'
+        provider_name = getattr(wallet, "payout_provider", "stripe") or "stripe"
         provider = get_provider(provider_name)  # get_provider gates Dwolla behind env var
 
-        if _is_mock_mode() and provider_name == 'stripe':
+        if _is_mock_mode() and provider_name == "stripe":
             # Mock mode: immediately mark as paid
             payout.status = "paid"
             payout.stripe_transfer_id = f"tr_mock_{uuid.uuid4().hex[:16]}"
@@ -487,14 +525,21 @@ class PayoutService:
                 account_id = wallet.external_account_id
                 # Get default funding source for Dwolla transfers
                 from ..models.funding_source import FundingSource
-                funding_source = db.query(FundingSource).filter(
-                    FundingSource.user_id == wallet.driver_id,
-                    FundingSource.removed_at.is_(None),
-                    FundingSource.is_default == True,
-                ).first()
+
+                funding_source = (
+                    db.query(FundingSource)
+                    .filter(
+                        FundingSource.user_id == wallet.driver_id,
+                        FundingSource.removed_at.is_(None),
+                        FundingSource.is_default == True,
+                    )
+                    .first()
+                )
                 funding_source_url = funding_source.external_id if funding_source else None
                 transfer_id = provider.create_transfer(
-                    account_id, payout.amount_cents, payout.idempotency_key,
+                    account_id,
+                    payout.amount_cents,
+                    payout.idempotency_key,
                     funding_source_url=funding_source_url,
                     driver_id=str(payout.driver_id),
                     metadata={"payout_id": payout.id, "driver_id": str(payout.driver_id)},
@@ -505,7 +550,9 @@ class PayoutService:
             else:
                 account_id = wallet.stripe_account_id
                 transfer_id = provider.create_transfer(
-                    account_id, payout.amount_cents, payout.idempotency_key,
+                    account_id,
+                    payout.amount_cents,
+                    payout.idempotency_key,
                     metadata={"payout_id": payout.id, "driver_id": str(payout.driver_id)},
                 )
                 payout.stripe_transfer_id = transfer_id
@@ -527,7 +574,9 @@ class PayoutService:
             payout.updated_at = datetime.utcnow()
 
             # Revert funds from pending to available (amount + fee)
-            fee_cents = getattr(payout, '_fee_cents', 0) or calculate_withdrawal_fee(payout.amount_cents)
+            fee_cents = getattr(payout, "_fee_cents", 0) or calculate_withdrawal_fee(
+                payout.amount_cents
+            )
             wallet.pending_balance_cents -= payout.amount_cents
             wallet.balance_cents += payout.amount_cents + fee_cents
             wallet.updated_at = datetime.utcnow()
@@ -539,7 +588,6 @@ class PayoutService:
     @staticmethod
     def handle_webhook(db: Session, payload: bytes, signature: str) -> Dict[str, Any]:
         """Handle Stripe webhook events for payouts"""
-        from ..models.driver_wallet import DriverWallet, Payout
 
         if _is_mock_mode():
             return {"status": "ignored", "reason": "mock_mode"}
@@ -568,7 +616,7 @@ class PayoutService:
             return {"status": "ignored", "event_type": event_type}
 
     @staticmethod
-    def _handle_transfer_paid(db: Session, transfer_data: Dict) -> Dict[str, Any]:
+    def _handle_transfer_paid(db: Session, transfer_data: dict) -> Dict[str, Any]:
         """Handle transfer.paid webhook"""
         from ..models.driver_wallet import DriverWallet, Payout
 
@@ -582,7 +630,12 @@ class PayoutService:
         if payout.status == "paid":
             return {"status": "already_processed", "payout_id": payout.id}
 
-        wallet = db.query(DriverWallet).filter(DriverWallet.id == payout.wallet_id).first()
+        wallet = (
+            db.query(DriverWallet)
+            .filter(DriverWallet.id == payout.wallet_id)
+            .with_for_update()
+            .first()
+        )
 
         payout.status = "paid"
         payout.paid_at = datetime.utcnow()
@@ -598,6 +651,7 @@ class PayoutService:
         # Send push notification for payout complete (best-effort)
         try:
             from app.services.push_service import send_payout_complete_push
+
             send_payout_complete_push(db, payout.driver_id, payout.amount_cents)
         except Exception as push_err:
             logger.debug("Push notification failed (non-fatal): %s", push_err)
@@ -605,7 +659,7 @@ class PayoutService:
         return {"status": "success", "payout_id": payout.id, "action": "marked_paid"}
 
     @staticmethod
-    def _handle_transfer_failed(db: Session, transfer_data: Dict) -> Dict[str, Any]:
+    def _handle_transfer_failed(db: Session, transfer_data: dict) -> Dict[str, Any]:
         """Handle transfer.failed webhook"""
         from ..models.driver_wallet import DriverWallet, Payout
 
@@ -618,7 +672,20 @@ class PayoutService:
         if payout.status == "failed":
             return {"status": "already_processed", "payout_id": payout.id}
 
-        wallet = db.query(DriverWallet).filter(DriverWallet.id == payout.wallet_id).first()
+        # CRITICAL: row-lock the wallet before mutating pending_balance_cents
+        # and balance_cents. Without the lock, two concurrent transfer.failed
+        # webhook deliveries (retries from Stripe, or a user-initiated failure
+        # racing with a provider-initiated one) would each read the pre-mutation
+        # balance and each credit the reversal amount, effectively double-crediting
+        # the driver. `_handle_transfer_paid` at line ~634 already has this lock;
+        # the failure path was missed in the original April 2026 audit and is
+        # added here per CodeRabbit Round 14.
+        wallet = (
+            db.query(DriverWallet)
+            .filter(DriverWallet.id == payout.wallet_id)
+            .with_for_update()
+            .first()
+        )
 
         # Revert funds (amount + fee that was deducted on request)
         payout.status = "failed"
@@ -630,12 +697,16 @@ class PayoutService:
         wallet.balance_cents += payout.amount_cents + fee_cents
         wallet.updated_at = datetime.utcnow()
 
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         logger.warning(f"Payout {payout.id} failed via webhook: {payout.failure_reason}")
         return {"status": "success", "payout_id": payout.id, "action": "marked_failed"}
 
     @staticmethod
-    def _handle_account_updated(db: Session, account_data: Dict) -> Dict[str, Any]:
+    def _handle_account_updated(db: Session, account_data: dict) -> Dict[str, Any]:
         """Handle account.updated webhook (onboarding completion)"""
         from ..models.driver_wallet import DriverWallet
 
@@ -657,7 +728,9 @@ class PayoutService:
             logger.info(f"Driver wallet {wallet.id} onboarding completed")
             return {"status": "success", "wallet_id": wallet.id, "action": "onboarding_complete"}
 
-        wallet.stripe_account_status = account_data.get("charges_enabled") and "enabled" or "restricted"
+        wallet.stripe_account_status = (
+            "enabled" if account_data.get("charges_enabled") else "restricted"
+        )
         wallet.updated_at = datetime.utcnow()
         db.commit()
         return {"status": "success", "wallet_id": wallet.id, "action": "status_updated"}
@@ -666,19 +739,24 @@ class PayoutService:
     def get_wallet_payout_provider(db: Session, driver_id: int) -> str:
         """Get the payout provider for a driver's wallet"""
         from ..models.driver_wallet import DriverWallet
+
         wallet = db.query(DriverWallet).filter(DriverWallet.driver_id == driver_id).first()
         if wallet:
-            return getattr(wallet, 'payout_provider', 'stripe') or 'stripe'
-        return 'stripe'
+            return getattr(wallet, "payout_provider", "stripe") or "stripe"
+        return "stripe"
 
     @staticmethod
     def get_payout_history(db: Session, driver_id: int, limit: int = 20) -> list:
         """Get driver's payout history"""
         from ..models.driver_wallet import Payout
 
-        payouts = db.query(Payout).filter(
-            Payout.driver_id == driver_id
-        ).order_by(Payout.created_at.desc()).limit(limit).all()
+        payouts = (
+            db.query(Payout)
+            .filter(Payout.driver_id == driver_id)
+            .order_by(Payout.created_at.desc())
+            .limit(limit)
+            .all()
+        )
 
         return [
             {
@@ -696,7 +774,9 @@ class PayoutService:
 def credit_wallet(db: Session, driver_id: int, amount_cents: int, description: str = ""):
     """Module-level convenience function to credit a driver's wallet."""
     return PayoutService.credit_wallet(
-        db, driver_id, amount_cents,
+        db,
+        driver_id,
+        amount_cents,
         reference_type="referral",
         reference_id=f"referral_{driver_id}",
         description=description,

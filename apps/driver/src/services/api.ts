@@ -27,6 +27,29 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
+/**
+ * API_DEBUG gates every informational console.log in this file. It is
+ * wired to both `import.meta.env.DEV` (vite dev server only) AND
+ * `VITE_API_DEBUG === 'true'` so production bundles never log request/
+ * response payloads — even if someone flips the env var by mistake, the
+ * `DEV` check ensures the logs only fire during local dev.
+ *
+ * This closes the CLAUDE.md rule: "console.log with request or response
+ * payloads must be gated by a dev-only check (API_DEBUG flag) before
+ * shipping. Remove or gate all payload logging before any demo or
+ * production deploy."
+ *
+ * Error logs (console.error) are NOT gated — real errors should surface
+ * in production, but the `debugLog` helper is for informational traces.
+ */
+const API_DEBUG = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG === 'true'
+
+function debugLog(...args: unknown[]): void {
+  if (API_DEBUG) {
+    console.log(...args)
+  }
+}
+
 // Proactive token refresh — refresh before expiry when app resumes from background
 const TOKEN_REFRESH_THRESHOLD_MS = 10 * 60 * 1000 // Refresh if token is within 10 min of expiry
 
@@ -65,7 +88,7 @@ async function proactiveTokenRefresh(): Promise<void> {
         localStorage.setItem('refresh_token', data.refresh_token)
       }
       try { window.neravaNative?.setAuthToken(data.access_token) } catch {}
-      console.log('[API] Proactive token refresh succeeded')
+      debugLog('[API] Proactive token refresh succeeded')
     }
   } catch {
     // Silent fail — reactive refresh on 401 will handle it
@@ -73,16 +96,29 @@ async function proactiveTokenRefresh(): Promise<void> {
 }
 
 // Refresh token when app becomes visible (user returns from background)
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      proactiveTokenRefresh()
-    }
-  })
+// Named callbacks so we can properly remove them on HMR dispose
+const _onVisibilityChange = () => {
+  if (document.visibilityState === 'visible') proactiveTokenRefresh()
+}
+const _onFocus = () => {
+  proactiveTokenRefresh()
+}
+
+// Guard prevents duplicate listeners on HMR re-execution
+let _tokenRefreshListenersBound = false
+if (typeof document !== 'undefined' && !_tokenRefreshListenersBound) {
+  document.addEventListener('visibilitychange', _onVisibilityChange)
   // Also refresh on app focus (covers WKWebView resume)
-  window.addEventListener('focus', () => {
-    proactiveTokenRefresh()
-  })
+  window.addEventListener('focus', _onFocus)
+  _tokenRefreshListenersBound = true
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      document.removeEventListener('visibilitychange', _onVisibilityChange)
+      window.removeEventListener('focus', _onFocus)
+      _tokenRefreshListenersBound = false
+    })
+  }
 }
 
 // Check if mock mode is enabled - default to backend mode unless explicitly set
@@ -114,30 +150,30 @@ export class ApiError extends Error {
 async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 = true): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   const token = localStorage.getItem('access_token')
-  
+
   const headers = new Headers(options?.headers)
   headers.set('Content-Type', 'application/json')
-  
+
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
-  
-  console.log('[API] Fetching:', url, options)
-  
+
+  debugLog('[API] Fetching:', url, { method: options?.method })
+
   try {
     const response = await fetch(url, {
       ...options,
       headers,
     })
 
-    console.log('[API] Response status:', response.status, response.statusText)
+    debugLog('[API] Response status:', response.status, response.statusText)
 
     // Handle 401 Unauthorized - try token refresh
     if (response.status === 401 && retryOn401) {
       const refreshToken = localStorage.getItem('refresh_token')
       if (refreshToken) {
         try {
-          console.log('[API] Attempting token refresh...')
+          debugLog('[API] Attempting token refresh...')
           const refreshResponse = await fetch(`${API_BASE_URL}/v1/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -151,8 +187,8 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
               localStorage.setItem('refresh_token', refreshData.refresh_token)
             }
             try { window.neravaNative?.setAuthToken(refreshData.access_token) } catch {}
-            console.log('[API] Token refreshed, retrying original request')
-            
+            debugLog('[API] Token refreshed, retrying original request')
+
             // Retry original request with new token
             const newHeaders = new Headers(options?.headers)
             newHeaders.set('Content-Type', 'application/json')
@@ -170,7 +206,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
             }
 
             const retryData = await retryResponse.json()
-            console.log('[API] Retry response data:', retryData)
+            debugLog('[API] Retry response received')
             return retryData
           } else {
             // Refresh failed, clear tokens
@@ -213,7 +249,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
           errorData = { message: response.statusText }
         }
       }
-      console.error('[API] Error response:', errorData)
+      debugLog('[API] Error response:', { status: response.status })
       // Handle FastAPI's standard error format: {detail: "..."} or {error: "...", message: "..."}
       const errorMessage = errorData.message || errorData.detail || response.statusText
       const errorCode = errorData.error || (response.status >= 500 ? 'server_error' : undefined)
@@ -225,7 +261,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retryOn401 =
     }
 
     const data = await response.json()
-    console.log('[API] Response data:', data)
+    debugLog('[API] Response received')
     return data
   } catch (error) {
     // Don't log 401 errors when retryOn401 is false (expected for anonymous users)
@@ -281,7 +317,7 @@ export function useIntentCapture(request: CaptureIntentRequest | null) {
 
       // Rate limit - prevent fetches within 5 seconds ONLY for the same location
       if (lastSuccessfulCacheKey === cacheKey && (now - lastFetchTimestamp) < MIN_FETCH_INTERVAL_MS) {
-        console.log('[API] Intent capture rate limited (same location, too soon)')
+        debugLog('[API] Intent capture rate limited (same location, too soon)')
         if (intentCache && intentCache.key === cacheKey) {
           return intentCache.data
         }
@@ -289,13 +325,13 @@ export function useIntentCapture(request: CaptureIntentRequest | null) {
 
       // Check module-level cache first - prevents unnecessary API calls
       if (intentCache && intentCache.key === cacheKey && (now - intentCache.timestamp) < INTENT_CACHE_TTL_MS) {
-        console.log('[API] Intent capture using cached response (cache hit)')
+        debugLog('[API] Intent capture using cached response (cache hit)')
         return intentCache.data
       }
 
       // Check if there's already a pending request for the same key - deduplicate
       if (pendingIntentRequest && pendingIntentKey === cacheKey) {
-        console.log('[API] Intent capture reusing pending request (deduplication)')
+        debugLog('[API] Intent capture reusing pending request (deduplication)')
         return pendingIntentRequest
       }
 
@@ -314,9 +350,8 @@ export function useIntentCapture(request: CaptureIntentRequest | null) {
         }, hasToken) // Only retry token refresh if user has a token
 
         // Debug: Log raw API response before validation
-        console.log('[API] Raw intent capture response:', {
+        debugLog('[API] Raw intent capture response:', {
           merchants_count: Array.isArray((data as any)?.merchants) ? (data as any).merchants.length : 'not array',
-          merchants: (data as any)?.merchants,
           charger_summary: (data as any)?.charger_summary,
           confidence_tier: (data as any)?.confidence_tier,
         })
@@ -325,9 +360,8 @@ export function useIntentCapture(request: CaptureIntentRequest | null) {
         const validated = validateResponse(CaptureIntentResponseSchema, data, '/v1/intent/capture') as unknown as CaptureIntentResponse
 
         // Debug: Log validated response
-        console.log('[API] Validated intent capture response:', {
+        debugLog('[API] Validated intent capture response:', {
           merchants_count: validated.merchants?.length || 0,
-          merchants: validated.merchants,
           charger_summary: validated.charger_summary,
           confidence_tier: validated.confidence_tier,
         })
@@ -489,7 +523,7 @@ export async function getActiveExclusive(): Promise<ActiveExclusiveResponse | nu
     // Return null for anonymous users (no active exclusive)
     return { exclusive_session: null }
   }
-  
+
   try {
     // Disable token refresh retry - if auth fails, user is not authenticated
     const data = await fetchAPI<unknown>('/v1/exclusive/active', undefined, false)
@@ -614,7 +648,7 @@ export async function apiGetMerchantsForCharger(
   if (options?.open_only) {
     params.append('open_only', 'true')
   }
-  
+
   const data = await fetchAPI<unknown>(`/v1/drivers/merchants/open?${params.toString()}`)
   return data as MerchantForCharger[]
 }

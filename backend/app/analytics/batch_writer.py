@@ -5,10 +5,11 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from sqlalchemy import text
-from app.db import get_db
+from typing import Any, Dict, List, Optional
+
 from app.config import settings
+from app.db import get_db
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,7 @@ async def handle_analytics_event(event: Dict[str, Any]):
 
 # Register with event bus
 from app.events.bus import event_bus
+
 event_bus.subscribe("analytics_charge_started", handle_analytics_event)
 event_bus.subscribe("analytics_charge_stopped", handle_analytics_event)
 event_bus.subscribe("analytics_wallet_credited", handle_analytics_event)

@@ -1,13 +1,14 @@
 """Event management service."""
 
-from typing import Dict, List, Optional
+import json
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from typing import List, Optional
+
 from sqlalchemy import text
-from app.config import settings
+from sqlalchemy.orm import Session
+
 from app.services.geo import haversine_m
 from app.utils.log import get_logger
-import json
 
 logger = get_logger("events")
 

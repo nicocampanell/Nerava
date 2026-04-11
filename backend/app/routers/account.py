@@ -1,34 +1,36 @@
 """
 Account management router
 """
+
 from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from datetime import datetime, timezone
-from typing import Optional
-import logging
 
 from app.db import get_db
-from app.models import (
-    User,
-    RefreshToken,
-    UserConsent,
-    ExclusiveSession,
-    NovaTransaction,
-    IntentSession,
-)
-from app.models.while_you_charge import FavoriteMerchant
-from app.models.vehicle import VehicleAccount, VehicleToken
-from app.models.domain import DriverWallet
-from app.dependencies_domain import get_current_user, require_admin
 from app.dependencies.driver import get_current_driver
-from app.services.audit import log_admin_action
-from app.schemas.account import ProfileUpdate, ProfileResponse, AccountStats, FavoriteChargerInfo
-from app.models.session_event import SessionEvent, IncentiveGrant
-from app.models.tesla_connection import TeslaConnection
+from app.dependencies_domain import get_current_user
+from app.models import (
+    ExclusiveSession,
+    IntentSession,
+    NovaTransaction,
+    RefreshToken,
+    User,
+    UserConsent,
+)
 from app.models.device_token import DeviceToken
+from app.models.domain import DriverWallet
+from app.models.session_event import IncentiveGrant, SessionEvent
+from app.models.tesla_connection import TeslaConnection
+from app.models.vehicle import VehicleAccount, VehicleToken
+from app.models.while_you_charge import FavoriteMerchant
+from app.schemas.account import AccountStats, FavoriteChargerInfo, ProfileResponse, ProfileUpdate
+from app.services.audit import log_admin_action
 
 router = APIRouter(prefix="/v1/account", tags=["account"])
 
@@ -78,18 +80,22 @@ def get_account_stats(
     db: Session = Depends(get_db),
 ):
     """Get driver account stats (total sessions, kWh, earnings, streak, CO2)."""
-    from sqlalchemy import func, case
+    from sqlalchemy import func
 
     user_id = current_user.id
 
     # Session stats
-    session_stats = db.query(
-        func.count(SessionEvent.id),
-        func.coalesce(func.sum(SessionEvent.kwh_delivered), 0),
-    ).filter(
-        SessionEvent.driver_user_id == user_id,
-        SessionEvent.session_end.isnot(None),
-    ).first()
+    session_stats = (
+        db.query(
+            func.count(SessionEvent.id),
+            func.coalesce(func.sum(SessionEvent.kwh_delivered), 0),
+        )
+        .filter(
+            SessionEvent.driver_user_id == user_id,
+            SessionEvent.session_end.isnot(None),
+        )
+        .first()
+    )
 
     total_sessions = session_stats[0] if session_stats else 0
     total_kwh = float(session_stats[1]) if session_stats else 0.0
@@ -99,23 +105,28 @@ def get_account_stats(
     total_earned_cents = 0
     total_nova = 0
     if wallet:
-        total_earned_cents = getattr(wallet, 'total_earned_cents', 0) or 0
-        total_nova = getattr(wallet, 'nova_balance', 0) or 0
+        total_earned_cents = getattr(wallet, "total_earned_cents", 0) or 0
+        total_nova = getattr(wallet, "nova_balance", 0) or 0
 
     # Favorite charger (most sessions)
     fav_charger = None
     if total_sessions > 0:
         from app.models.while_you_charge import Charger
-        fav_row = db.query(
-            SessionEvent.charger_id,
-            func.count(SessionEvent.id).label("cnt"),
-        ).filter(
-            SessionEvent.driver_user_id == user_id,
-            SessionEvent.session_end.isnot(None),
-            SessionEvent.charger_id.isnot(None),
-        ).group_by(SessionEvent.charger_id).order_by(
-            func.count(SessionEvent.id).desc()
-        ).first()
+
+        fav_row = (
+            db.query(
+                SessionEvent.charger_id,
+                func.count(SessionEvent.id).label("cnt"),
+            )
+            .filter(
+                SessionEvent.driver_user_id == user_id,
+                SessionEvent.session_end.isnot(None),
+                SessionEvent.charger_id.isnot(None),
+            )
+            .group_by(SessionEvent.charger_id)
+            .order_by(func.count(SessionEvent.id).desc())
+            .first()
+        )
 
         if fav_row and fav_row[0]:
             charger = db.query(Charger).filter(Charger.id == fav_row[0]).first()
@@ -125,7 +136,7 @@ def get_account_stats(
     # Streak (consecutive days)
     streak = 0
     if wallet:
-        streak = getattr(wallet, 'streak_days', 0) or 0
+        streak = getattr(wallet, "streak_days", 0) or 0
 
     # CO2 avoided: EPA average ~0.4 kg CO2 per kWh displaced
     co2_avoided_kg = round(total_kwh * 0.4, 1)
@@ -168,8 +179,8 @@ def update_preferences(
         current_user.email_marketing = body.email_marketing
     db.commit()
     return PreferencesResponse(
-        notifications_enabled=getattr(current_user, 'notifications_enabled', True) or True,
-        email_marketing=getattr(current_user, 'email_marketing', False) or False,
+        notifications_enabled=getattr(current_user, "notifications_enabled", True) or True,
+        email_marketing=getattr(current_user, "email_marketing", False) or False,
     )
 
 
@@ -179,8 +190,8 @@ def get_preferences(
 ):
     """Get current user preferences."""
     return PreferencesResponse(
-        notifications_enabled=getattr(current_user, 'notifications_enabled', True) or True,
-        email_marketing=getattr(current_user, 'email_marketing', False) or False,
+        notifications_enabled=getattr(current_user, "notifications_enabled", True) or True,
+        email_marketing=getattr(current_user, "email_marketing", False) or False,
     )
 
 
@@ -226,6 +237,7 @@ def delete_account_post(
 
 
 # ─── Vehicle Endpoint ──────────────────────────────────────────────
+
 
 class VehicleRequest(BaseModel):
     color: str
@@ -280,6 +292,7 @@ def get_vehicle(
 
 # ─── Export / Delete ───────────────────────────────────────────────
 
+
 @router.post("/export", response_model=ExportResponse)
 def export_account_data(
     current_user: User = Depends(get_current_user),
@@ -287,7 +300,7 @@ def export_account_data(
 ):
     """
     Export user account data in JSON format.
-    
+
     Returns:
     - User profile (anonymized if deleted)
     - Wallet balance and transactions
@@ -297,9 +310,11 @@ def export_account_data(
     - Consents
     """
     user_id = current_user.id
-    
-    logger.info(f"Account export requested for user {user_id} (public_id: {current_user.public_id})")
-    
+
+    logger.info(
+        f"Account export requested for user {user_id} (public_id: {current_user.public_id})"
+    )
+
     # 1. User profile
     user_data = {
         "id": user_id,
@@ -313,7 +328,7 @@ def export_account_data(
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
         "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
     }
-    
+
     # 2. Wallet balance
     wallet = db.query(DriverWallet).filter(DriverWallet.user_id == user_id).first()
     wallet_data = None
@@ -324,11 +339,14 @@ def export_account_data(
             "created_at": wallet.created_at.isoformat() if wallet.created_at else None,
             "updated_at": wallet.updated_at.isoformat() if wallet.updated_at else None,
         }
-    
+
     # 3. Nova transactions
-    transactions = db.query(NovaTransaction).filter(
-        NovaTransaction.driver_user_id == user_id
-    ).order_by(NovaTransaction.created_at.desc()).all()
+    transactions = (
+        db.query(NovaTransaction)
+        .filter(NovaTransaction.driver_user_id == user_id)
+        .order_by(NovaTransaction.created_at.desc())
+        .all()
+    )
     transactions_data = [
         {
             "id": str(tx.id),
@@ -340,17 +358,22 @@ def export_account_data(
         }
         for tx in transactions
     ]
-    
+
     # 4. Exclusive sessions
-    exclusive_sessions = db.query(ExclusiveSession).filter(
-        ExclusiveSession.driver_id == user_id
-    ).order_by(ExclusiveSession.created_at.desc()).all()
+    exclusive_sessions = (
+        db.query(ExclusiveSession)
+        .filter(ExclusiveSession.driver_id == user_id)
+        .order_by(ExclusiveSession.created_at.desc())
+        .all()
+    )
     exclusive_sessions_data = [
         {
             "id": str(session.id),
             "merchant_id": session.merchant_id,
             "charger_id": session.charger_id,
-            "status": session.status.value if hasattr(session.status, 'value') else str(session.status),
+            "status": (
+                session.status.value if hasattr(session.status, "value") else str(session.status)
+            ),
             "activated_at": session.activated_at.isoformat() if session.activated_at else None,
             "expires_at": session.expires_at.isoformat() if session.expires_at else None,
             "completed_at": session.completed_at.isoformat() if session.completed_at else None,
@@ -358,11 +381,14 @@ def export_account_data(
         }
         for session in exclusive_sessions
     ]
-    
+
     # 5. Intent sessions
-    intent_sessions = db.query(IntentSession).filter(
-        IntentSession.user_id == user_id
-    ).order_by(IntentSession.created_at.desc()).all()
+    intent_sessions = (
+        db.query(IntentSession)
+        .filter(IntentSession.user_id == user_id)
+        .order_by(IntentSession.created_at.desc())
+        .all()
+    )
     intent_sessions_data = [
         {
             "id": str(session.id),
@@ -377,11 +403,9 @@ def export_account_data(
         }
         for session in intent_sessions
     ]
-    
+
     # 6. Consents
-    consents = db.query(UserConsent).filter(
-        UserConsent.user_id == user_id
-    ).all()
+    consents = db.query(UserConsent).filter(UserConsent.user_id == user_id).all()
     consents_data = [
         {
             "consent_type": consent.consent_type,
@@ -392,7 +416,7 @@ def export_account_data(
         }
         for consent in consents
     ]
-    
+
     export_data = {
         "user": user_data,
         "wallet": wallet_data,
@@ -402,11 +426,8 @@ def export_account_data(
         "consents": consents_data,
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
-    
-    return ExportResponse(
-        ok=True,
-        data=export_data
-    )
+
+    return ExportResponse(ok=True, data=export_data)
 
 
 @router.delete("", response_model=DeleteResponse)
@@ -417,9 +438,9 @@ def delete_account(
 ):
     """
     Delete user account with anonymization.
-    
+
     Requires explicit confirmation by typing "DELETE" in the request body.
-    
+
     Performs:
     - Anonymizes user data (email, phone, display_name)
     - Deletes related records (refresh_tokens, vehicle_tokens, favorite_merchants, user_consents)
@@ -432,54 +453,54 @@ def delete_account(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "error": "CONFIRMATION_REQUIRED",
-                "message": "Account deletion requires typing 'DELETE' as confirmation"
-            }
+                "message": "Account deletion requires typing 'DELETE' as confirmation",
+            },
         )
-    
+
     user_id = current_user.id
     public_id = current_user.public_id
-    
+
     try:
         # 1. Anonymize user data
         current_user.email = f"deleted_user_{user_id}@deleted.local"
         current_user.phone = "+00000000000"
         current_user.display_name = "Deleted User"
         current_user.is_active = False
-        
+
         # 2. Cascade deletes: refresh_tokens, favorite_merchants, user_consents
         db.query(RefreshToken).filter(RefreshToken.user_id == user_id).delete()
         db.query(FavoriteMerchant).filter(FavoriteMerchant.user_id == user_id).delete()
         db.query(UserConsent).filter(UserConsent.user_id == user_id).delete()
-        
+
         # 3. Delete vehicle accounts and tokens (cascade via relationship)
         vehicle_accounts = db.query(VehicleAccount).filter(VehicleAccount.user_id == user_id).all()
         for vehicle_account in vehicle_accounts:
             # Delete tokens first (they reference vehicle_account)
-            db.query(VehicleToken).filter(VehicleToken.vehicle_account_id == vehicle_account.id).delete()
+            db.query(VehicleToken).filter(
+                VehicleToken.vehicle_account_id == vehicle_account.id
+            ).delete()
             db.delete(vehicle_account)
-        
+
         # 4. Anonymize exclusive_sessions (set driver_id to -1 for deleted user marker)
         db.query(ExclusiveSession).filter(ExclusiveSession.driver_id == user_id).update(
-            {"driver_id": -1},
-            synchronize_session=False
+            {"driver_id": -1}, synchronize_session=False
         )
-        
+
         # 5. Anonymize nova_transactions (keep immutable, but anonymize driver_user_id references)
         db.query(NovaTransaction).filter(NovaTransaction.driver_user_id == user_id).update(
-            {"driver_user_id": -1},
-            synchronize_session=False
+            {"driver_user_id": -1}, synchronize_session=False
         )
-        
+
         # 6. Anonymize verified_visits if they exist
         try:
             from app.models.verified_visit import VerifiedVisit
+
             db.query(VerifiedVisit).filter(VerifiedVisit.driver_id == user_id).update(
-                {"driver_id": -1},
-                synchronize_session=False
+                {"driver_id": -1}, synchronize_session=False
             )
         except Exception:
             pass  # Table might not exist in all environments
-        
+
         # 7. Log deletion via audit service
         log_admin_action(
             db=db,
@@ -489,25 +510,26 @@ def delete_account(
             target_id=str(user_id),
             before_json={"public_id": str(public_id), "email": "anonymized"},
             after_json={"status": "deleted", "anonymized": True},
-            metadata={"deleted_at": datetime.now(timezone.utc).isoformat()}
+            metadata={"deleted_at": datetime.now(timezone.utc).isoformat()},
         )
-        
+
         db.commit()
-        
+
         logger.info(f"Account deleted and anonymized for user {user_id} (public_id: {public_id})")
-        
+
         return DeleteResponse(ok=True)
-        
+
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to delete account for user {user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete account. Please contact support."
+            detail="Failed to delete account. Please contact support.",
         )
 
 
 # ─── Admin: Transfer Sessions Between Users ──────────────────────
+
 
 class TransferRequest(BaseModel):
     from_user_id: int
@@ -555,30 +577,46 @@ def transfer_sessions(
         raise HTTPException(status_code=400, detail="Source and target are the same user")
 
     result = {
-        "from_user": {"id": src.id, "phone": src.phone, "email": src.email, "provider": src.auth_provider},
-        "to_user": {"id": tgt.id, "phone": tgt.phone, "email": tgt.email, "provider": tgt.auth_provider},
+        "from_user": {
+            "id": src.id,
+            "phone": src.phone,
+            "email": src.email,
+            "provider": src.auth_provider,
+        },
+        "to_user": {
+            "id": tgt.id,
+            "phone": tgt.phone,
+            "email": tgt.email,
+            "provider": tgt.auth_provider,
+        },
         "transferred": {},
     }
 
     # Transfer sessions
-    sessions_updated = db.query(SessionEvent).filter(
-        SessionEvent.driver_user_id == src.id
-    ).update({"driver_user_id": tgt.id, "user_id": tgt.id}, synchronize_session=False)
+    sessions_updated = (
+        db.query(SessionEvent)
+        .filter(SessionEvent.driver_user_id == src.id)
+        .update({"driver_user_id": tgt.id, "user_id": tgt.id}, synchronize_session=False)
+    )
     result["transferred"]["sessions"] = sessions_updated
 
     # Transfer grants
-    grants_updated = db.query(IncentiveGrant).filter(
-        IncentiveGrant.driver_user_id == src.id
-    ).update({"driver_user_id": tgt.id}, synchronize_session=False)
+    grants_updated = (
+        db.query(IncentiveGrant)
+        .filter(IncentiveGrant.driver_user_id == src.id)
+        .update({"driver_user_id": tgt.id}, synchronize_session=False)
+    )
     result["transferred"]["grants"] = grants_updated
 
     # Transfer Tesla connection
     if body.transfer_tesla:
         existing_tesla = db.query(TeslaConnection).filter(TeslaConnection.user_id == tgt.id).first()
         if not existing_tesla:
-            tesla_updated = db.query(TeslaConnection).filter(
-                TeslaConnection.user_id == src.id
-            ).update({"user_id": tgt.id}, synchronize_session=False)
+            tesla_updated = (
+                db.query(TeslaConnection)
+                .filter(TeslaConnection.user_id == src.id)
+                .update({"user_id": tgt.id}, synchronize_session=False)
+            )
             result["transferred"]["tesla_connection"] = tesla_updated
         else:
             result["transferred"]["tesla_connection"] = "target_already_has_one"
@@ -589,8 +627,12 @@ def transfer_sessions(
         if src_wallet and (src_wallet.balance_cents or 0) > 0:
             tgt_wallet = db.query(DriverWallet).filter(DriverWallet.user_id == tgt.id).first()
             if tgt_wallet:
-                tgt_wallet.balance_cents = (tgt_wallet.balance_cents or 0) + (src_wallet.balance_cents or 0)
-                tgt_wallet.nova_balance = (tgt_wallet.nova_balance or 0) + (src_wallet.nova_balance or 0)
+                tgt_wallet.balance_cents = (tgt_wallet.balance_cents or 0) + (
+                    src_wallet.balance_cents or 0
+                )
+                tgt_wallet.nova_balance = (tgt_wallet.nova_balance or 0) + (
+                    src_wallet.nova_balance or 0
+                )
                 src_wallet.balance_cents = 0
                 src_wallet.nova_balance = 0
                 result["transferred"]["wallet"] = "merged"
@@ -600,19 +642,21 @@ def transfer_sessions(
             result["transferred"]["wallet"] = "no_source_balance"
 
     # Transfer device tokens
-    devices_updated = db.query(DeviceToken).filter(
-        DeviceToken.user_id == src.id
-    ).update({"user_id": tgt.id}, synchronize_session=False)
+    devices_updated = (
+        db.query(DeviceToken)
+        .filter(DeviceToken.user_id == src.id)
+        .update({"user_id": tgt.id}, synchronize_session=False)
+    )
     result["transferred"]["device_tokens"] = devices_updated
 
     db.commit()
 
-    logger.info("Admin %s transferred data from user %s to user %s: %s",
-                admin.id, src.id, tgt.id, result["transferred"])
+    logger.info(
+        "Admin %s transferred data from user %s to user %s: %s",
+        current_user.id,
+        src.id,
+        tgt.id,
+        result["transferred"],
+    )
 
     return result
-
-
-
-
-

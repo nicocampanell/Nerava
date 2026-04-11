@@ -1,16 +1,16 @@
 """
 Reward service for verify bonuses and other rewards
 """
-from sqlalchemy import text, inspect
-from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Dict, Any
-import json
+from typing import Any, Dict
 
-from app.db import get_engine
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
-from app.utils.log import get_logger, log_reward_event
+from app.db import get_engine
 from app.utils.dbjson import as_db_json, get_table_columns
+from app.utils.log import get_logger, log_reward_event
 
 logger = get_logger(__name__)
 

@@ -6,7 +6,8 @@ Ensures logs never include secrets/tokens.
 """
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from sqlalchemy.orm import Session
 
 from app.models.audit import AdminAuditLog

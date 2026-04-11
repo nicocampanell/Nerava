@@ -4,11 +4,12 @@ Sandbox-only functionality, gated behind DEMO_MODE or DEMO_QR_ENABLED.
 """
 import os
 import uuid
-from sqlalchemy.orm import Session
 from typing import Optional
 
-from ..models.domain import DomainMerchant, MerchantReward
+from sqlalchemy.orm import Session
+
 from ..core.config import settings
+from ..models.domain import DomainMerchant, MerchantReward
 
 
 def ensure_eggman_demo_reward(db: Session) -> Optional[MerchantReward]:

@@ -2,12 +2,12 @@
 # Import from new location for backward compatibility
 from .models.while_you_charge import (
     Charger,
-    Merchant,
     ChargerMerchant,
-    MerchantPerk,
+    Merchant,
     MerchantBalance,
     MerchantBalanceLedger,
     MerchantOfferCode,
+    MerchantPerk,
 )
 
 __all__ = [

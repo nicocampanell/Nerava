@@ -1,9 +1,10 @@
 """
 Phone number normalization and validation utilities
 """
+from typing import Tuple
+
 import phonenumbers
 from phonenumbers import NumberParseException, PhoneNumberFormat
-from typing import Tuple, Optional
 
 
 def normalize_phone(phone: str, default_region: str = "US") -> str:

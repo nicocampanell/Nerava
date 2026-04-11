@@ -1,8 +1,10 @@
 from __future__ import annotations
+
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
 from typing import Dict, List, Optional
-import uuid
+
 
 @dataclass
 class EnergyWindow:

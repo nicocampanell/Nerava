@@ -1,11 +1,13 @@
 """
 Tests for demo state management.
 """
-import pytest
 from unittest.mock import MagicMock, patch
-from app.routers.demo import set_scenario
+
+import pytest
 from app.models_demo import DemoState
+from app.routers.demo import set_scenario
 from sqlalchemy.orm import Session
+
 
 @pytest.fixture
 def mock_db_session():

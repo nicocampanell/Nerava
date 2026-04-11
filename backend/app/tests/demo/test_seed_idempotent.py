@@ -1,11 +1,13 @@
 """
 Tests for demo seed idempotency.
 """
-import pytest
 from unittest.mock import MagicMock, patch
-from app.scripts.demo_seed import seed_demo
+
+import pytest
 from app.models_demo import DemoSeedLog
+from app.scripts.demo_seed import seed_demo
 from sqlalchemy.orm import Session
+
 
 @pytest.fixture
 def mock_db_session():

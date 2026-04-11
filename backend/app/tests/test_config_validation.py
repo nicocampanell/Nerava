@@ -2,10 +2,12 @@
 Tests for configuration validation, including CORS origins validation
 """
 import os
-import pytest
 from unittest.mock import patch
-from app.core.startup_validation import validate_cors_origins
+
+import pytest
 from app.core.env import is_local_env
+from app.core.startup_validation import validate_cors_origins
+
 
 # Clear cache before each test to ensure environment changes are picked up
 @pytest.fixture(autouse=True)

@@ -4,11 +4,11 @@ Audit logging middleware for compliance and security
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from app.config import settings
 
 logger = logging.getLogger("audit")
 

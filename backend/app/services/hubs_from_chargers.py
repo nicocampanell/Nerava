@@ -1,5 +1,6 @@
-from typing import List, Dict, Any, Tuple
 import math
+from typing import Any, Dict, List, Tuple
+
 
 # Simple grid clustering for now
 def _grid_key(lat: float, lng: float, cell_m: float = 150.0) -> Tuple[int, int]:

@@ -1,11 +1,12 @@
+import os
+
+import redis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
-from app.db import get_db
+
 from app.config import settings
-from app.core.env import is_local_env, is_production_env
-import redis
-import asyncio
-import os
+from app.core.env import is_production_env
+from app.db import get_db
 
 router = APIRouter()
 
@@ -38,8 +39,8 @@ async def metrics(request: Request):
     - Disabled by default in local/dev (METRICS_ENABLED=false)
     - Optional token-based auth via METRICS_TOKEN env var
     """
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     from fastapi import Response
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
     
     # Check if metrics are enabled
     metrics_enabled = os.getenv("METRICS_ENABLED", "true" if is_production_env() else "false").lower() == "true"

@@ -6,9 +6,10 @@ Never crashes requests if HubSpot is down - logs warnings and continues.
 """
 
 import logging
-from typing import Optional, Dict, Any
-import requests
 from datetime import datetime
+from typing import Any, Dict, Optional
+
+import requests
 
 from app.core.config import settings
 
@@ -314,15 +315,16 @@ def track_event(db, event_type: str, payload: Dict[str, Any]) -> None:
         payload: Event payload dictionary
     """
     try:
-        from app.events.outbox import store_outbox_event
+        from datetime import datetime
+
         from app.events.domain import (
             DriverSignedUpEvent,
-            WalletPassInstalledEvent,
+            FirstRedemptionCompletedEvent,
             NovaEarnedEvent,
             NovaRedeemedEvent,
-            FirstRedemptionCompletedEvent,
+            WalletPassInstalledEvent,
         )
-        from datetime import datetime
+        from app.events.outbox import store_outbox_event
         
         # Map event_type to domain event class
         event_class_map = {

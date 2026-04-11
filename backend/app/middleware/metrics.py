@@ -3,9 +3,10 @@ FastAPI middleware for metrics collection.
 Tracks p95 latency for all endpoints, with special focus on critical endpoints.
 """
 import time
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.obs.obs import get_trace_id, record_request
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Critical endpoints for p95 latency tracking
 CRITICAL_ENDPOINTS = {

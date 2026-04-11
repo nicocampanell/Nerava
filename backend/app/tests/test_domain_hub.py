@@ -3,14 +3,15 @@ Tests for Domain Hub API endpoint.
 
 Tests the GET /v1/hubs/domain endpoint that returns Domain hub chargers and merchants.
 """
+import uuid
+
 import pytest
+from app.db import Base, SessionLocal, get_engine
+from app.domains.domain_hub import DOMAIN_CHARGERS, HUB_ID, HUB_NAME
+from app.main_simple import app
+from app.models_while_you_charge import Charger, ChargerMerchant, Merchant, MerchantPerk
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from app.main_simple import app
-from app.db import get_db, SessionLocal, Base, get_engine
-from app.models_while_you_charge import Charger, Merchant, ChargerMerchant, MerchantPerk
-from app.domains.domain_hub import DOMAIN_CHARGERS, HUB_ID, HUB_NAME
-import uuid
 
 client = TestClient(app)
 

@@ -7,7 +7,7 @@ Does NOT affect real QR token logic or production flows.
 """
 import os
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 

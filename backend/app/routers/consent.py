@@ -1,16 +1,17 @@
 """
 Consent management router for GDPR compliance
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from app.db import get_db
-from app.models import User, UserConsent
-from app.dependencies_domain import get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.db import get_db
+from app.dependencies_domain import get_current_user
+from app.models import User, UserConsent
 
 router = APIRouter(prefix="/v1/consent", tags=["consent"])
 

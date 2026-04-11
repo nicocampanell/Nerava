@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import json
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
-from datetime import datetime
-import uuid
-import json
 
 from app.db import get_db
 from app.models_client_events import ClientEvent

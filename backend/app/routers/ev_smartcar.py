@@ -43,29 +43,30 @@ Local Testing Flow:
    - /v1/ev/me/telemetry/latest returns 200 with telemetry data or clean 404 if unavailable
 """
 import logging
+import uuid
+from datetime import datetime, timedelta
+from typing import Optional
+from urllib.parse import urlencode
+
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from jose import jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.dependencies.feature_flags import require_smartcar
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
-from urllib.parse import urlencode
-import uuid
-from jose import jwt
 
-from app.db import get_db
-from app.models import User
-from app.models_vehicle import VehicleAccount, VehicleToken, VehicleTelemetry
-from app.dependencies_domain import get_current_user, get_current_user_id
 from app.core.config import settings
+from app.db import get_db
+from app.dependencies.feature_flags import require_smartcar
+from app.dependencies_domain import get_current_user
+from app.models import User
+from app.models_vehicle import VehicleAccount, VehicleTelemetry, VehicleToken
+from app.services.ev_telemetry import poll_vehicle_telemetry_for_account
 from app.services.smartcar_service import (
+    SmartcarTokenExpiredError,
     exchange_code_for_tokens,
     list_vehicles,
-    SmartcarTokenExpiredError,
 )
-from app.services.ev_telemetry import poll_vehicle_telemetry_for_account
 
 logger = logging.getLogger(__name__)
 

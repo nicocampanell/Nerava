@@ -1,11 +1,13 @@
 """
 Purchase webhook normalization, merchant management, and session matching
 """
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.services.geo import haversine_m
 from app.utils.log import get_logger
 
@@ -134,7 +136,7 @@ def normalize_event(payload: Dict[str, Any]) -> Dict[str, Any]:
         # Generate a provider_ref if missing
         import hashlib
         payload_str = json.dumps(payload, sort_keys=True) if isinstance(payload, dict) else str(payload)
-        normalized["provider_ref"] = payload.get("provider_ref") or hashlib.md5(payload_str.encode()).hexdigest()[:16]
+        normalized["provider_ref"] = payload.get("provider_ref") or hashlib.md5(payload_str.encode(), usedforsecurity=False).hexdigest()[:16]
     if normalized["user_id"] is None:
         normalized["user_id"] = payload.get("user_id")
     if normalized["amount_cents"] is None:

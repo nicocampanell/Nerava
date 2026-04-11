@@ -1,8 +1,9 @@
 """
 Schemas for Merchant Details API
 """
+from typing import Dict, List, Literal, Optional
+
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Literal
 
 
 class MerchantInfo(BaseModel):

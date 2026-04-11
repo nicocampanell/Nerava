@@ -1,12 +1,15 @@
 """
 Feature flags and configuration management
 """
-import os
 import logging
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, status, Depends
+import os
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.middleware.auth import get_current_user, get_current_user_role
-from app.security.rbac import Role, rbac_manager, Permission
+from app.security.rbac import Permission, Role, rbac_manager
+
 
 def _get_environment() -> str:
     """Get environment name from settings, mapping to flag environment keys."""

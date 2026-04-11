@@ -5,6 +5,8 @@ Handles merchant SMS replies for EV Arrival sessions.
 Parses DONE {reply_code}, HELP, and CANCEL.
 """
 import logging
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
@@ -12,7 +14,6 @@ from app.db import get_db
 from app.models.arrival_session import ArrivalSession
 from app.models.billing_event import BillingEvent
 from app.services.analytics import get_analytics_client
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

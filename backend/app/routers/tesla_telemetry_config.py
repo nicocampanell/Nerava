@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..dependencies.domain import get_current_user
-from ..models.user import User
 from ..models.tesla_connection import TeslaConnection
+from ..models.user import User
 from ..services.tesla_oauth import (
     get_tesla_oauth_service,
     get_valid_access_token,

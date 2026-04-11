@@ -1,15 +1,17 @@
 """
 Production-ready OTP service using provider pattern
 """
-import logging
 import hashlib
+import logging
 from typing import Optional
+
 from sqlalchemy.orm import Session
-from .auth import get_otp_provider, get_rate_limit_service
-from .auth.audit import AuditService
-from ..utils.phone import normalize_phone, get_phone_last4
+
 from ..core.config import settings
 from ..services.analytics import get_analytics_client
+from ..utils.phone import get_phone_last4, normalize_phone
+from .auth import get_otp_provider, get_rate_limit_service
+from .auth.audit import AuditService
 
 logger = logging.getLogger(__name__)
 

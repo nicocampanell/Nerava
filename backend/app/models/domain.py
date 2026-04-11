@@ -6,11 +6,24 @@ to support the Domain-specific charge party event system with merchants,
 drivers, Nova transactions, and Stripe integration.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, Text, Index, CheckConstraint
-from sqlalchemy.orm import relationship
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+from sqlalchemy.orm import relationship
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON  # for non-sqlite engines

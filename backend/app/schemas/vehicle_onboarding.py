@@ -1,9 +1,9 @@
 """
 Schemas for Vehicle Onboarding API
 """
-from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+
+from pydantic import BaseModel
 
 
 class VehicleOnboardingStartRequest(BaseModel):

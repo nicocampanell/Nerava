@@ -6,12 +6,13 @@ Handles Stripe Checkout for Pro tier and Nerava Ads subscriptions.
 import logging
 import uuid
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from sqlalchemy.orm import Session
 
-from app.models.merchant_subscription import MerchantSubscription
-from app.models import MerchantAccount
 from app.core.config import settings
+from app.models import MerchantAccount
+from app.models.merchant_subscription import MerchantSubscription
 
 logger = logging.getLogger(__name__)
 

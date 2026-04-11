@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, Any
 import uuid
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.dependencies.feature_flags import require_square
 
 router = APIRouter(prefix="/v1/square", tags=["square"])

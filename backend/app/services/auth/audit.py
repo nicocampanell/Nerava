@@ -1,10 +1,11 @@
 """
 Structured audit logging service for authentication events
 """
-import logging
 import json
-from typing import Optional, Dict, Any
+import logging
 from datetime import datetime
+from typing import Optional
+
 # Note: Audit logging is separate from PostHog analytics
 # PostHog events are sent from route handlers, not from audit service
 

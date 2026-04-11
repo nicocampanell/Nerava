@@ -1,8 +1,10 @@
 """Driver Wallet and Payout Models for Stripe Express Payouts"""
-from datetime import datetime
 import uuid
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, CheckConstraint
+from datetime import datetime
+
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship, synonym
+
 from ..db import Base
 
 

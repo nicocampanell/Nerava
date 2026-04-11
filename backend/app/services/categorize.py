@@ -1,4 +1,5 @@
-import json, os
+import json
+import os
 from functools import lru_cache
 from typing import Dict, List, Set, Tuple
 
@@ -16,7 +17,7 @@ PREF_FLAG_MAP = {
 @lru_cache(maxsize=1)
 def _load_map() -> Dict[str, Set[str]]:
     here = os.path.dirname(__file__)
-    with open(os.path.join(here, "categories.json"), "r") as f:
+    with open(os.path.join(here, "categories.json")) as f:
         data = json.load(f)
     return {cat: set(types) for cat, types in data.items()}
 

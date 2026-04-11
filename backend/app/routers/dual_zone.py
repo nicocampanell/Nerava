@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.db import get_db
 from app.services.dual_zone import start_session, update_positions_and_verify

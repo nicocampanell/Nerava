@@ -3,14 +3,14 @@ NREL Alternative Fuels Data Center API client
 https://developer.nrel.gov/docs/transportation/alt-fuel-stations-v1/
 """
 import logging
-import httpx
-import json
-from typing import List, Dict, Optional, Tuple
-from math import radians, cos
+from math import cos, radians
+from typing import Dict, List, Optional, Tuple
 
-from app.core.retry import retry_with_backoff
+import httpx
+
 from app.cache.layers import LayeredCache
 from app.config import settings
+from app.core.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 

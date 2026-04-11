@@ -1,5 +1,5 @@
 from alembic import op
-import sqlalchemy as sa
+
 revision = 'xxxx_perf_indices'
 down_revision = None
 def upgrade():

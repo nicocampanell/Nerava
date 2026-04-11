@@ -6,7 +6,7 @@ All endpoints require admin role via JWT authentication.
 """
 import logging
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db
 from app.dependencies_domain import require_admin
 from app.models.user import User
-from app.models.while_you_charge import Charger, Merchant, ChargerMerchant
+from app.models.while_you_charge import Charger, ChargerMerchant, Merchant
 from app.services.audit import log_admin_action
 
 logger = logging.getLogger(__name__)

@@ -3,6 +3,7 @@ Plaid Link Integration for Bank Account + Debit Card Linking
 
 Uses Plaid-Dwolla integration for instant bank verification.
 """
+
 import logging
 import os
 from typing import Optional
@@ -19,8 +20,6 @@ if PLAID_CLIENT_ID and PLAID_SECRET:
     try:
         import plaid
         from plaid.api import plaid_api
-        from plaid.model.products import Products
-        from plaid.model.country_code import CountryCode
 
         host_map = {
             "sandbox": plaid.Environment.Sandbox,
@@ -55,10 +54,10 @@ def create_link_token(user_id: int, client_name: str = "Nerava") -> dict:
             "expiration": "2099-01-01T00:00:00Z",
         }
 
+    from plaid.model.country_code import CountryCode
     from plaid.model.link_token_create_request import LinkTokenCreateRequest
     from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
     from plaid.model.products import Products
-    from plaid.model.country_code import CountryCode
 
     request = LinkTokenCreateRequest(
         user=LinkTokenCreateRequestUser(client_user_id=str(user_id)),
@@ -112,13 +111,15 @@ def create_dwolla_processor_token(access_token: str, account_id: str) -> str:
 def get_accounts(access_token: str) -> list:
     """Get accounts linked via Plaid."""
     if _is_mock():
-        return [{
-            "account_id": "mock-account-1",
-            "name": "Mock Checking",
-            "mask": "1234",
-            "type": "depository",
-            "subtype": "checking",
-        }]
+        return [
+            {
+                "account_id": "mock-account-1",
+                "name": "Mock Checking",
+                "mask": "1234",
+                "type": "depository",
+                "subtype": "checking",
+            }
+        ]
 
     from plaid.model.accounts_get_request import AccountsGetRequest
 
@@ -129,8 +130,8 @@ def get_accounts(access_token: str) -> list:
             "account_id": acct.account_id,
             "name": acct.name,
             "mask": acct.mask,
-            "type": acct.type.value if hasattr(acct.type, 'value') else str(acct.type),
-            "subtype": acct.subtype.value if hasattr(acct.subtype, 'value') else str(acct.subtype),
+            "type": acct.type.value if hasattr(acct.type, "value") else str(acct.type),
+            "subtype": acct.subtype.value if hasattr(acct.subtype, "value") else str(acct.subtype),
         }
         for acct in response.accounts
     ]
@@ -142,9 +143,9 @@ def get_institution_name(access_token: str) -> Optional[str]:
         return "Mock Bank"
 
     try:
-        from plaid.model.item_get_request import ItemGetRequest
-        from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
         from plaid.model.country_code import CountryCode
+        from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
+        from plaid.model.item_get_request import ItemGetRequest
 
         item_request = ItemGetRequest(access_token=access_token)
         item_response = plaid_client.item_get(item_request)

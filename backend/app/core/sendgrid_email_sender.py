@@ -3,8 +3,8 @@ SendGrid Email Sender — sends transactional email via SendGrid REST API.
 Uses httpx (already a dependency) to avoid adding the sendgrid pip package.
 """
 
-import os
 import logging
+import os
 from typing import Optional
 
 import httpx

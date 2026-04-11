@@ -3,29 +3,34 @@ Wallet Pass Router
 
 Endpoints for wallet timeline, pass status, and Apple Wallet pass management.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+import logging
+import os
+from datetime import datetime
+from typing import List, Optional, Tuple
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List, Dict, Any, Tuple
-from datetime import datetime
 
 from app.db import get_db
-from app.models import User
-from app.models.domain import DriverWallet, ApplePassRegistration
-from app.models.vehicle import VehicleAccount
 from app.dependencies.driver import get_current_driver
-from app.services.wallet_timeline import get_wallet_timeline
-from app.services.apple_wallet_pass import create_pkpass_bundle, refresh_pkpass_bundle, _ensure_wallet_pass_token
-from app.services.google_wallet_service import (
-    ensure_google_wallet_class,
-    create_or_get_google_wallet_object,
-    generate_google_wallet_add_link,
-    GoogleWalletNotConfigured,
-)
 from app.dependencies.feature_flags import require_apple_wallet_signing
-import os
-import logging
+from app.models import User
+from app.models.domain import ApplePassRegistration, DriverWallet
+from app.models.vehicle import VehicleAccount
+from app.services.apple_wallet_pass import (
+    _ensure_wallet_pass_token,
+    create_pkpass_bundle,
+    refresh_pkpass_bundle,
+)
+from app.services.google_wallet_service import (
+    GoogleWalletNotConfigured,
+    create_or_get_google_wallet_object,
+    ensure_google_wallet_class,
+    generate_google_wallet_add_link,
+)
+from app.services.wallet_timeline import get_wallet_timeline
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +210,8 @@ def create_google_wallet_pass(
 
     # P3: HubSpot tracking (dry run)
     try:
-        from app.services.hubspot import track_event
         from app.events.hubspot_adapter import adapt_wallet_pass_install_event
+        from app.services.hubspot import track_event
         hubspot_payload = adapt_wallet_pass_install_event({
             "user_id": str(user.id),
             "pass_type": "google",
@@ -533,8 +538,8 @@ def create_apple_pass(
         
         # P3: HubSpot tracking (dry run)
         try:
-            from app.services.hubspot import track_event
             from app.events.hubspot_adapter import adapt_wallet_pass_install_event
+            from app.services.hubspot import track_event
             hubspot_payload = adapt_wallet_pass_install_event({
                 "user_id": str(user.id),
                 "pass_type": "apple",
@@ -1004,7 +1009,7 @@ def _validate_passkit_auth(db: Session, wallet: DriverWallet, request) -> None:
     """
     Validate PassKit authentication token against stored encrypted token.
     """
-    from app.services.token_encryption import decrypt_token, TokenDecryptionError
+    from app.services.token_encryption import TokenDecryptionError, decrypt_token
 
     client_token = _extract_auth_token(request)
     if not client_token:

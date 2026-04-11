@@ -6,10 +6,22 @@ Models for Merchant Onboarding and Placement Control
 - MerchantPaymentMethod: Card-on-file via Stripe SetupIntent
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index, UniqueConstraint
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON  # for non-sqlite engines

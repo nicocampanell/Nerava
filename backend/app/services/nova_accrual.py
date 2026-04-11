@@ -6,14 +6,11 @@ Accrues 1 Nova every 5 seconds while charging_detected = true
 import asyncio
 import logging
 import os
-from datetime import datetime
-from typing import Optional
-from sqlalchemy.orm import Session
-from app.db import get_db
-from app.models import DriverWallet
-from app.services.wallet_activity import mark_wallet_activity
-from app.models import NovaTransaction
 import uuid
+from typing import Optional
+
+from app.models import DriverWallet, NovaTransaction
+from app.services.wallet_activity import mark_wallet_activity
 
 logger = logging.getLogger(__name__)
 

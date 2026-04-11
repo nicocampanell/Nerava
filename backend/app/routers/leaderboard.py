@@ -1,14 +1,15 @@
 """Earnings leaderboard router."""
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies_domain import get_current_user
 from app.models import User
 from app.models.driver_wallet import DriverWallet
-from app.dependencies_domain import get_current_user
 
 router = APIRouter(prefix="/v1/leaderboard", tags=["leaderboard"])
 

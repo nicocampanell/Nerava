@@ -5,8 +5,8 @@ Provides endpoints to simulate Tesla Fleet API behavior for testing.
 Only available when TESLA_MOCK_MODE=true or DEBUG=true.
 """
 import logging
-from typing import Optional
-from fastapi import APIRouter, HTTPException, status, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -112,7 +112,7 @@ async def complete_mock_pairing(req: SimulatePairingRequest):
         )
 
         # Actually call the webhook endpoint
-        webhook_url = f"http://localhost:8000/v1/virtual-key/webhook/tesla"
+        webhook_url = "http://localhost:8000/v1/virtual-key/webhook/tesla"
         async with httpx.AsyncClient() as http_client:
             response = await http_client.post(webhook_url, json=webhook_payload)
             webhook_result = response.json() if response.status_code == 200 else None
@@ -146,7 +146,7 @@ async def simulate_vehicle_arrival(req: SimulateArrivalRequest):
         )
 
         # Call the webhook endpoint
-        webhook_url = f"http://localhost:8000/v1/virtual-key/webhook/tesla"
+        webhook_url = "http://localhost:8000/v1/virtual-key/webhook/tesla"
         async with httpx.AsyncClient() as http_client:
             response = await http_client.post(webhook_url, json=webhook_payload)
             webhook_result = response.json() if response.status_code == 200 else None

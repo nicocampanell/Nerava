@@ -5,7 +5,6 @@ Single source of truth for all user-facing copy used in API responses.
 DO NOT use "verification", "verified", or "verify" terminology.
 Use: "intent", "charging moment", "confidence", "trust reinforcement".
 """
-from typing import Dict, List
 
 # Location education copy
 LOCATION_EDUCATION_COPY = {

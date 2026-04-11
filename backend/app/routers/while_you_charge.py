@@ -7,17 +7,18 @@ curl -X POST http://localhost:8001/v1/while_you_charge/search \
   -d '{"user_lat": 30.2672, "user_lng": -97.7431, "query": "coffee"}'
 """
 import logging
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.services.while_you_charge import (
-    normalize_query_to_category,
-    find_chargers_near,
     find_and_link_merchants,
-    rank_merchants
+    find_chargers_near,
+    normalize_query_to_category,
+    rank_merchants,
 )
 
 logger = logging.getLogger(__name__)

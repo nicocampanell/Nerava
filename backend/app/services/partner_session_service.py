@@ -15,9 +15,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.partner import Partner
-from app.models.session_event import SessionEvent, IncentiveGrant
+from app.models.session_event import IncentiveGrant, SessionEvent
 from app.models.user import User
-from app.models.while_you_charge import Charger
 from app.services.incentive_engine import IncentiveEngine
 
 logger = logging.getLogger(__name__)
@@ -347,8 +346,8 @@ class PartnerSessionService:
             IncentiveGrant.session_event_id == session_event.id
         ).first()
         if grant:
-            from app.models.campaign import Campaign
             from app.core.config import settings
+            from app.models.campaign import Campaign
             campaign = db.query(Campaign).filter(Campaign.id == grant.campaign_id).first()
             platform_fee_bps = getattr(settings, 'PLATFORM_FEE_BPS', 2000)
             platform_fee_cents = (grant.amount_cents * platform_fee_bps) // 10000

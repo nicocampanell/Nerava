@@ -4,17 +4,24 @@ ArrivalSession model — core EV Arrival coordination primitive.
 States: pending_order → awaiting_arrival → arrived → merchant_notified → completed
 Also: expired, canceled, completed_unbillable
 """
-import uuid
 import random
 import string
+import uuid
 from datetime import datetime
+
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime,
-    ForeignKey, Text, Index,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
 )
 from sqlalchemy.orm import relationship
-from ..db import Base
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 
 def _generate_reply_code() -> str:

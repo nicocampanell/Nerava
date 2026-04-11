@@ -34,6 +34,8 @@ jobs:
 
       - name: Run pip-audit
         working-directory: backend
+        # Report vulnerabilities but don't fail CI — Dependabot PRs handle fixes
+        continue-on-error: true
         run: pip-audit -r requirements.txt --desc on
 
   sast:

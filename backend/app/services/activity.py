@@ -1,8 +1,8 @@
 import os
 import uuid
-from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+
 from sqlalchemy import text
+
 from app.db import get_db
 
 # Activity configuration

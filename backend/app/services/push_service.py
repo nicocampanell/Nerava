@@ -7,12 +7,12 @@ Handles token invalidation when APNs returns 410 Gone or FCM returns unregistere
 import json
 import logging
 import os
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.device_token import DeviceToken
 from app.core.config import settings
+from app.models.device_token import DeviceToken
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,8 @@
 """
 ChargeIntent model for ORM access to charge_intents table
 """
-from sqlalchemy import Column, String, Integer, Float, DateTime, func
+from sqlalchemy import Column, DateTime, Float, Integer, String, func
+
 from ..db import Base
 
 

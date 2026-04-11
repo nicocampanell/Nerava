@@ -2,10 +2,11 @@
 Debug endpoint for testing PostHog events.
 Only enabled in non-production environments.
 """
+import os
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
-import os
 
 from app.services.analytics import get_analytics_client
 

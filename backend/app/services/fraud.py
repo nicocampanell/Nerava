@@ -1,16 +1,17 @@
 """
 Anti-fraud services: device tracking, risk scoring, abuse event logging
 """
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
 import hashlib
 import json
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.utils.log import get_logger
 from app.services.geo import haversine_m
+from app.utils.log import get_logger
 
 logger = get_logger(__name__)
 

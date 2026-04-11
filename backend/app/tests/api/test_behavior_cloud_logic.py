@@ -1,6 +1,5 @@
-import pytest
-from datetime import datetime
-from app.services.behavior_cloud import get_cloud, segment_users, participation, elasticity_estimate
+from app.services.behavior_cloud import elasticity_estimate, get_cloud, participation, segment_users
+
 
 class TestBehaviorCloudLogic:
     """Test behavior cloud v1 logic implementation."""

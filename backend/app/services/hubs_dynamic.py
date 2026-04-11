@@ -1,13 +1,15 @@
 # app/services/hubs_dynamic.py
 import hashlib
-from typing import List, Dict
-from .chargers_openmap import fetch_chargers  # async
+from typing import Dict, List
+
 from .cache import cache
+from .chargers_openmap import fetch_chargers  # async
 from .reservations import reserve_preview_for
+
 
 def _stable_hub_id(lat: float, lng: float, member_ids: List[int]) -> str:
     sig = f"{round(lat,6)}|{round(lng,6)}|{','.join(map(str,sorted(member_ids)))}"
-    h = hashlib.md5(sig.encode()).hexdigest()[:8]
+    h = hashlib.md5(sig.encode(), usedforsecurity=False).hexdigest()[:8]
     return f"hub_dyn_{h}"
 
 def _status_from_free(free_ports: int) -> str:

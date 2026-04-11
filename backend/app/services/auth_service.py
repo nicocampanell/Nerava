@@ -2,17 +2,17 @@
 Auth Service - User registration, authentication, and role management
 for Domain Charge Party MVP
 """
-from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
-import uuid
-
-from app.models import User
-from app.models_domain import DriverWallet, DomainMerchant
-from app.core.security import hash_password, verify_password, create_access_token
-from app.core.config import settings
-from datetime import timedelta
 import logging
+from datetime import timedelta
+from typing import List, Optional
+
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.security import create_access_token, hash_password, verify_password
+from app.models import User
+from app.models_domain import DomainMerchant, DriverWallet
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +66,10 @@ class AuthService:
         # Emit driver_signed_up event if user is a driver (non-blocking)
         if "driver" in roles:
             try:
+                from datetime import datetime
+
                 from app.events.domain import DriverSignedUpEvent
                 from app.events.outbox import store_outbox_event
-                from datetime import datetime
                 event = DriverSignedUpEvent(
                     user_id=str(user.id),
                     email=email,

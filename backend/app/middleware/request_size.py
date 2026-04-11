@@ -3,10 +3,10 @@ Request size limit middleware.
 
 Rejects requests whose Content-Length exceeds the configured maximum.
 """
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10 MB
 

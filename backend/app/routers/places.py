@@ -3,16 +3,17 @@ Merchant places API — uses free OpenStreetMap/Overpass by default,
 falls back to Google Places only if GOOGLE_PLACES_API_KEY is configured.
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import get_db
 from app.dependencies_driver import get_current_driver
+from app.models.while_you_charge import Merchant
 from app.services.merchant_enrichment import enrich_from_google_places
-from app.models.while_you_charge import Merchant, ChargerMerchant, Charger
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ async def _search_google(
     max_results: int,
 ) -> List[PlaceSearchResponse]:
     """Search using Google Places API (paid, $7/1K calls)."""
-    from app.services.google_places_new import search_text, get_photo_url
+    from app.services.google_places_new import get_photo_url, search_text
 
     location_bias = None
     if lat is not None and lng is not None:
@@ -257,7 +258,7 @@ async def _get_osm_details(place_id: str) -> PlaceDetailsResponse:
 
 async def _get_google_details(place_id: str) -> PlaceDetailsResponse:
     """Get place details from Google Places API (paid)."""
-    from app.services.google_places_new import place_details, get_photo_url
+    from app.services.google_places_new import get_photo_url, place_details
 
     place_data = await place_details(place_id)
 

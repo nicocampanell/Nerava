@@ -4,13 +4,12 @@ Rate limiting utilities for phone-first checkin flow.
 Provides per-phone and per-IP rate limiting with Redis support
 and in-memory fallback.
 """
+import hashlib
 import logging
 import time
-import hashlib
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import Optional, Tuple
 from threading import Lock
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

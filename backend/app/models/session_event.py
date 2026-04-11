@@ -11,14 +11,23 @@ Key design decisions per review:
 - ended_reason and quality_score fields for anti-fraud
 """
 from datetime import datetime
+
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime,
-    ForeignKey, Text, Index, UniqueConstraint,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
-from ..db import Base
+from sqlalchemy.orm import relationship
+
 from ..core.uuid_type import UUIDType
+from ..db import Base
 
 try:
     from sqlalchemy import JSON

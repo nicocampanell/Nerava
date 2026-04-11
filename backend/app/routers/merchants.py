@@ -4,16 +4,18 @@ Handles GET /v1/merchants/{merchant_id} endpoint
 """
 import logging
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
-from app.models.while_you_charge import FavoriteMerchant, Merchant as WYCMerchant, AmenityVote
-from app.schemas.merchants import MerchantDetailsResponse, AmenityVoteRequest, AmenityVoteResponse
-from app.services.merchant_details import get_merchant_details
 from app.dependencies.driver import get_current_driver
-from sqlalchemy import func
+from app.models import User
+from app.models.while_you_charge import AmenityVote, FavoriteMerchant
+from app.models.while_you_charge import Merchant as WYCMerchant
+from app.schemas.merchants import AmenityVoteRequest, AmenityVoteResponse, MerchantDetailsResponse
+from app.services.merchant_details import get_merchant_details
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +34,9 @@ def get_my_merchant(
     Get merchant dashboard data for the authenticated merchant admin.
     Delegates to merchants_domain /me endpoint logic.
     """
-    from app.services.auth_service import AuthService
-    from app.models.domain import DomainMerchant
     from sqlalchemy import and_
+
+    from app.models.domain import DomainMerchant
 
     merchant = db.query(DomainMerchant).filter(
         and_(
@@ -78,11 +80,14 @@ def get_my_merchant_insights(
     current_user: User = Depends(get_current_driver),
 ):
     """Merchant insights — nearby charging sessions, dwell time, peak hours."""
-    from app.models.domain import DomainMerchant
-    from app.models.while_you_charge import Merchant as WYCMerchant2, ChargerMerchant
-    from app.models.session_event import SessionEvent
-    from sqlalchemy import and_
     from datetime import datetime, timedelta
+
+    from sqlalchemy import and_
+
+    from app.models.domain import DomainMerchant
+    from app.models.session_event import SessionEvent
+    from app.models.while_you_charge import ChargerMerchant
+    from app.models.while_you_charge import Merchant as WYCMerchant2
 
     merchant = db.query(DomainMerchant).filter(
         and_(
