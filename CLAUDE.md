@@ -1258,3 +1258,31 @@ The session trail map on `SessionCard` renders GPS points collected during charg
 - **Merchant ID resolution:** Frontend sends Google Place ID as `merchant_id`, but `exclusive_sessions` has FK to WYC `merchants` table. Backend resolves `place_id` → WYC `merchant.id` before insert.
 - **HTTPException swallowing:** The catch-all `except Exception` was catching `HTTPException` and re-raising as 500. Now re-raises `HTTPException` before the catch-all.
 - **Name matching:** `_find_all_charger_merchant_links()` uses partial name matching (SQL LIKE) as fallback when exact match fails (e.g., "The Heights Pizzeria" vs "The Heights Pizzeria and Drafthouse").
+
+## Dependabot Backlog — Merge Policy (as of 2026-04-11)
+
+**Do NOT merge any of the 20 open Dependabot PRs this week.** Wednesday's Kreg demo + live fundraising mean stability trumps freshness until after Apr 15. Resume the Dependabot cleanup session on Apr 16+ in a dedicated branch, not mixed with feature work.
+
+### Known risky bumps (need test runs, NOT auto-merge)
+
+- **PR #24 — FastAPI 0.103.2 → 0.115.2**. Not routine. Pydantic v2 validator syntax changed significantly between these versions. `@validator` → `@field_validator` migration required in any file still on v1 style (see `app/routers/checkin.py:173` which still uses the v1 pattern). Blind merge can break the production API at startup.
+- **PR #25 — Stripe 14.1.0 → 15.0.1**. Major version. Potential breaking changes in Connect and Express APIs that `payout_service.py` depends on. Needs a full withdrawal flow test before merge.
+- **PRs #19, #16, #12 — Vite 5.x → 8.0.8** (admin, driver, merchant). Three major versions in one hop. Plugin and config breaking changes are likely.
+
+### Merge order when it's time (Apr 16+)
+
+1. **GitHub Actions** (PRs #5, #6, #7): zero runtime risk, no package surface
+2. **Cryptography + pure security patches** (PR #22): no API changes, addresses some pip-audit CVEs from `SECURITY_AUDIT_NOTES.md`
+3. **Minor bumps**: Twilio #26, Alembic #23, lucide-react #8, #17, vitest #13 — individually, verify each
+4. **Major bumps last, each in its own PR with a full test run before merging the next one**: FastAPI #24, Stripe #25, Vite #16/#19/#12
+
+Rule: do not chain major bumps in a single branch. Each one gets its own PR + its own CI run + its own manual smoke test.
+
+### Overlap with SECURITY_AUDIT_NOTES.md follow-ups
+
+Several Dependabot PRs would knock out items from the 39-CVE pip-audit baseline captured in PR #36 (`backend/SECURITY_AUDIT_NOTES.md`):
+- Cryptography #22 covers some `cryptography`/TLS CVEs
+- FastAPI #24 (once test-validated) covers any `starlette` / `fastapi` CVEs
+- Twilio #26 covers any `twilio` CVEs
+
+When the dependency cleanup happens, re-run `pip-audit` after each merge to track the delta.
