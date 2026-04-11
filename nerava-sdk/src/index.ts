@@ -86,7 +86,14 @@ export {
   type OfferSummary,
 } from "./modules/offers.js";
 
-// TODO(step-8): re-export intelligence module.
+// Step 8 — intelligence module (PENDING backend — mock-only)
+export {
+  IntelligenceModule,
+  type AntiFraudSignals,
+  type IntelligenceGrant,
+  type QualityBucket,
+  type SessionIntelligenceResponse,
+} from "./modules/intelligence.js";
 // TODO(step-11): add the top-level `Nerava` facade class that composes
 //   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`
 //   entry point matching the README quickstart.
