@@ -49,7 +49,7 @@
     "mock": "tsx mock/server.ts",
     "example": "tsx examples/basic-integration.ts",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run typecheck && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run clean && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

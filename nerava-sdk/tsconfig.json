@@ -13,11 +13,9 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
 
-    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "isolatedModules": true,
     "verbatimModuleSyntax": true,
 
     "noEmit": true
