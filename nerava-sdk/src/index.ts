@@ -22,8 +22,21 @@ export {
   type RequestOptions,
 } from "./client.js";
 
-// TODO(step-3): re-export types.ts interfaces.
-// TODO(step-4): re-export NeravaError class.
+// Step 3 — shared primitive types
+export {
+  usd,
+  type JsonArray,
+  type JsonObject,
+  type JsonPrimitive,
+  type JsonValue,
+  type LatLng,
+  type Money,
+  type PaginatedResponse,
+  type PaginationParams,
+  type VehicleType,
+} from "./types.js";
+
+// TODO(step-4): re-export NeravaError class + ErrorCode enum.
 // TODO(step-5 through step-8): re-export module classes and their types.
 // TODO(step-11): add the top-level `Nerava` facade class that composes
 //   AuthManager + NeravaClient + all modules behind a single `new Nerava({...})`

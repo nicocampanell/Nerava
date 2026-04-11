@@ -22,6 +22,7 @@
  */
 
 import type { AuthManager } from "./auth.js";
+import type { JsonValue } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,14 +83,20 @@ export interface RequestOptions {
   query?: Record<string, QueryValue>;
 
   /**
-   * Optional JSON-serializable request body. The client will:
+   * Optional JSON-serializable request body. Typed as `JsonValue` (from
+   * `types.ts`) so the compiler rejects `Date`, class instances, functions,
+   * and anything else that would be mangled by `JSON.stringify`.
+   *
+   * The client will:
    *   1. JSON.stringify it
    *   2. add `Content-Type: application/json`
    *
-   * Passing `undefined` (or omitting) means no body. Do not pass `null` —
-   * that would serialize as the string "null" and confuse the backend.
+   * Passing `undefined` (or omitting) means no body. Do not pass `null` at
+   * the top level — that would serialize as the string `"null"` and confuse
+   * the backend. (Nested `null` values inside a `JsonObject` are fine —
+   * they round-trip correctly.)
    */
-  body?: unknown;
+  body?: JsonValue;
 
   /**
    * Optional extra headers. These are merged AFTER the auth headers, so a
