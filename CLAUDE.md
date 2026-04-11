@@ -1286,3 +1286,188 @@ Several Dependabot PRs would knock out items from the 39-CVE pip-audit baseline 
 - Twilio #26 covers any `twilio` CVEs
 
 When the dependency cleanup happens, re-run `pip-audit` after each merge to track the delta.
+
+## Local Dev Setup — Required Env Vars (critical for new sessions)
+
+`.mcp.json` is **gitignored** as of PR #37 (commit `2b5228a`, April 2026). The file exists locally but is never committed. Every new session that needs the postgres MCP server to work against production RDS must have `NERAVA_DB_URL` exported in the shell before Claude Code starts.
+
+### Required local env vars
+
+```bash
+# In ~/.zshrc or ~/.bashrc (NOT in any file committed to the repo):
+
+# Postgres MCP connection string — fetch from App Runner, not from any local file
+export NERAVA_DB_URL=$(aws apprunner describe-service \
+  --service-arn "arn:aws:apprunner:us-east-1:566287346479:service/nerava-backend/88e85a3063c14ea9a1e39f8fdf3c35e3" \
+  --region us-east-1 \
+  --query 'Service.SourceConfiguration.ImageRepository.ImageConfiguration.RuntimeEnvironmentVariables.DATABASE_URL' \
+  --output text)
+```
+
+The postgres MCP server in `.mcp.json` uses a `bash -c` wrapper that reads this env var at startup. If it's unset, the MCP server fails closed with a helpful message — it does NOT fall back to a hardcoded value.
+
+### Pytest invocation (full suite)
+
+The backend test suite requires specific env vars to run locally. Missing any of them causes collection failure or startup validation errors. The canonical invocation from the `backend/` directory:
+
+```bash
+STRICT_STARTUP_VALIDATION=false \
+ENV=test \
+OTP_PROVIDER=stub \
+TESLA_MOCK_MODE=true \
+JWT_SECRET=test_secret_for_pytest \
+TOAST_MOCK_MODE=true \
+APPLE_CLIENT_ID=com.nerava.test.app \
+python3 -m pytest --no-cov
+```
+
+**`STRICT_STARTUP_VALIDATION=false` is mandatory** — without it, `app/main_simple.py:267` calls `sys.exit(1)` during test collection when certain env vars are missing, breaking the entire suite. The `--no-cov` flag is optional but recommended when running a single file because the default `pytest.ini` includes `--cov=app` which is slow on targeted runs.
+
+### MCP servers in the local `.mcp.json`
+
+| Server | Type | Auth |
+|---|---|---|
+| `filesystem` | stdio via npx | no credential |
+| `playwright` | stdio via npx | no credential |
+| `context7` | stdio via npx | no credential |
+| `postgres` | stdio via `bash -c` wrapper | reads `$NERAVA_DB_URL` from shell env |
+| `figma` | http (hosted) | OAuth at runtime via `figma.mcp.claude.com/mcp` — no token in file |
+
+## CI Gating Reality (important for scoping PRs)
+
+The backend test suite has **~350 pre-existing failing tests** that are NOT regressions introduced by any recent PR. They fall into four buckets:
+1. **Schema drift** — tests that create tables the production schema no longer has (`users.admin_role`, `chargers_openmap`, etc.)
+2. **Missing test DB setup** — row-lock tests against SQLite that silently pass but verify nothing
+3. **Tests depending on production-only behavior** — live API calls, real S3, etc.
+4. **`test_payout_service.py` datetime/MagicMock comparison bugs** — 3 specific tests that have been broken for weeks and were explicitly deferred in PR #36 scope decisions
+
+### CI runs only 4 files as a workaround
+
+`.github/workflows/backend-tests.yml` and related workflows run ONLY these 4 files:
+- `tests/test_session_event_service.py`
+- `tests/test_campaign_service.py`
+- `tests/test_security_headers.py`
+- `tests/test_partner_api.py`
+
+This is a deliberate workaround, not a proper gate. It exists so that CI passes while the broken tests wait for their dedicated cleanup PR.
+
+### Rule for new PRs
+
+- **Never fix the ~350 pre-existing failures in an unrelated PR.** They are scope creep and will not land cleanly. They need their own focused PR.
+- **Never add new tests to the broken test files** (`test_payout_service.py`, `test_account_delete_guard.py`, etc.). Write new tests in a fresh file with self-contained fixtures — see `test_payout_full_paths.py` as the pattern to follow.
+- **Always run new tests in isolation** (`pytest tests/your_new_file.py --no-cov`) to verify they pass, then check they don't break CI's 4-file set. Don't try to make the full suite green in one sitting.
+
+## PR #36 Baseline (test coverage + Playwright automation, merged April 2026)
+
+New test files on `main` as of PR #36. When adding coverage in future PRs, prefer extending these over creating another parallel file:
+
+- `backend/tests/test_tesla_session_lifecycle.py` — full Tesla charge-to-wallet loop (6 tests)
+- `backend/tests/test_campaign_budget_atomicity.py` — budget decrement + auto-pause + rollback (10 pass + 1 skipped SQLite-only)
+- `backend/tests/test_payout_full_paths.py` — payout happy path + webhooks + idempotency + source-inspection Rule #4 (17 tests)
+- `backend/tests/test_merchant_visit_redemption.py` — `_verify_merchant_ownership`, visit_number allocation, redemption (11 tests)
+- `backend/tests/test_auth_apple.py` — Apple Sign-In (8 tests)
+- `backend/tests/test_auth_edge_cases.py` — OTP, refresh rotation, logout, magic link prod gate (14 tests)
+- `backend/tests/test_coverage_gap_fills.py` — Toast POS mock, Apple Wallet helpers, phone utils, geo haversine, config gates (28 tests)
+
+Coverage baseline was 43% → 44% at the end of PR #36. The small delta is because the TOTAL is dominated by the ~350 broken tests whose modules get zero credit; individual targeted files moved significantly.
+
+New Playwright specs:
+- `e2e/tests/auth.spec.ts`
+- `e2e/tests/session-incentive.spec.ts`
+- `e2e/tests/merchant-offer.spec.ts`
+- `e2e/tests/wallet.spec.ts`
+- `e2e/tests/merchant-portal.spec.ts`
+
+Security baselines (committed, reference them before adding new scans):
+- `backend/bandit_report.json` — 0 HIGH, 5 MEDIUM (all `B108` hardcoded tmp paths), 120 LOW
+- `backend/SECURITY_AUDIT_NOTES.md` — individual triage of every MEDIUM + pip-audit plan
+
+### Pre-existing test files deleted in PR #36 (don't look for them)
+
+Ten test files that imported dead modules (`app.main`, `app.services.behavior_cloud`, etc.) were removed in commit `2b595cc`:
+- `tests/unit/test_ev_connect.py`, `tests/unit/test_ev_telemetry.py`
+- `tests/integration/test_phone_first_checkin.py`
+- `tests/test_queued_orders.py`, `tests/test_exclusive_sessions.py`
+- `app/tests/api/test_behavior_cloud_logic.py`, `test_energy_rep_logic.py`, `test_merchant_intel_logic.py`
+- `app/tests/demo/test_demo_state.py`, `test_seed_idempotent.py`
+
+## Review Loop Discipline (for PR reviews)
+
+Nerava PRs are reviewed by **both** CodeRabbit and Gemini Code Assist. Both are wired as GitHub actions and respond to `@coderabbitai review` / `@gemini-code-assist review` comments on a PR.
+
+### Rules learned from PRs #27, #35, #36, #37
+
+1. **One final review pass at the end of a branch, not per-commit.** Per-step review rounds produce diminishing returns and the reviewers start surfacing stale findings from earlier commits.
+2. **CodeRabbit hallucinates sometimes.** Verify every "Critical" finding against the actual source before fixing. Document rejected hallucinations with evidence (e.g., PR #36 round 3 had a "Critical" Toast mock schema claim that was verifiably wrong).
+3. **Review loops often re-surface already-fixed findings.** If Gemini or CodeRabbit flags the same issue twice across rounds, check timestamps — the second one may be pre-push against an older commit.
+4. **Stop after 2-3 rounds max.** The highest-signal findings come in round 1. Rounds 4+ are noise. Stop the loop and document remaining comments as "acceptable" or "follow-up" rather than chasing convergence.
+5. **Always re-run pre-commit hooks before pushing.** Black + ruff reformat aggressively and will break commit hook runs if you push un-reformatted code.
+
+## Incident Log
+
+### 2026-04-11: `.mcp.json` credential leak + RDS rotation
+
+**What happened:** `.mcp.json` was tracked in the public repo history and leaked the production RDS master password in commit `01c7fe1` ("Fix CI pipeline + CodeRabbit round 5 + ruff autofix clean"). The file contained a `postgresql://nerava_admin:<password>@nerava-db...` connection string in plaintext. Discovered during the Figma MCP integration attempt the same day.
+
+**Response (executed via `aws` CLI with carefully-timed rotation):**
+1. Waited for the in-progress Tesla data collector cycle to complete at 22:07:56 UTC so the destructive AWS ops didn't interrupt data collection
+2. Ran `aws rds modify-db-instance --db-instance-identifier nerava-db --master-user-password "<generated>" --apply-immediately --region us-east-1` with a password generated inline via `openssl rand -base64 48 | tr -d '=+/@:"\\\n' | head -c 32` (never written to any file, never printed to output)
+3. Rebuilt the App Runner source config JSON from `aws apprunner describe-service` output, injecting the URL-encoded new password only into `RuntimeEnvironmentVariables.DATABASE_URL`
+4. Pushed the new config via `aws apprunner update-service --source-configuration file:///tmp/apprunner_source_config_new.json`
+5. Polled RDS + App Runner status every 20s until all three of `rds=available`, `apprunner=SUCCEEDED`, `healthz=200`
+6. Verified the Tesla data collector fired successfully on the new instance at 22:14:07 UTC and 22:23:08 UTC (25/25 TomTom + 4 Tesla stored in each cycle)
+
+**Outcome:** Zero data loss. Backend `/healthz` returned 200 throughout the window because App Runner's rolling deploy pattern kept at least one instance serving while the new instance came up.
+
+**Lessons codified in this CLAUDE.md:**
+- `.mcp.json` is now gitignored and MCP servers reference env vars for credentials (see "Local Dev Setup" section above)
+- Always wait for the Tesla collector cycle to complete before destructive AWS ops (cycle runs every ~15 min; polling the `/aws/apprunner/nerava-backend/.../application` log group for `TeslaCollector Stored` entries tells you where in the cycle you are)
+- Never write a generated credential to a file — pipe it directly into the AWS CLI call so it only lives in process memory
+- When rebuilding App Runner's `SourceConfiguration` JSON, use `python3 -` heredoc with file I/O INSIDE the python script (NOT stdout redirection) — the stdout redirect can race the file write and clobber the config. The first rotation attempt in this session lost the password to exactly this bug and had to be redone
+
+### Rotation timing rule (for future destructive AWS ops)
+
+Before any `aws rds modify-db-instance`, `aws apprunner update-service`, or anything that disrupts the backend:
+
+1. Check the last Tesla collector cycle timestamp with `aws logs filter-log-events ... --filter-pattern "TeslaCollector Stored"`
+2. Confirm the next expected cycle is **at least 5 minutes away** (cycle interval is 900s / 15 min)
+3. If the next cycle is sooner than 5 min, wait for it to complete first
+4. Execute the AWS op within the ~13-minute clean window before the next cycle
+
+This rule applied to PR #36 deploys, the `.mcp.json` rotation, and should apply to any future production change.
+
+## Active Production State (April 11, 2026 snapshot)
+
+**Fundraising window:** Live through April 15 (Kreg demo Wednesday). Stability is paramount until then — see the Dependabot merge policy section above for the hold on dependency bumps.
+
+**Backend image:** `566287346479.dkr.ecr.us-east-1.amazonaws.com/nerava-backend:audit-r15-20260411-0724` (deployed April 11 with the PR #27 13-round audit fixes).
+
+**Tesla data collection (for Kreg report):**
+- Running every ~15 min via `backend/app/workers/availability_collector.py` `[TeslaCollector]` path
+- **6 Tesla Supercharger sites tracked** as of April 11 (started at 4, expanded to 6 after James drove to Temple):
+  - Temple, TX — 68 stalls
+  - Harker Heights, TX — 12 stalls (James's home base, where Market Heights pizzeria is — the first merchant)
+  - Jarrell, TX — 8 stalls
+  - Georgetown, TX — 16 stalls (faded from the rolling API response when vehicle returned home; DB history preserved)
+  - Lorena, TX — 20 stalls (**added April 11 during the drive to Temple**)
+  - Round Rock, TX (University Blvd) — 20 stalls (**added April 11 during the drive back**)
+- Total stalls monitored: 144 (was 104 before the drive)
+- Intelligence report artifacts live in `reports/` — `nerava-intelligence-tesla-superchargers.pdf` + `.html` + `generate_tesla_report.py` (Python script that pulls live data from admin analytics endpoint and renders the HTML template)
+
+**Merged PRs on `main` this week:**
+- **PR #27** (audit/full-codebase-review) — 13-round audit with Round 14+15 fixes, merged `121fb58`
+- **PR #35** (feature/sdk-appstore) — `nerava-sdk/` + `nerava-appstore/` TypeScript SDK + demo app, merged `9425cf2`
+- **PR #36** (feature/test-coverage) — 94 backend tests + 13 Playwright specs + security baselines, merged `6db0db3`
+- **PR #37** (security/mcp-cleanup) — `.mcp.json` untracked + gitignored + Dependabot merge policy docs, merged `86ba9ce`
+
+## Driver App UI State (April 11, 2026 — for demo prep)
+
+Live at `app.nerava.network` (S3 + CloudFront distribution `E2UEQFQ3RSEEAR`). Current state:
+- **Stations tab (home)** — full-screen Leaflet/OSM map centered on Austin downtown by default, cluster of ChargePoint Network pins, top-right search/filter/center controls
+- **Wallet tab** — empty state with "Sign in to view your wallet" CTA. Logged-out demo shows ~80% whitespace; for investor demos either sign in first or build a preview mode
+- **Account tab** — blue gradient "Welcome to Nerava" card with three value props (Tesla, rewards, favorites), Favorites 0-saved, Share Nerava referrals, Preferences section
+
+**Known demo risks for Wednesday:**
+1. Wallet logged-out state is too empty — pre-sign-in as demo account before presenting
+2. Map defaults to Austin; Tesla Superchargers the intelligence report covers are on I-35 north of Austin. For the moat story, either default-center on Harker Heights or add a "Tesla Supercharger" pin layer toggle
+3. All charger pins labeled "ChargePoint Network" — clustering is hiding variety. Declutter or diversify labels so the demo shows multi-network coverage, not "8 copies of one network"
