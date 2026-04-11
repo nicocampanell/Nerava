@@ -268,21 +268,82 @@ async def _collect_tesla_once():
             logger.warning("[TeslaCollector] No access token (connection revoked?)")
             return
 
-        # Best-effort wake. Swallow errors — the Fleet API call below will
-        # return 408 if the vehicle is still asleep, which we log and move on.
-        try:
-            await oauth.wake_vehicle(access_token, conn.vehicle_id)
-        except Exception as wake_err:
-            logger.info(f"[TeslaCollector] wake_vehicle non-fatal: {wake_err}")
+        # Robust "fresh stall data" strategy:
+        # Tesla's nearby_charging_sites endpoint sometimes returns the site
+        # list with null available_stalls/total_stalls when the vehicle is
+        # parked and idle (cached path). To force fresh data we need the
+        # vehicle fully ONLINE, not just waking. Strategy:
+        #   1. Call wake_vehicle (returns immediately with current state).
+        #   2. Call vehicle_data which forces full online transition and
+        #      blocks until the car responds with live telemetry.
+        #   3. Immediately call nearby_charging_sites — Tesla will now return
+        #      fresh stall counts.
+        #   4. If the first response still has null stalls on ALL sites,
+        #      wait 5s and retry once more.
+        response = None
+        raw_first_attempt = None
+        for attempt in range(2):
+            try:
+                await oauth.wake_vehicle(access_token, conn.vehicle_id)
+            except Exception as wake_err:
+                logger.info(
+                    f"[TeslaCollector] wake_vehicle non-fatal (attempt {attempt + 1}): {wake_err}"
+                )
 
-        try:
-            response = await oauth.get_nearby_charging_sites(
-                access_token, conn.vehicle_id
+            # vehicle_data forces the car fully online. This is what the
+            # driver-app polling does and it reliably primes nearby_charging_sites
+            # to return live stall counts. Cheap relative to the dev credit
+            # ($0.002/call → ~$0.19/day at 15-min cadence).
+            try:
+                await oauth.get_vehicle_data(access_token, conn.vehicle_id)
+            except Exception as vd_err:
+                logger.info(
+                    f"[TeslaCollector] get_vehicle_data non-fatal (attempt {attempt + 1}): {vd_err}"
+                )
+
+            try:
+                response = await oauth.get_nearby_charging_sites(
+                    access_token, conn.vehicle_id
+                )
+            except Exception as call_err:
+                logger.warning(
+                    f"[TeslaCollector] get_nearby_charging_sites failed "
+                    f"(attempt {attempt + 1}): {call_err}"
+                )
+                response = None
+                await asyncio.sleep(5)
+                continue
+
+            # Check whether the response contains ANY site with live stall data.
+            # If yes → we're good. If no → retry once after a short delay.
+            scs = response.get("superchargers") or []
+            has_live = any(
+                sc.get("total_stalls") is not None and sc.get("available_stalls") is not None
+                for sc in scs
             )
-        except Exception as call_err:
-            logger.warning(
-                f"[TeslaCollector] get_nearby_charging_sites failed: {call_err}"
-            )
+            if attempt == 0:
+                raw_first_attempt = {
+                    "site_count": len(scs),
+                    "has_live": has_live,
+                    "sample": scs[0] if scs else None,
+                }
+            if has_live:
+                if attempt == 1:
+                    logger.info(
+                        "[TeslaCollector] Recovered live stall data on retry "
+                        f"(first attempt had {len(scs)} sites but no stall data)"
+                    )
+                break
+            # No live data — retry with a wait for the car to fully come online
+            if attempt == 0:
+                logger.info(
+                    f"[TeslaCollector] First attempt returned {len(scs)} site(s) "
+                    f"with no stall data; retrying in 5s"
+                )
+                await asyncio.sleep(5)
+
+        if response is None:
+            logger.warning("[TeslaCollector] All attempts failed — no response")
             return
 
         superchargers = response.get("superchargers") or []
@@ -294,13 +355,15 @@ async def _collect_tesla_once():
             return
 
         stored = 0
+        skipped_no_stalls = 0
         for sc in superchargers:
             name = sc.get("name") or ""
             total = sc.get("total_stalls")
             available = sc.get("available_stalls")
-            # Skip entries without live stall data (shouldn't happen in 2026
-            # but be defensive if Tesla changes the schema later).
+            # Skip entries without live stall data (Tesla returns null when
+            # the vehicle has been parked too long and the cached path kicks in).
             if total is None or available is None:
+                skipped_no_stalls += 1
                 continue
             occupied = max(0, int(total) - int(available))
             slug = _slugify_site_name(name)
@@ -326,9 +389,16 @@ async def _collect_tesla_once():
 
         db.commit()
         logger.info(
-            f"[TeslaCollector] Stored {stored} supercharger snapshot(s) "
+            f"[TeslaCollector] Stored {stored} supercharger snapshot(s), "
+            f"skipped {skipped_no_stalls} with null stalls "
             f"(vehicle_id={conn.vehicle_id})"
         )
+        # On cycles that stored zero after retry, dump the first attempt for
+        # diagnosis so we can see exactly what Tesla returned.
+        if stored == 0 and raw_first_attempt is not None:
+            logger.warning(
+                f"[TeslaCollector] Cycle stored 0 — first_attempt={raw_first_attempt}"
+            )
     except Exception as e:
         db.rollback()
         logger.error(f"[TeslaCollector] Collection failed: {e}")
