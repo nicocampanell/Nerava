@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Button } from './Button'
 
 export default function Header() {
@@ -52,6 +53,12 @@ export default function Header() {
             >
               Sponsors
             </a>
+            <Link
+              href="/developers"
+              className="text-foreground hover:text-muted-foreground transition-colors"
+            >
+              Developers
+            </Link>
             <Button
               variant="primary"
               onClick={() => scrollToSection('download')}
