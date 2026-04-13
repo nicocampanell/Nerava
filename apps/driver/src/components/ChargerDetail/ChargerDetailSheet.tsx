@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { X, Navigation, Zap, MapPin, Shield, Users, DollarSign, Phone, Globe, Coffee, ShoppingBag, Utensils, Dumbbell, TreePine, Popcorn, CircleDollarSign, Gift, UserPlus } from 'lucide-react'
-import { useChargerDetail, useDriverCampaigns, useActivateExclusive, useRequestToJoin } from '../../services/api'
+import { X, Navigation, Zap, MapPin, Shield, Users, DollarSign, Phone, Globe, Coffee, ShoppingBag, Utensils, Dumbbell, TreePine, Popcorn, CircleDollarSign, Gift, UserPlus, ExternalLink } from 'lucide-react'
+import { useChargerDetail, useDriverCampaigns, useActivateExclusive, useRequestToJoin, startDriverOrder } from '../../services/api'
 import type { ChargerDetailNearbyMerchant, DriverCampaign } from '../../services/api'
 import { capture, DRIVER_EVENTS } from '../../analytics'
 import { openExternalUrl } from '../../utils/openExternal'
+import { useNativeBridge } from '../../hooks/useNativeBridge'
 
 type SheetState = 'peek' | 'expanded' | 'dismissed'
 type Tab = 'overview' | 'rewards' | 'nearby'
@@ -96,12 +97,17 @@ export function ChargerDetailSheet({
   const [actionMerchant, setActionMerchant] = useState<ChargerDetailNearbyMerchant | null>(null)
   // Claim flow state
   const [claimingMerchant, setClaimingMerchant] = useState<ChargerDetailNearbyMerchant | null>(null)
-  const [claimState, setClaimState] = useState<'idle' | 'confirming'>('idle')
+  const [claimState, setClaimState] = useState<'idle' | 'confirming' | 'success' | 'error'>('idle')
+  const [claimedSession, setClaimedSession] = useState<{id: string, merchantName: string} | null>(null)
+  const [claimError, setClaimError] = useState<string | null>(null)
   // Request to join state
   const [requestingMerchant, setRequestingMerchant] = useState<ChargerDetailNearbyMerchant | null>(null)
   const [requestSent, setRequestSent] = useState<Set<string>>(new Set())
   const activateExclusive = useActivateExclusive()
   const requestToJoin = useRequestToJoin()
+  const { openInAppBrowser } = useNativeBridge()
+  // Toast state for "Opening [merchant name]..."
+  const [orderToast, setOrderToast] = useState<string | null>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
   const dragStartTranslate = useRef(0)
@@ -220,25 +226,32 @@ export function ChargerDetailSheet({
 
   const handleConfirmClaim = async () => {
     if (!claimingMerchant) return
+    setClaimError(null)
+    const idempotencyKey = crypto.randomUUID()
     try {
       const result = await activateExclusive.mutateAsync({
-        merchant_id: claimingMerchant.place_id,
-        merchant_place_id: claimingMerchant.place_id,
-        charger_id: chargerId,
-        lat: userLat ?? 0,
-        lng: userLng ?? 0,
+        request: {
+          merchant_id: claimingMerchant.place_id,
+          merchant_place_id: claimingMerchant.place_id,
+          charger_id: chargerId,
+          lat: userLat ?? 0,
+          lng: userLng ?? 0,
+        },
+        idempotencyKey,
       })
       capture(DRIVER_EVENTS.EXCLUSIVE_ACTIVATE_SUCCESS, {
         merchant_name: claimingMerchant.name,
         charger_id: chargerId,
       })
-      setClaimState('idle')
-      setClaimingMerchant(null)
-      // Navigate to active claim view via stations tab
-      onClaimActivated?.(result.exclusive_session?.id || '')
-    } catch {
-      setClaimState('idle')
-      setClaimingMerchant(null)
+      setClaimedSession({
+        id: result.exclusive_session?.id || '',
+        merchantName: claimingMerchant.name,
+      })
+      setClaimState('success')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      setClaimError(message)
+      setClaimState('error')
     }
   }
 
@@ -267,6 +280,34 @@ export function ChargerDetailSheet({
       setRequestSent((prev) => new Set(prev).add(m.place_id))
     }
     setTimeout(() => setRequestingMerchant(null), 2000)
+  }
+
+  // "Order from the car" handler
+  const handleOrderFromCar = async (m: ChargerDetailNearbyMerchant) => {
+    if (!m.ordering_url) return
+    setActionMerchant(null)
+
+    // Fire-and-forget: notify backend (don't block the user if it fails)
+    startDriverOrder({
+      merchant_id: m.place_id,
+      ordering_url: m.ordering_url,
+    }).catch(() => {
+      // Silently handle — the order tracking is best-effort
+    })
+
+    // PostHog event
+    capture(DRIVER_EVENTS.IN_APP_BROWSER_OPENED, {
+      merchant_name: m.name,
+      ordering_url: m.ordering_url,
+      place_id: m.place_id,
+    })
+
+    // Show toast
+    setOrderToast(m.name)
+    setTimeout(() => setOrderToast(null), 3000)
+
+    // Open the ordering URL via native bridge (falls back to window.open)
+    openInAppBrowser(m.ordering_url)
   }
 
   return (
@@ -416,19 +457,39 @@ export function ChargerDetailSheet({
           onDirections={() => handleMerchantDirections(actionMerchant)}
           onClaimReward={() => handleClaimReward(actionMerchant)}
           onRequestToJoin={() => handleRequestToJoin(actionMerchant)}
+          onOrderFromCar={() => handleOrderFromCar(actionMerchant)}
           alreadyRequested={requestSent.has(actionMerchant.place_id)}
           onClose={() => setActionMerchant(null)}
         />
       )}
 
       {/* Claim Confirmation Modal */}
-      {claimState === 'confirming' && claimingMerchant && (
+      {(claimState === 'confirming' || claimState === 'success' || claimState === 'error') && claimingMerchant && (
         <ClaimConfirmModal
           merchant={claimingMerchant}
           isCharging={isCharging}
           isLoading={activateExclusive.isPending}
           onConfirm={handleConfirmClaim}
-          onClose={() => { setClaimState('idle'); setClaimingMerchant(null) }}
+          onClose={() => {
+            if (claimState === 'success' && claimedSession) {
+              onClaimActivated?.(claimedSession.id)
+            }
+            setClaimState('idle')
+            setClaimingMerchant(null)
+            setClaimedSession(null)
+            setClaimError(null)
+          }}
+          claimState={claimState}
+          claimError={claimError}
+          onViewWallet={() => {
+            if (claimedSession) {
+              onClaimActivated?.(claimedSession.id)
+            }
+            setClaimState('idle')
+            setClaimingMerchant(null)
+            setClaimedSession(null)
+            setClaimError(null)
+          }}
         />
       )}
 
@@ -440,6 +501,17 @@ export function ChargerDetailSheet({
           <div>
             <p className="text-sm font-semibold">Request sent for {requestingMerchant.name}</p>
             <p className="text-xs opacity-90">We'll notify them that drivers want them on Nerava</p>
+          </div>
+        </div>
+      )}
+
+      {/* Order from the car toast */}
+      {orderToast && (
+        <div className="fixed top-12 inset-x-4 z-[3200] bg-emerald-600 text-white rounded-2xl p-4 flex items-center gap-3 animate-slide-down shadow-lg">
+          <ExternalLink className="w-6 h-6 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Opening {orderToast}...</p>
+            <p className="text-xs opacity-90">Place your order and pick it up while you charge</p>
           </div>
         </div>
       )}
@@ -537,12 +609,12 @@ function OverviewTab({ detail, connectors, rewardCents }: { detail: ReturnType<t
 function RewardsTab({ rewardCents, detail, campaigns, isCharging }: { rewardCents: number; detail: ReturnType<typeof useChargerDetail>['data']; campaigns: DriverCampaign[]; isCharging: boolean }) {
   const hasCampaigns = campaigns.length > 0
 
-  // Removed early return — EVject partner offer should always show
+  // No early return — partner offer campaigns (with offer_url) render dynamically below
 
   return (
     <div className="space-y-3">
-      {/* Campaign cards */}
-      {campaigns.map((c) => (
+      {/* Campaign cards (skip partner offer campaigns — they render separately below) */}
+      {campaigns.filter((c) => !c.offer_url).map((c) => (
         <div
           key={c.id}
           className="bg-white border border-[#E4E6EB] rounded-2xl p-4 relative overflow-hidden"
@@ -594,46 +666,57 @@ function RewardsTab({ rewardCents, detail, campaigns, isCharging }: { rewardCent
         </div>
       ))}
 
-      {/* EVject Partner Offer */}
-      <button
-        onClick={() => {
-          if (!isCharging) return
-          capture(DRIVER_EVENTS.MERCHANT_CLICKED, { sponsor: 'evject', type: 'partner_offer' })
-          openExternalUrl('https://evject.com/discount/nerava26')
-        }}
-        disabled={!isCharging}
-        className={`w-full rounded-2xl border p-4 text-left transition-all relative overflow-hidden ${
-          isCharging
-            ? 'border-emerald-200 bg-emerald-50 active:scale-[0.98] cursor-pointer'
-            : 'border-[#E4E6EB] bg-gray-50 opacity-60 cursor-not-allowed'
-        }`}
-      >
-        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-        <div className="flex items-start justify-between ml-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-6 h-6 bg-emerald-600 rounded-full flex items-center justify-center">
-                <Zap className="w-3.5 h-3.5 text-white" />
+      {/* Partner Offer cards — campaigns with an offer_url open an external link */}
+      {campaigns.filter((c) => c.offer_url).map((c) => (
+        <button
+          key={`offer-${c.id}`}
+          onClick={() => {
+            if (!isCharging || !c.offer_url) return
+            capture(DRIVER_EVENTS.MERCHANT_CLICKED, { sponsor: c.sponsor_name, type: 'partner_offer' })
+            openExternalUrl(c.offer_url)
+          }}
+          disabled={!isCharging}
+          className={`w-full rounded-2xl border p-4 text-left transition-all relative overflow-hidden ${
+            isCharging
+              ? 'border-emerald-200 bg-emerald-50 active:scale-[0.98] cursor-pointer'
+              : 'border-[#E4E6EB] bg-gray-50 opacity-60 cursor-not-allowed'
+          }`}
+        >
+          <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
+          <div className="flex items-start justify-between ml-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                {c.sponsor_logo_url ? (
+                  <img src={c.sponsor_logo_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <div className="w-6 h-6 bg-emerald-600 rounded-full flex items-center justify-center">
+                    <Zap className="w-3.5 h-3.5 text-white" />
+                  </div>
+                )}
+                <span className="text-xs font-medium text-[#65676B]">{c.sponsor_name}</span>
+                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                  Partner Offer
+                </span>
               </div>
-              <span className="text-xs font-medium text-[#65676B]">EVject</span>
-              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
-                Partner Offer
-              </span>
+              <p className="text-sm font-semibold text-[#050505]">{c.name}</p>
+              <p className="text-xs text-[#65676B] mt-0.5">
+                {isCharging
+                  ? (c.description || 'Tap to claim your partner offer')
+                  : 'Start charging to unlock this reward'}
+              </p>
             </div>
-            <p className="text-sm font-semibold text-[#050505]">10% Off EVject Chargers</p>
-            <p className="text-xs text-[#65676B] mt-0.5">
-              {isCharging
-                ? 'Tap to claim your discount on EVject charging equipment'
-                : 'Start charging to unlock this reward'}
-            </p>
-          </div>
-          <div className="flex-shrink-0 ml-3">
-            <div className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 rounded-xl">
-              <span className="text-sm font-bold text-white">10% off</span>
+            <div className="flex-shrink-0 ml-3">
+              <div className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 rounded-xl">
+                <span className="text-sm font-bold text-white">
+                  {c.reward_cents > 0
+                    ? `$${(c.reward_cents / 100).toFixed(c.reward_cents % 100 === 0 ? 0 : 2)}`
+                    : 'Offer'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </button>
+        </button>
+      ))}
 
       {/* Fallback: show generic reward if campaigns didn't load but active_reward_cents exists */}
       {!hasCampaigns && rewardCents > 0 && (
@@ -747,6 +830,7 @@ function MerchantActionSheet({
   onDirections,
   onClaimReward,
   onRequestToJoin,
+  onOrderFromCar,
   alreadyRequested,
   onClose,
 }: {
@@ -757,6 +841,7 @@ function MerchantActionSheet({
   onDirections: () => void
   onClaimReward: () => void
   onRequestToJoin: () => void
+  onOrderFromCar: () => void
   alreadyRequested: boolean
   onClose: () => void
 }) {
@@ -812,6 +897,20 @@ function MerchantActionSheet({
             </button>
           )}
 
+          {/* Order from the car — shown only when merchant has an ordering URL */}
+          {merchant.ordering_url && (
+            <button
+              onClick={onOrderFromCar}
+              className="w-full flex items-center gap-3 py-3 px-3 rounded-xl bg-emerald-50 active:bg-emerald-100 transition-colors"
+            >
+              <ExternalLink className="w-5 h-5 text-emerald-600" />
+              <div className="flex-1 text-left">
+                <span className="text-sm font-semibold text-emerald-700">Order from the car</span>
+                <p className="text-xs text-emerald-600">Place your order now, pick up while you charge</p>
+              </div>
+            </button>
+          )}
+
           {merchant.phone && (
             <button
               onClick={onCall}
@@ -857,57 +956,105 @@ function ClaimConfirmModal({
   isLoading,
   onConfirm,
   onClose,
+  claimState,
+  claimError,
+  onViewWallet,
 }: {
   merchant: ChargerDetailNearbyMerchant
   isCharging: boolean
   isLoading: boolean
   onConfirm: () => void
   onClose: () => void
+  claimState: 'confirming' | 'success' | 'error'
+  claimError: string | null
+  onViewWallet: () => void
 }) {
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-[3200]" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-[3200]" onClick={claimState === 'confirming' || claimState === 'error' ? onClose : undefined} />
       <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-[3201] bg-white rounded-3xl p-6 max-w-md mx-auto shadow-xl">
-        <h3 className="text-lg font-semibold text-[#050505] mb-2">Claim reward at {merchant.name}?</h3>
 
-        {!isCharging && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4">
-            <p className="text-sm text-orange-700">You need to be actively charging to claim this reward.</p>
+        {claimState === 'success' && (
+          <div className="text-center py-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-[#050505] mb-2">Reward claimed!</h3>
+            <p className="text-sm text-[#65676B] mb-6">
+              Walk over to {merchant.name} and enjoy your reward. Check your wallet for details.
+            </p>
+            <button
+              onClick={onViewWallet}
+              className="w-full py-3 text-sm font-semibold text-white bg-[#1877F2] rounded-xl active:scale-[0.98] transition-transform"
+            >
+              View Wallet
+            </button>
           </div>
         )}
 
-        {isCharging && (
+        {claimState === 'error' && (
+          <div>
+            <h3 className="text-lg font-semibold text-[#050505] mb-3">Claim failed</h3>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
+              <p className="text-sm text-red-700">{claimError || 'Something went wrong. Please try again.'}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 py-3 text-sm font-medium text-[#65676B] bg-gray-100 rounded-xl">
+                Close
+              </button>
+              <button onClick={onConfirm} className="flex-1 py-3 text-sm font-semibold text-white bg-green-600 rounded-xl active:scale-[0.98] transition-transform">
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {claimState === 'confirming' && (
           <>
-            <p className="text-sm text-[#65676B] mb-4">
-              Walk over to {merchant.name} ({merchant.walk_time_min} min walk) and we'll track your visit.
-              {merchant.exclusive_title && (
-                <span className="font-medium text-green-700"> Reward: {merchant.exclusive_title}</span>
-              )}
-            </p>
-            <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-green-600" />
-              <p className="text-sm text-green-700">Charging verified — you're eligible</p>
+            <h3 className="text-lg font-semibold text-[#050505] mb-2">Claim reward at {merchant.name}?</h3>
+
+            {!isCharging && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4">
+                <p className="text-sm text-orange-700">You need to be actively charging to claim this reward.</p>
+              </div>
+            )}
+
+            {isCharging && (
+              <>
+                <p className="text-sm text-[#65676B] mb-4">
+                  Walk over to {merchant.name} ({merchant.walk_time_min} min walk) and we'll track your visit.
+                  {merchant.exclusive_title && (
+                    <span className="font-medium text-green-700"> Reward: {merchant.exclusive_title}</span>
+                  )}
+                </p>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-green-600" />
+                  <p className="text-sm text-green-700">Charging verified — you're eligible</p>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 text-sm font-medium text-[#65676B] bg-gray-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={!isCharging || isLoading}
+                className="flex-1 py-3 text-sm font-semibold text-white bg-green-600 rounded-xl disabled:opacity-50 active:scale-[0.98] transition-transform"
+              >
+                {isLoading ? 'Claiming...' : 'Claim Now'}
+              </button>
             </div>
           </>
         )}
 
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 text-sm font-medium text-[#65676B] bg-gray-100 rounded-xl"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={!isCharging || isLoading}
-            className="flex-1 py-3 text-sm font-semibold text-white bg-green-600 rounded-xl disabled:opacity-50 active:scale-[0.98] transition-transform"
-          >
-            {isLoading ? 'Claiming...' : 'Claim Now'}
-          </button>
-        </div>
       </div>
     </>
   )
 }
-

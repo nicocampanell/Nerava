@@ -22,6 +22,7 @@ from .domain import (
     StripePayment,
     Zone,
 )
+from .driver_order import DriverOrder
 from .driver_wallet import Payout, WalletLedger
 from .email_otp_challenge import EmailOTPChallenge
 from .exclusive_session import (
@@ -204,6 +205,8 @@ __all__ = [
     # Loyalty models
     "LoyaltyCard",
     "LoyaltyProgress",
+    # Driver order models
+    "DriverOrder",
     # Driver wallet models
     "Payout",
     "WalletLedger",

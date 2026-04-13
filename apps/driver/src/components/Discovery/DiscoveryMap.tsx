@@ -13,8 +13,9 @@ function getChargerColor(item: DiscoveryItem): string {
   return '#10B981'
 }
 
-/** Build HTML for badges on charger pin. Always show price. Stack star + $ reward when present. */
-function getChargerBadgeHtml(item: DiscoveryItem): string {
+/** Build HTML for badges on charger pin. Always show price. Stack star + $ reward when present.
+ *  When collapseLabel is true, omit the fallback network name label to reduce visual clutter. */
+function getChargerBadgeHtml(item: DiscoveryItem, collapseLabel = false): string {
   if (item.type !== 'charger') return ''
   const c = item.data as ChargerSummary
   let badges = ''
@@ -35,8 +36,8 @@ function getChargerBadgeHtml(item: DiscoveryItem): string {
   if (c.pricing_per_kwh != null && c.pricing_per_kwh > 0) {
     const priceLabel = `$${c.pricing_per_kwh.toFixed(2)}/kWh`
     badges += `<div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:white;font-size:8px;font-weight:600;padding:1px 4px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:9;">${priceLabel}</div>`
-  } else {
-    // Fallback: show network name so pin is never bare
+  } else if (!collapseLabel) {
+    // Fallback: show network name so pin is never bare (hidden when 3+ pins share same network)
     const label = c.network_name || 'EV'
     badges += `<div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:white;font-size:8px;font-weight:600;padding:1px 4px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:9;">${label}</div>`
   }
@@ -78,7 +79,7 @@ export function DiscoveryMap({
     if (userLat && userLng) return [userLat, userLng]
     const first = items[0]
     if (first) return [getItemLat(first), getItemLng(first)]
-    return [30.267, -97.743] // Austin TX fallback
+    return [30.9876, -97.6492] // Harker Heights TX fallback
   }, [userLat, userLng, items])
 
   // Initialize map once
@@ -141,6 +142,15 @@ export function DiscoveryMap({
     markersRef.current.forEach((marker) => marker.remove())
     markersRef.current = []
 
+    // Count how many pins share each network name — collapse labels when 3+ are identical
+    const networkCounts = new Map<string, number>()
+    for (const item of items) {
+      if (item.type === 'charger') {
+        const normalizedName = ((item.data as ChargerSummary).network_name || 'EV').trim().toLowerCase()
+        networkCounts.set(normalizedName, (networkCounts.get(normalizedName) || 0) + 1)
+      }
+    }
+
     // Add user location with pulsing ring
     if (userLat && userLng) {
       const pulsingRing = L.circle([userLat, userLng], {
@@ -178,7 +188,9 @@ export function DiscoveryMap({
       if (item.type === 'charger') {
         const pinColor = getChargerColor(item)
         const isActiveCharger = activeChargerId === id
-        const badgeHtml = getChargerBadgeHtml(item)
+        const chargerNetwork = (item.data as ChargerSummary).network_name || 'EV'
+        const shouldCollapseLabel = (networkCounts.get(chargerNetwork.trim().toLowerCase()) || 0) >= 3
+        const badgeHtml = getChargerBadgeHtml(item, shouldCollapseLabel)
         const activeRing = isActiveCharger
           ? `<div style="position:absolute;top:-4px;left:-4px;width:48px;height:48px;border:3px solid #10B981;border-radius:50%;animation:discoveryPulse 2s infinite;"></div>`
           : ''

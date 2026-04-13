@@ -3,11 +3,12 @@ Tesla OAuth and EV Verification Router.
 
 Handles Tesla account connection, Tesla-based login, and charging verification for EV rewards.
 """
+
 import json
 import logging
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,8 +21,10 @@ from app.core.security import create_access_token
 from app.core.token_encryption import encrypt_token
 from app.db import get_db
 from app.dependencies.domain import get_current_user
+from app.dependencies.driver import get_current_driver
 from app.models import User, UserPreferences
 from app.models.domain import DomainMerchant
+from app.models.session_event import SessionEvent
 from app.models.tesla_connection import EVVerificationCode, TeslaConnection, TeslaOAuthState
 from app.models.while_you_charge import Merchant
 from app.services.geo import haversine_m
@@ -42,8 +45,10 @@ router = APIRouter(prefix="/auth/tesla", tags=["Tesla"])
 
 # ==================== Request/Response Models ====================
 
+
 class TeslaConnectionStatus(BaseModel):
     connected: bool
+    vehicle_id: Optional[str] = None  # TeslaConnection.id for remove endpoint
     vehicle_name: Optional[str] = None
     vehicle_model: Optional[str] = None
     vehicle_year: Optional[int] = None
@@ -108,6 +113,7 @@ class EVCodeResponse(BaseModel):
 
 # ==================== Tesla Login Endpoints ====================
 
+
 @router.get("/login-url")
 async def get_tesla_login_url(db: Session = Depends(get_db)):
     """
@@ -150,9 +156,7 @@ async def tesla_login(
 
     try:
         # Exchange code for tokens (uses default /callback redirect_uri)
-        token_response = await oauth_service.exchange_code_for_tokens(
-            payload.code
-        )
+        token_response = await oauth_service.exchange_code_for_tokens(payload.code)
 
         tesla_access_token_raw = token_response["access_token"]
         tesla_refresh_token_raw = token_response["refresh_token"]
@@ -177,10 +181,14 @@ async def tesla_login(
             logger.warning(f"Could not fetch Tesla vehicles during login: {ve}")
 
         # Find or create user
-        user = db.query(User).filter(
-            User.auth_provider == "tesla",
-            User.provider_sub == tesla_sub,
-        ).first()
+        user = (
+            db.query(User)
+            .filter(
+                User.auth_provider == "tesla",
+                User.provider_sub == tesla_sub,
+            )
+            .first()
+        )
 
         if not user:
             user = User(
@@ -202,10 +210,15 @@ async def tesla_login(
                 user.display_name = profile["name"]
 
         # Store / update TeslaConnection
-        existing_conn = db.query(TeslaConnection).filter(
-            TeslaConnection.user_id == user.id,
-            TeslaConnection.is_active == True,
-        ).first()
+        existing_conn = (
+            db.query(TeslaConnection)
+            .filter(
+                TeslaConnection.user_id == user.id,
+                TeslaConnection.is_active == True,
+                TeslaConnection.deleted_at.is_(None),
+            )
+            .first()
+        )
 
         # Encrypt tokens before storage
         encrypted_access = encrypt_token(tesla_access_token_raw)
@@ -282,10 +295,15 @@ async def select_vehicle(
     """
     Select a vehicle after Tesla login. Updates the TeslaConnection with vehicle details.
     """
-    connection = db.query(TeslaConnection).filter(
-        TeslaConnection.user_id == current_user.id,
-        TeslaConnection.is_active == True,
-    ).first()
+    connection = (
+        db.query(TeslaConnection)
+        .filter(
+            TeslaConnection.user_id == current_user.id,
+            TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
+        )
+        .first()
+    )
 
     if not connection:
         raise HTTPException(status_code=400, detail="No active Tesla connection")
@@ -320,6 +338,7 @@ async def select_vehicle(
     decoded_vehicle_model = connection.vehicle_model
     if connection.vin:
         from app.services.vin_decoder import decode_tesla_vin
+
         decoded = decode_tesla_vin(connection.vin)
         if decoded:
             decoded_vehicle_model = decoded["display"]
@@ -329,7 +348,9 @@ async def select_vehicle(
 
     db.commit()
 
-    logger.info(f"User {current_user.id} selected vehicle {connection.vin} ({decoded_vehicle_model})")
+    logger.info(
+        f"User {current_user.id} selected vehicle {connection.vin} ({decoded_vehicle_model})"
+    )
 
     return {
         "success": True,
@@ -344,16 +365,21 @@ async def select_vehicle(
 
 # ==================== Existing Endpoints ====================
 
+
 @router.get("/status", response_model=TeslaConnectionStatus)
 async def get_tesla_connection_status(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Check if user has connected their Tesla account, with live battery + model."""
-    connection = db.query(TeslaConnection).filter(
-        TeslaConnection.user_id == current_user.id,
-        TeslaConnection.is_active == True
-    ).first()
+    connection = (
+        db.query(TeslaConnection)
+        .filter(
+            TeslaConnection.user_id == current_user.id,
+            TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
+        )
+        .first()
+    )
 
     if not connection:
         return TeslaConnectionStatus(connected=False)
@@ -366,10 +392,17 @@ async def get_tesla_connection_status(
     # Try VIN decode first for year + model
     if connection.vin:
         from app.services.vin_decoder import decode_tesla_vin
+
         decoded = decode_tesla_vin(connection.vin)
         if decoded:
             vehicle_year = decoded["year"]
-            if not vehicle_model or vehicle_model in ("Tesla", "model3", "modely", "models", "modelx"):
+            if not vehicle_model or vehicle_model in (
+                "Tesla",
+                "model3",
+                "modely",
+                "models",
+                "modelx",
+            ):
                 vehicle_model = decoded["display"]  # e.g. "2024 Model 3 Long Range"
 
     # Fetch live vehicle data from Tesla API for battery + color + backfill
@@ -397,7 +430,13 @@ async def get_tesla_connection_status(
                 vehicle_year = vehicle_config.get("model_year")
 
             # Backfill vehicle_model if still raw car_type
-            if not vehicle_model or vehicle_model in ("Tesla", "model3", "modely", "models", "modelx"):
+            if not vehicle_model or vehicle_model in (
+                "Tesla",
+                "model3",
+                "modely",
+                "models",
+                "modelx",
+            ):
                 car_type = vehicle_config.get("car_type")
                 if car_type:
                     model_map = {
@@ -418,11 +457,15 @@ async def get_tesla_connection_status(
             # Fall back to session data for battery
             try:
                 from sqlalchemy import text
-                result = db.execute(text(
-                    "SELECT battery_end_pct FROM session_events "
-                    "WHERE driver_user_id = :uid AND battery_end_pct IS NOT NULL "
-                    "ORDER BY updated_at DESC LIMIT 1"
-                ), {"uid": current_user.id}).first()
+
+                result = db.execute(
+                    text(
+                        "SELECT battery_end_pct FROM session_events "
+                        "WHERE driver_user_id = :uid AND battery_end_pct IS NOT NULL "
+                        "ORDER BY updated_at DESC LIMIT 1"
+                    ),
+                    {"uid": current_user.id},
+                ).first()
                 if result:
                     battery_level = result[0]
             except Exception:
@@ -430,6 +473,7 @@ async def get_tesla_connection_status(
 
     return TeslaConnectionStatus(
         connected=True,
+        vehicle_id=connection.id,
         vehicle_name=connection.vehicle_name,
         vehicle_model=vehicle_model,
         vehicle_year=vehicle_year,
@@ -457,17 +501,12 @@ async def initiate_tesla_connection(
 
     auth_url = oauth_service.get_authorization_url(state)
 
-    return TeslaConnectResponse(
-        authorization_url=auth_url,
-        state=state
-    )
+    return TeslaConnectResponse(authorization_url=auth_url, state=state)
 
 
 @router.get("/callback")
 async def tesla_oauth_callback(
-    code: str = Query(...),
-    state: str = Query(...),
-    db: Session = Depends(get_db)
+    code: str = Query(...), state: str = Query(...), db: Session = Depends(get_db)
 ):
     """
     Handle Tesla OAuth callback for both login and connect flows.
@@ -491,9 +530,7 @@ async def tesla_oauth_callback(
     # Login flow: pass code+state to frontend, keep state in DB for POST /login
     if state_data.get("purpose") == "login":
         app_url = settings.DRIVER_APP_URL or "https://app.nerava.network"
-        return RedirectResponse(
-            url=f"{app_url}/tesla-callback?code={code}&state={state}"
-        )
+        return RedirectResponse(url=f"{app_url}/tesla-callback?code={code}&state={state}")
 
     # Connect flow: consume the state and exchange code for tokens
     db.delete(state_row)
@@ -517,14 +554,21 @@ async def tesla_oauth_callback(
             if vehicles:
                 vehicle = vehicles[0]
         except Exception as ve:
-            logger.warning(f"Could not fetch Tesla vehicles (partner registration may be incomplete): {ve}")
+            logger.warning(
+                f"Could not fetch Tesla vehicles (partner registration may be incomplete): {ve}"
+            )
             # Continue without vehicle data — tokens are still valid
 
         # Check for existing connection
-        existing = db.query(TeslaConnection).filter(
-            TeslaConnection.user_id == user_id,
-            TeslaConnection.is_active == True
-        ).first()
+        existing = (
+            db.query(TeslaConnection)
+            .filter(
+                TeslaConnection.user_id == user_id,
+                TeslaConnection.is_active == True,
+                TeslaConnection.deleted_at.is_(None),
+            )
+            .first()
+        )
 
         # Encrypt tokens before storage
         encrypted_access = encrypt_token(access_token_raw)
@@ -551,7 +595,9 @@ async def tesla_oauth_callback(
                 vehicle_id=str(vehicle.get("id")) if vehicle else None,
                 vin=vehicle.get("vin") if vehicle else None,
                 vehicle_name=vehicle.get("display_name") if vehicle else None,
-                vehicle_model=vehicle.get("vehicle_config", {}).get("car_type", "Tesla") if vehicle else None,
+                vehicle_model=(
+                    vehicle.get("vehicle_config", {}).get("car_type", "Tesla") if vehicle else None
+                ),
             )
             db.add(connection)
 
@@ -573,7 +619,7 @@ async def tesla_oauth_callback(
 async def verify_charging_and_generate_code(
     request: VerifyChargingRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Verify Tesla charging via Fleet API and generate an EV reward code.
@@ -583,15 +629,19 @@ async def verify_charging_and_generate_code(
     connection + location proximity (enforced by frontend).
     """
     # Get Tesla connection
-    connection = db.query(TeslaConnection).filter(
-        TeslaConnection.user_id == current_user.id,
-        TeslaConnection.is_active == True
-    ).first()
+    connection = (
+        db.query(TeslaConnection)
+        .filter(
+            TeslaConnection.user_id == current_user.id,
+            TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
+        )
+        .first()
+    )
 
     if not connection:
         raise HTTPException(
-            status_code=400,
-            detail="Tesla not connected. Please connect your Tesla first."
+            status_code=400, detail="Tesla not connected. Please connect your Tesla first."
         )
 
     oauth_service = get_tesla_oauth_service()
@@ -600,8 +650,7 @@ async def verify_charging_and_generate_code(
     access_token = await get_valid_access_token(db, connection, oauth_service)
     if not access_token:
         raise HTTPException(
-            status_code=401,
-            detail="Tesla session expired. Please reconnect your Tesla."
+            status_code=401, detail="Tesla session expired. Please reconnect your Tesla."
         )
 
     # --- Location validation (optional — skip proximity check if unavailable) ---
@@ -610,17 +659,19 @@ async def verify_charging_and_generate_code(
         merchant_lat: Optional[float] = None
         merchant_lng: Optional[float] = None
 
-        domain_merchant = db.query(DomainMerchant).filter(
-            DomainMerchant.google_place_id == request.merchant_place_id
-        ).first()
+        domain_merchant = (
+            db.query(DomainMerchant)
+            .filter(DomainMerchant.google_place_id == request.merchant_place_id)
+            .first()
+        )
         if domain_merchant:
             merchant_lat = domain_merchant.lat
             merchant_lng = domain_merchant.lng
 
         if merchant_lat is None:
-            wyc_merchant = db.query(Merchant).filter(
-                Merchant.place_id == request.merchant_place_id
-            ).first()
+            wyc_merchant = (
+                db.query(Merchant).filter(Merchant.place_id == request.merchant_place_id).first()
+            )
             if wyc_merchant:
                 merchant_lat = wyc_merchant.lat
                 merchant_lng = wyc_merchant.lng
@@ -633,23 +684,26 @@ async def verify_charging_and_generate_code(
                     f"{request.merchant_place_id} ({distance:.0f}m)"
                 )
                 raise HTTPException(
-                    status_code=400,
-                    detail="You need to be near the merchant to get a code"
+                    status_code=400, detail="You need to be near the merchant to get a code"
                 )
 
     # Check if user already has an active code for this merchant
-    existing_code = db.query(EVVerificationCode).filter(
-        EVVerificationCode.user_id == current_user.id,
-        EVVerificationCode.merchant_place_id == request.merchant_place_id,
-        EVVerificationCode.status == "active",
-        EVVerificationCode.expires_at > datetime.utcnow()
-    ).first()
+    existing_code = (
+        db.query(EVVerificationCode)
+        .filter(
+            EVVerificationCode.user_id == current_user.id,
+            EVVerificationCode.merchant_place_id == request.merchant_place_id,
+            EVVerificationCode.status == "active",
+            EVVerificationCode.expires_at > datetime.utcnow(),
+        )
+        .first()
+    )
 
     if existing_code:
         return VerifyChargingResponse(
             is_charging=True,
             ev_code=existing_code.code,
-            message="You're connected! Show this code to redeem your reward."
+            message="You're connected! Show this code to redeem your reward.",
         )
 
     # --- Fleet API charging verification (all vehicles) ---
@@ -661,7 +715,7 @@ async def verify_charging_and_generate_code(
         logger.error(f"Fleet API verification failed for user {current_user.id}: {e}")
         raise HTTPException(
             status_code=502,
-            detail="Unable to reach your Tesla right now. Please make sure your vehicle is online and try again."
+            detail="Unable to reach your Tesla right now. Please make sure your vehicle is online and try again.",
         )
 
     # Backfill primary vehicle_id if missing and we found vehicles
@@ -669,8 +723,8 @@ async def verify_charging_and_generate_code(
         connection.vehicle_id = str(charging_vehicle.get("id"))
         connection.vin = charging_vehicle.get("vin")
         connection.vehicle_name = charging_vehicle.get("display_name") or "Tesla"
-        connection.vehicle_model = (
-            charging_vehicle.get("vehicle_config", {}).get("car_type", "Tesla")
+        connection.vehicle_model = charging_vehicle.get("vehicle_config", {}).get(
+            "car_type", "Tesla"
         )
         connection.updated_at = datetime.utcnow()
         db.commit()
@@ -690,13 +744,15 @@ async def verify_charging_and_generate_code(
         return VerifyChargingResponse(
             is_charging=False,
             battery_level=battery_level,
-            message="Your Tesla isn't currently charging. Plug in to verify your session and unlock your reward."
+            message="Your Tesla isn't currently charging. Plug in to verify your session and unlock your reward.",
         )
 
     # Charging confirmed — generate EV code
     charging_vin = charging_vehicle.get("vin") if charging_vehicle else connection.vin
-    logger.info(f"Fleet API confirmed charging for user {current_user.id} "
-               f"(vin={charging_vin}, battery={battery_level}%, power={charge_rate_kw}kW)")
+    logger.info(
+        f"Fleet API confirmed charging for user {current_user.id} "
+        f"(vin={charging_vin}, battery={battery_level}%, power={charge_rate_kw}kW)"
+    )
 
     ev_code = generate_ev_code()
 
@@ -723,8 +779,10 @@ async def verify_charging_and_generate_code(
     connection.last_used_at = datetime.utcnow()
     db.commit()
 
-    logger.info(f"Generated EV code {ev_code} for user {current_user.id} "
-               f"at merchant {request.merchant_name} (Fleet API verified)")
+    logger.info(
+        f"Generated EV code {ev_code} for user {current_user.id} "
+        f"at merchant {request.merchant_name} (Fleet API verified)"
+    )
 
     return VerifyChargingResponse(
         is_charging=True,
@@ -737,22 +795,24 @@ async def verify_charging_and_generate_code(
 
 @router.get("/codes", response_model=list[EVCodeResponse])
 async def get_user_ev_codes(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Get user's active EV verification codes."""
-    codes = db.query(EVVerificationCode).filter(
-        EVVerificationCode.user_id == current_user.id,
-        EVVerificationCode.status == "active",
-        EVVerificationCode.expires_at > datetime.utcnow()
-    ).order_by(EVVerificationCode.created_at.desc()).limit(10).all()
+    codes = (
+        db.query(EVVerificationCode)
+        .filter(
+            EVVerificationCode.user_id == current_user.id,
+            EVVerificationCode.status == "active",
+            EVVerificationCode.expires_at > datetime.utcnow(),
+        )
+        .order_by(EVVerificationCode.created_at.desc())
+        .limit(10)
+        .all()
+    )
 
     return [
         EVCodeResponse(
-            code=c.code,
-            merchant_name=c.merchant_name,
-            expires_at=c.expires_at,
-            status=c.status
+            code=c.code, merchant_name=c.merchant_name, expires_at=c.expires_at, status=c.status
         )
         for c in codes
     ]
@@ -760,14 +820,18 @@ async def get_user_ev_codes(
 
 @router.post("/disconnect")
 async def disconnect_tesla(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Disconnect Tesla account."""
-    connection = db.query(TeslaConnection).filter(
-        TeslaConnection.user_id == current_user.id,
-        TeslaConnection.is_active == True
-    ).first()
+    connection = (
+        db.query(TeslaConnection)
+        .filter(
+            TeslaConnection.user_id == current_user.id,
+            TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
+        )
+        .first()
+    )
 
     if connection:
         connection.is_active = False
@@ -775,3 +839,91 @@ async def disconnect_tesla(
         db.commit()
 
     return {"success": True, "message": "Tesla disconnected"}
+
+
+# ==================== Vehicle Remove (Soft Delete) ====================
+
+
+@router.delete("/vehicles/{vehicle_id}")
+async def remove_vehicle(
+    vehicle_id: str,
+    current_user: User = Depends(get_current_driver),
+    db: Session = Depends(get_db),
+):
+    """
+    Soft-delete a connected vehicle.
+
+    Sets deleted_at and clears OAuth tokens. Returns 409 if the driver
+    has an active charging session, 403 if the vehicle does not belong
+    to the authenticated driver.
+    """
+    try:
+        uuid.UUID(vehicle_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid vehicle_id format")
+
+    # Lock the row before any mutation
+    connection = (
+        db.query(TeslaConnection)
+        .filter(
+            TeslaConnection.id == vehicle_id,
+            TeslaConnection.user_id == current_user.id,
+            TeslaConnection.deleted_at.is_(None),
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if not connection:
+        raise HTTPException(
+            status_code=403,
+            detail="Vehicle not found or does not belong to you",
+        )
+
+    # Check for active charging sessions
+    active_session = (
+        db.query(SessionEvent)
+        .filter(
+            SessionEvent.driver_user_id == current_user.id,
+            SessionEvent.session_end.is_(None),
+        )
+        .first()
+    )
+    if active_session:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot remove a vehicle with an active charging session",
+        )
+
+    # Soft-delete: set deleted_at, clear tokens, mark inactive
+    # Tokens set to empty string (not None) because columns are NOT NULL
+    now = datetime.now(timezone.utc)
+    connection.deleted_at = now
+    connection.is_active = False
+    connection.access_token = ""
+    connection.refresh_token = ""
+    connection.updated_at = now
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.error(
+            "Failed to remove vehicle %s for user %s",
+            vehicle_id,
+            current_user.id,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to remove vehicle. Please try again.",
+        )
+
+    logger.info(
+        "Vehicle %s (VIN %s) soft-deleted for user %s",
+        vehicle_id,
+        connection.vin,
+        current_user.id,
+    )
+
+    return {"status": "removed", "vehicle_id": vehicle_id}

@@ -42,6 +42,7 @@ declare global {
       getPermissionStatus: () => Promise<PermissionStatus>;
       getAuthToken: () => Promise<AuthTokenResponse>;
       openExternalUrl: (url: string) => void;
+      openInAppBrowser?: (url: string) => void;
     };
   }
 }
@@ -250,6 +251,24 @@ export function useNativeBridge() {
     return null;
   }, []);
 
+  /**
+   * Open a URL in an in-app browser (SFSafariViewController on iOS,
+   * Chrome Custom Tab on Android). Falls back to window.open when the
+   * native bridge method is unavailable (web browser or old app version).
+   */
+  const openInAppBrowser = useCallback((url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return;
+    } catch { return; }
+
+    if (bridgeExists() && window.neravaNative?.openInAppBrowser) {
+      window.neravaNative.openInAppBrowser(url);
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
   return {
     isNative: bridgeReady,
     sessionState,
@@ -262,5 +281,6 @@ export function useNativeBridge() {
     getLocation,
     getPermissionStatus,
     getAuthToken,
+    openInAppBrowser,
   };
 }

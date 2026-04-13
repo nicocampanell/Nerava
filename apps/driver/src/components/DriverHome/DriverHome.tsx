@@ -80,7 +80,7 @@ export function DriverHome() {
 
   // Check if Tesla browser - if so, show EV-optimized experience
   const [isTeslaBrowserUser, setIsTeslaBrowserUser] = useState(false)
-  
+
   useEffect(() => {
     setIsTeslaBrowserUser(isTeslaBrowser())
   }, [])
@@ -302,7 +302,7 @@ export function DriverHome() {
     // Enable browse mode by default if no location available
     return true
   })
-  
+
   // CRITICAL: Ensure app always starts in PRE_CHARGING state to show charger immediately
   // Only run on mount, before any API data loads
   const [hasInitialized, setHasInitialized] = useState(false)
@@ -456,9 +456,9 @@ export function DriverHome() {
     }
   }, [locationPermission, browseMode, coordinates, requestLocationPermission])
 
-  // Use real coordinates, fall back to Austin TX center for browse mode
+  // Use real coordinates, fall back to Harker Heights TX center for browse mode
   // This ensures chargers load even when location is denied (Google Play reviewer scenario)
-  const BROWSE_FALLBACK = { lat: 30.2672, lng: -97.7431, accuracy_m: 50 }
+  const BROWSE_FALLBACK = { lat: 30.9876, lng: -97.6492, accuracy_m: 50 }
   const effectiveCoordinates = coordinates || (browseMode ? BROWSE_FALLBACK : null)
 
   // Intent capture request - only when location is available (or browse mode) and not in EXCLUSIVE_ACTIVE
@@ -485,7 +485,7 @@ export function DriverHome() {
   ])
 
   const { data: intentData, isLoading: intentLoading, error: intentError, refetch: refetchIntent } = useIntentCapture(intentRequest)
-  
+
   // Capture intent capture request when coordinates become available
   useEffect(() => {
     if (intentRequest && !intentLoading && !intentData) {
@@ -506,12 +506,12 @@ export function DriverHome() {
       })
     }
   }, [intentData?.session_id, sessionId, setSessionId, coordinates, intentData])
-  
+
   // Capture page view on mount
   useEffect(() => {
     page('home')
   }, [])
-  
+
   // Capture location permission events
   useEffect(() => {
     if (locationPermission === 'granted') {
@@ -541,7 +541,7 @@ export function DriverHome() {
       })
     }
   }, [intentData, appChargingState])
-  
+
   // Check for API errors first (used in multiple places below)
   const hasApiError = intentError !== null && intentError !== undefined
 
@@ -619,7 +619,7 @@ export function DriverHome() {
   const finalChargerSets = (hasChargers && chargerSets.length === 0)
     ? groupChargersIntoSets(chargersSource, merchantsForExperiences)
     : chargerSets
-  
+
   // Charger-first design: always show charger sets in the main carousel.
   // Users access merchants by tapping a charger card.
   const activeSets = finalChargerSets
@@ -813,13 +813,17 @@ export function DriverHome() {
 
         // Activate exclusive via backend
         try {
+          const idempotencyKey = crypto.randomUUID()
           const response = await activateExclusiveMutation.mutateAsync({
-            merchant_id: merchant.id,
-            charger_id: locationCheckResult.nearest_charger_id || 'unknown',
-            lat: coordinates.lat,
-            lng: coordinates.lng,
-            accuracy_m: coordinates.accuracy_m,
-            intent_session_id: sessionId || undefined,
+            request: {
+              merchant_id: merchant.id,
+              charger_id: locationCheckResult.nearest_charger_id || 'unknown',
+              lat: coordinates.lat,
+              lng: coordinates.lng,
+              accuracy_m: coordinates.accuracy_m,
+              intent_session_id: sessionId || undefined,
+            },
+            idempotencyKey,
           })
 
           // Convert response + local merchant to ExclusiveMerchant
@@ -976,7 +980,7 @@ export function DriverHome() {
 
   const handleCompletionContinue = async () => {
     setShowCompletionModal(false)
-    
+
     // Capture completion click (both original and new format)
     if (activeExclusive) {
       capture(DRIVER_EVENTS.EXCLUSIVE_COMPLETE_CLICK, {
@@ -987,7 +991,7 @@ export function DriverHome() {
         path: window.location.pathname,
       })
     }
-    
+
     // Complete exclusive session via backend
     if (activeExclusive && !isMockMode()) {
       const activeSessionId = activeExclusiveData?.exclusive_session?.id
@@ -996,7 +1000,7 @@ export function DriverHome() {
           await completeExclusiveMutation.mutateAsync({
             exclusive_session_id: activeSessionId,
           })
-          
+
           capture(DRIVER_EVENTS.EXCLUSIVE_COMPLETE_SUCCESS, {
             merchant_id: activeExclusive.id,
             session_id: activeSessionId,
@@ -1011,7 +1015,7 @@ export function DriverHome() {
         }
       }
     }
-    
+
     // Transition to COMPLETE state and show preferences
     chargingState.transitionTo('COMPLETE')
     setShowPreferencesModal(true)
@@ -1311,6 +1315,9 @@ export function DriverHome() {
                 >
                   Sign In
                 </button>
+                <p className="text-xs text-gray-400 mt-4 text-center">
+                  Join drivers charging at supported stations. Get paid after every verified session.
+                </p>
               </div>
             ) : (
               <WalletModal
@@ -1512,4 +1519,3 @@ export function DriverHome() {
     </>
   )
 }
-

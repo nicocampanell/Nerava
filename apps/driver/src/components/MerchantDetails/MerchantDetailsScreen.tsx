@@ -232,13 +232,17 @@ export function MerchantDetailsScreen() {
     }
 
     try {
+      const idempotencyKey = crypto.randomUUID()
       const response = await activateExclusive.mutateAsync({
-        merchant_id: merchantId,
-        merchant_place_id: merchantId,
-        charger_id: chargerId,
-        lat: lat ?? null,  // V3: null when unavailable, never 0
-        lng: lng ?? null,  // V3: null when unavailable, never 0
-        accuracy_m,
+        request: {
+          merchant_id: merchantId,
+          merchant_place_id: merchantId,
+          charger_id: chargerId,
+          lat: lat ?? null,  // V3: null when unavailable, never 0
+          lng: lng ?? null,  // V3: null when unavailable, never 0
+          accuracy_m,
+        },
+        idempotencyKey,
       })
 
       setExclusiveSessionId(response.exclusive_session.id)
@@ -415,19 +419,23 @@ export function MerchantDetailsScreen() {
     }
 
     try {
+      const idempotencyKey = crypto.randomUUID()
       const response = await activateExclusive.mutateAsync({
-        merchant_id: merchantId,
-        // CORRECT: Use actual place_id from merchant data, not merchantId
-        merchant_place_id: merchantData.merchant.place_id ?? null,
-        charger_id: chargerId,
-        lat,  // V3: Can be null
-        lng,  // V3: Can be null
-        accuracy_m,
-        // V3: Intent capture fields
-        intent: details.intent,
-        party_size: details.partySize,
-        needs_power_outlet: details.needsPowerOutlet,
-        is_to_go: details.isToGo,
+        request: {
+          merchant_id: merchantId,
+          // CORRECT: Use actual place_id from merchant data, not merchantId
+          merchant_place_id: merchantData.merchant.place_id ?? null,
+          charger_id: chargerId,
+          lat,  // V3: Can be null
+          lng,  // V3: Can be null
+          accuracy_m,
+          // V3: Intent capture fields
+          intent: details.intent,
+          party_size: details.partySize,
+          needs_power_outlet: details.needsPowerOutlet,
+          is_to_go: details.isToGo,
+        },
+        idempotencyKey,
       })
 
       const sessionId = response.exclusive_session.id
@@ -560,7 +568,7 @@ export function MerchantDetailsScreen() {
       } catch (error) {
         // API failed: rollback optimistic update and use localStorage fallback
         console.warn('[AmenityVote] API call failed, falling back to localStorage:', error)
-        
+
         // Rollback optimistic update
         setUserAmenityVotes(userAmenityVotes)
         setLocalAmenityCounts(localAmenityCounts)
@@ -863,7 +871,7 @@ export function MerchantDetailsScreen() {
               <div className="flex-1">
                 <p className="text-xs text-[#65676B] mb-1">Your intent</p>
                 <p className="text-sm font-medium text-[#050505]">
-                  {refuelDetails.intent === 'eat' 
+                  {refuelDetails.intent === 'eat'
                     ? `Dining, Party of ${refuelDetails.partySize || 2}`
                     : refuelDetails.intent === 'work'
                     ? `Work Session${refuelDetails.needsPowerOutlet ? ' + Power' : ''}`

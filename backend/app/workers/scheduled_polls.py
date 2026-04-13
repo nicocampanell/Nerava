@@ -9,6 +9,7 @@ This enables 2-poll-per-session detection:
   Poll #1: Background ping creates session on geofence entry
   Poll #2: This worker verifies session at campaign min_duration + buffer
 """
+
 import asyncio
 import logging
 from contextlib import contextmanager
@@ -136,9 +137,7 @@ class ScheduledPollWorker:
         from app.services.session_event_service import SessionEventService
         from app.services.tesla_oauth import get_tesla_oauth_service, get_valid_access_token
 
-        session = db.query(SessionEvent).filter(
-            SessionEvent.id == session_id
-        ).first()
+        session = db.query(SessionEvent).filter(SessionEvent.id == session_id).first()
         if not session or session.session_end is not None:
             # Session already ended or doesn't exist
             return
@@ -149,6 +148,7 @@ class ScheduledPollWorker:
             .filter(
                 TeslaConnection.user_id == driver_id,
                 TeslaConnection.is_active == True,
+                TeslaConnection.deleted_at.is_(None),
             )
             .first()
         )
@@ -169,6 +169,7 @@ class ScheduledPollWorker:
 
         # Poll Tesla
         import httpx
+
         vehicle_data = None
         for attempt in range(3):
             try:
@@ -187,7 +188,8 @@ class ScheduledPollWorker:
                 if e.response.status_code == 408 and attempt < 2:
                     logger.info(
                         "ScheduledPoll: vehicle %s returned 408 (attempt %d/3)",
-                        tesla_conn.vehicle_id, attempt + 1
+                        tesla_conn.vehicle_id,
+                        attempt + 1,
                     )
                     continue
                 raise
@@ -237,7 +239,8 @@ class ScheduledPollWorker:
         else:
             # Not charging — end session and evaluate incentive
             ended = SessionEventService.end_session(
-                db, session_id,
+                db,
+                session_id,
                 ended_reason="unplugged",
                 battery_end_pct=charge_state.get("battery_level"),
                 kwh_delivered=charge_state.get("charge_energy_added"),
@@ -253,11 +256,14 @@ class ScheduledPollWorker:
                 if quality > 30:
                     try:
                         from app.models_domain import DriverWallet as DomainWallet
-                        wallet = db.query(DomainWallet).filter(
-                            DomainWallet.user_id == driver_id
-                        ).first()
+
+                        wallet = (
+                            db.query(DomainWallet).filter(DomainWallet.user_id == driver_id).first()
+                        )
                         if wallet:
-                            wallet.energy_reputation_score = (wallet.energy_reputation_score or 0) + 5
+                            wallet.energy_reputation_score = (
+                                wallet.energy_reputation_score or 0
+                            ) + 5
                     except Exception:
                         pass
 
@@ -273,13 +279,15 @@ class ScheduledPollWorker:
                     send_incentive_earned_push,
                     send_push_notification,
                 )
+
                 if grant and grant.amount_cents > 0:
                     send_incentive_earned_push(db, driver_id, grant.amount_cents)
                 else:
                     # Notify session ended even without incentive
                     duration = ended.duration_minutes if ended else 0
                     send_push_notification(
-                        db, driver_id,
+                        db,
+                        driver_id,
                         title="Charging session complete",
                         body=f"Your {duration}-minute charging session has ended.",
                         data={"type": "session_ended", "session_id": str(session_id)},

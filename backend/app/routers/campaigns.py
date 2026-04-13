@@ -4,6 +4,7 @@ Campaigns Router — Sponsor/admin campaign management.
 CRUD for campaigns, grant listing, budget management.
 Used by the campaign portal (console.nerava.network).
 """
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -34,6 +35,7 @@ def _is_admin_or_sponsor(user: User) -> bool:
 
 
 # --- Request/Response Schemas ---
+
 
 class CampaignRulesInput(BaseModel):
     charger_ids: Optional[List[str]] = None
@@ -78,6 +80,7 @@ class CreateCampaignRequest(BaseModel):
     auto_renew_budget_cents: Optional[int] = None
     rules: Optional[CampaignRulesInput] = None
     caps: Optional[CampaignCapsInput] = None
+    offer_url: Optional[str] = None
 
 
 class UpdateCampaignRequest(BaseModel):
@@ -94,9 +97,11 @@ class UpdateCampaignRequest(BaseModel):
     auto_renew_budget_cents: Optional[int] = None
     rules: Optional[CampaignRulesInput] = None
     caps: Optional[CampaignCapsInput] = None
+    offer_url: Optional[str] = None
 
 
 # --- Endpoints ---
+
 
 @router.post("/")
 async def create_campaign(
@@ -128,6 +133,7 @@ async def create_campaign(
         rules=req.rules.model_dump() if req.rules else None,
         caps=req.caps.model_dump() if req.caps else None,
         created_by_user_id=current_user.id,
+        offer_url=req.offer_url,
     )
     return {"campaign": _campaign_to_dict(campaign)}
 
@@ -198,17 +204,20 @@ async def get_driver_active_campaigns(
             if not _match_campaign_reward(c, charger_id, charger_network):
                 continue
 
-        results.append({
-            "id": c.id,
-            "name": c.name,
-            "sponsor_name": c.sponsor_name,
-            "sponsor_logo_url": c.sponsor_logo_url,
-            "description": c.description,
-            "reward_cents": c.cost_per_session_cents,
-            "campaign_type": c.campaign_type,
-            "eligible": eligible,
-            "end_date": c.end_date.isoformat() if c.end_date else None,
-        })
+        results.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "sponsor_name": c.sponsor_name,
+                "sponsor_logo_url": c.sponsor_logo_url,
+                "description": c.description,
+                "reward_cents": c.cost_per_session_cents,
+                "campaign_type": c.campaign_type,
+                "eligible": eligible,
+                "end_date": c.end_date.isoformat() if c.end_date else None,
+                "offer_url": c.offer_url,
+            }
+        )
 
     return {"campaigns": results}
 
@@ -316,7 +325,9 @@ async def create_campaign_checkout(
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     if campaign.status != "draft":
-        raise HTTPException(status_code=400, detail="Only draft campaigns can be funded via checkout")
+        raise HTTPException(
+            status_code=400, detail="Only draft campaigns can be funded via checkout"
+        )
 
     # If already pending, return existing checkout URL
     if campaign.funding_status == "pending" and campaign.stripe_checkout_session_id:
@@ -342,6 +353,7 @@ async def create_campaign_checkout(
     try:
         # Determine success/cancel URLs for the console
         import os
+
         console_url = os.getenv("CONSOLE_URL", "").rstrip("/")
         if not console_url:
             # Fallback: derive from DRIVER_APP_URL or FRONTEND_URL
@@ -467,11 +479,7 @@ async def list_campaign_grants(
         .all()
     )
 
-    total = (
-        db.query(IncentiveGrant)
-        .filter(IncentiveGrant.campaign_id == campaign_id)
-        .count()
-    )
+    total = db.query(IncentiveGrant).filter(IncentiveGrant.campaign_id == campaign_id).count()
 
     return {
         "grants": [_grant_to_dict(g, db) for g in grants],
@@ -494,6 +502,7 @@ async def get_campaign_budget(
 
 
 # --- Charger utilization endpoint (for Charger Explorer) ---
+
 
 @router.get("/chargers/browse")
 async def browse_chargers(
@@ -535,21 +544,28 @@ async def browse_chargers(
     since = datetime.utcnow() - timedelta(days=30)
     charger_ids = [c.id for c in chargers]
     util_rows = (
-        db.query(
-            SessionEvent.charger_id,
-            func.count(SessionEvent.id).label("total_sessions"),
-            func.count(func.distinct(SessionEvent.driver_user_id)).label("unique_drivers"),
+        (
+            db.query(
+                SessionEvent.charger_id,
+                func.count(SessionEvent.id).label("total_sessions"),
+                func.count(func.distinct(SessionEvent.driver_user_id)).label("unique_drivers"),
+            )
+            .filter(
+                SessionEvent.charger_id.in_(charger_ids),
+                SessionEvent.session_start >= since,
+                SessionEvent.session_end.is_not(None),
+            )
+            .group_by(SessionEvent.charger_id)
+            .all()
         )
-        .filter(
-            SessionEvent.charger_id.in_(charger_ids),
-            SessionEvent.session_start >= since,
-            SessionEvent.session_end.is_not(None),
-        )
-        .group_by(SessionEvent.charger_id)
-        .all()
-    ) if charger_ids else []
+        if charger_ids
+        else []
+    )
 
-    util_map = {r.charger_id: {"total_sessions": r.total_sessions, "unique_drivers": r.unique_drivers} for r in util_rows}
+    util_map = {
+        r.charger_id: {"total_sessions": r.total_sessions, "unique_drivers": r.unique_drivers}
+        for r in util_rows
+    }
 
     return {
         "chargers": [
@@ -614,7 +630,9 @@ async def get_charger_utilization(
                 "charger_id": row.charger_id,
                 "total_sessions": row.total_sessions,
                 "unique_drivers": row.unique_drivers,
-                "avg_duration_minutes": round(row.avg_duration_minutes, 1) if row.avg_duration_minutes else 0,
+                "avg_duration_minutes": (
+                    round(row.avg_duration_minutes, 1) if row.avg_duration_minutes else 0
+                ),
             }
             for row in rows
         ]
@@ -622,6 +640,7 @@ async def get_charger_utilization(
 
 
 # --- Helpers ---
+
 
 def _campaign_to_dict(c: Campaign) -> dict:
     return {
@@ -665,10 +684,11 @@ def _campaign_to_dict(c: Campaign) -> dict:
             "driver_session_count_max": c.rule_driver_session_count_max,
             "driver_allowlist": c.rule_driver_allowlist,
         },
-        "funding_status": getattr(c, 'funding_status', 'unfunded') or 'unfunded',
-        "funded_at": c.funded_at.isoformat() if getattr(c, 'funded_at', None) else None,
-        "gross_funding_cents": getattr(c, 'gross_funding_cents', None),
-        "platform_fee_cents": getattr(c, 'platform_fee_cents', None),
+        "funding_status": getattr(c, "funding_status", "unfunded") or "unfunded",
+        "funded_at": c.funded_at.isoformat() if getattr(c, "funded_at", None) else None,
+        "gross_funding_cents": getattr(c, "gross_funding_cents", None),
+        "platform_fee_cents": getattr(c, "platform_fee_cents", None),
+        "offer_url": c.offer_url,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }

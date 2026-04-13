@@ -4,9 +4,11 @@ import { ArrowLeft, Heart, LogOut, ChevronRight, X, User, Mail, Car, LogIn, Bell
 import { useFavorites } from '../../contexts/FavoritesContext'
 import { ShareNerava } from './ShareNerava'
 import { LoginModal } from './LoginModal'
-import { useTeslaStatus, useReferralCode, useChargerFavorites, api } from '../../services/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { useTeslaStatus, useReferralCode, useChargerFavorites, removeVehicle, api } from '../../services/api'
 import { ProfileCompletionCard } from './ProfileCompletionCard'
 import { AccountStatsCard } from './AccountStatsCard'
+import { VehicleConnectOptions } from './VehicleConnectOptions'
 
 interface UserProfile {
   name?: string
@@ -46,7 +48,12 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
+  const [showRemoveVehicle, setShowRemoveVehicle] = useState(false)
+  const [removeVehicleLoading, setRemoveVehicleLoading] = useState(false)
+  const [showConnectOptions, setShowConnectOptions] = useState(false)
+  const [smartcarToast, setSmartcarToast] = useState<string | null>(null)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   // Debug mock charging (restricted to admin account only)
   const [mockCharging, setMockCharging] = useState(() => localStorage.getItem('debug_mock_charging') === 'true')
@@ -185,12 +192,39 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
   }
 
   const handleConnectTesla = async () => {
+    setShowConnectOptions(false)
     try {
       const { api } = await import('../../services/api')
       const response = await api.get<{ authorization_url: string }>('/v1/auth/tesla/connect')
       window.location.href = response.authorization_url
     } catch (e) {
       console.error('Failed to start Tesla connection:', e)
+    }
+  }
+
+  const handleConnectSmartcar = async () => {
+    setShowConnectOptions(false)
+    try {
+      const { api } = await import('../../services/api')
+      const response = await api.get<{ url: string }>('/v1/ev/connect')
+      window.location.href = response.url
+    } catch {
+      setSmartcarToast('Smartcar integration coming soon')
+    }
+  }
+
+  const handleRemoveVehicle = async () => {
+    if (!teslaStatus?.vehicle_id) return
+    setRemoveVehicleLoading(true)
+    try {
+      await removeVehicle(teslaStatus.vehicle_id)
+      setShowRemoveVehicle(false)
+      queryClient.invalidateQueries({ queryKey: ['tesla-status'] })
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to remove vehicle'
+      alert(message)
+    } finally {
+      setRemoveVehicleLoading(false)
     }
   }
 
@@ -523,36 +557,45 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
                     </div>
                   </div>
                 ) : teslaStatus?.connected ? (
-                  <button
-                    onClick={onViewVehicle}
-                    className="w-full flex items-center gap-3 text-left active:bg-gray-50 rounded-xl transition-colors"
-                  >
-                    <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-[#050505]">
-                        {teslaStatus.vehicle_name || teslaStatus.vehicle_model || 'Tesla'}
-                      </p>
-                      <p className="text-sm text-[#65676B]">
-                        {teslaStatus.vehicle_name && teslaStatus.vehicle_model && teslaStatus.vehicle_model !== teslaStatus.vehicle_name
-                          ? teslaStatus.vehicle_model
-                          : 'Connected'}
-                        {teslaStatus.vin ? ` \u00B7 VIN \u2022\u2022\u2022${teslaStatus.vin.slice(-4)}` : ''}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={onViewVehicle}
+                      className="w-full flex items-center gap-3 text-left active:bg-gray-50 rounded-xl transition-colors"
+                    >
+                      <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
+                        <Zap className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-[#050505]">
+                          {teslaStatus.vehicle_name || teslaStatus.vehicle_model || 'Tesla'}
+                        </p>
+                        <p className="text-sm text-[#65676B]">
+                          {teslaStatus.vehicle_name && teslaStatus.vehicle_model && teslaStatus.vehicle_model !== teslaStatus.vehicle_name
+                            ? teslaStatus.vehicle_model
+                            : 'Connected'}
+                          {teslaStatus.vin ? ` \u00B7 VIN \u2022\u2022\u2022${teslaStatus.vin.slice(-4)}` : ''}
+                        </p>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </button>
+                    <button
+                      onClick={() => setShowRemoveVehicle(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Remove Vehicle
+                    </button>
+                  </div>
                 ) : (
                   <button
-                    onClick={handleConnectTesla}
+                    onClick={() => setShowConnectOptions(true)}
                     className="w-full flex items-center gap-3 p-1 hover:bg-gray-100 rounded-xl transition-colors"
                   >
-                    <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-red-500" />
+                    <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-blue-600" />
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-medium text-[#050505]">Connect Tesla</p>
+                      <p className="font-medium text-[#050505]">Connect Vehicle</p>
                       <p className="text-sm text-[#65676B]">Verify charging and earn rewards</p>
                     </div>
                     <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -759,6 +802,42 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
       )}
     </div>
 
+    {/* Remove Vehicle Confirmation Modal */}
+    {showRemoveVehicle && (
+      <div className="fixed inset-0 z-[4000] bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+              <Trash2 className="w-5 h-5 text-red-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">Remove Vehicle</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-1 font-medium">
+            Remove {teslaStatus?.vehicle_name || teslaStatus?.vehicle_model || 'this vehicle'}?
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            You will stop earning rewards from this vehicle's charging sessions. You can reconnect later.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowRemoveVehicle(false)}
+              className="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleRemoveVehicle}
+              disabled={removeVehicleLoading}
+              className="flex-1 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {removeVehicleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Remove Vehicle
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* Delete Account Confirmation Modal */}
     {showDeleteConfirm && (
       <div className="fixed inset-0 z-[4000] bg-black/50 flex items-center justify-center p-4">
@@ -835,6 +914,35 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
         </div>
       </div>
     )}
+
+    {/* Vehicle Connect Options Screen */}
+    {showConnectOptions && (
+      <VehicleConnectOptions
+        onClose={() => setShowConnectOptions(false)}
+        onConnectTesla={handleConnectTesla}
+        onConnectSmartcar={handleConnectSmartcar}
+      />
+    )}
+
+    {/* Smartcar toast */}
+    {smartcarToast && (
+      <SmartcarToast message={smartcarToast} onDismiss={() => setSmartcarToast(null)} />
+    )}
     </>
+  )
+}
+
+function SmartcarToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 3000)
+    return () => clearTimeout(timer)
+  }, [onDismiss])
+
+  return (
+    <div className="fixed bottom-6 left-4 right-4 z-[4100] flex justify-center pointer-events-none">
+      <div className="bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg max-w-sm text-center">
+        {message}
+      </div>
+    </div>
   )
 }

@@ -7,6 +7,7 @@ Key mechanics per review:
 - Driver caps enforced
 - Refund/clawback support
 """
+
 import logging
 import uuid
 from datetime import datetime
@@ -45,6 +46,7 @@ class CampaignService:
         caps: Optional[Dict[str, Any]] = None,
         created_by_user_id: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        offer_url: Optional[str] = None,
     ) -> Campaign:
         """Create a new campaign in draft status."""
         campaign = Campaign(
@@ -65,6 +67,7 @@ class CampaignService:
             rule_min_duration_minutes=max(rule_min_duration_minutes, 1),
             created_by_user_id=created_by_user_id,
             metadata_json=metadata,
+            offer_url=offer_url,
         )
 
         # Apply targeting rules
@@ -94,7 +97,12 @@ class CampaignService:
             campaign.max_grants_per_driver_per_charger = caps.get("per_charger")
 
         db.add(campaign)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.error("Failed to create campaign %s", campaign.id, exc_info=True)
+            raise
         logger.info(f"Created campaign {campaign.id}: {name} (sponsor={sponsor_name})")
         return campaign
 
@@ -113,19 +121,41 @@ class CampaignService:
             raise ValueError(f"Cannot edit campaign in '{campaign.status}' status")
 
         allowed_fields = {
-            "name", "description", "campaign_type", "priority",
-            "budget_cents", "cost_per_session_cents", "max_sessions",
-            "start_date", "end_date", "auto_renew", "auto_renew_budget_cents",
-            "max_grants_per_driver_per_day", "max_grants_per_driver_per_campaign",
+            "name",
+            "description",
+            "campaign_type",
+            "priority",
+            "budget_cents",
+            "cost_per_session_cents",
+            "max_sessions",
+            "start_date",
+            "end_date",
+            "auto_renew",
+            "auto_renew_budget_cents",
+            "max_grants_per_driver_per_day",
+            "max_grants_per_driver_per_campaign",
             "max_grants_per_driver_per_charger",
-            "rule_charger_ids", "rule_charger_networks", "rule_zone_ids",
-            "rule_geo_center_lat", "rule_geo_center_lng", "rule_geo_radius_m",
-            "rule_time_start", "rule_time_end", "rule_days_of_week",
-            "rule_min_duration_minutes", "rule_max_duration_minutes",
-            "rule_min_power_kw", "rule_connector_types",
-            "rule_driver_session_count_min", "rule_driver_session_count_max",
-            "rule_driver_allowlist", "sponsor_name", "sponsor_email",
-            "sponsor_logo_url", "sponsor_type",
+            "rule_charger_ids",
+            "rule_charger_networks",
+            "rule_zone_ids",
+            "rule_geo_center_lat",
+            "rule_geo_center_lng",
+            "rule_geo_radius_m",
+            "rule_time_start",
+            "rule_time_end",
+            "rule_days_of_week",
+            "rule_min_duration_minutes",
+            "rule_max_duration_minutes",
+            "rule_min_power_kw",
+            "rule_connector_types",
+            "rule_driver_session_count_min",
+            "rule_driver_session_count_max",
+            "rule_driver_allowlist",
+            "sponsor_name",
+            "sponsor_email",
+            "sponsor_logo_url",
+            "sponsor_type",
+            "offer_url",
         }
 
         for key, value in kwargs.items():
@@ -133,7 +163,12 @@ class CampaignService:
                 setattr(campaign, key, value)
 
         campaign.updated_at = datetime.utcnow()
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.error("Failed to update campaign %s", campaign.id, exc_info=True)
+            raise
         return campaign
 
     @staticmethod
@@ -150,9 +185,11 @@ class CampaignService:
         Fee-inclusive: the sponsor paid gross_amount, Nerava keeps the platform fee,
         and budget_cents is reduced to the net amount available for driver rewards.
         """
-        campaign = db.query(Campaign).filter(
-            Campaign.stripe_checkout_session_id == checkout_session_id
-        ).first()
+        campaign = (
+            db.query(Campaign)
+            .filter(Campaign.stripe_checkout_session_id == checkout_session_id)
+            .first()
+        )
         if not campaign:
             logger.warning(f"No campaign found for checkout session {checkout_session_id}")
             return {"status": "error", "message": "Campaign not found for checkout session"}
@@ -163,7 +200,9 @@ class CampaignService:
                 campaign.status = "active"
                 campaign.updated_at = datetime.utcnow()
                 db.commit()
-                logger.info(f"Campaign {campaign.id} activated on re-fund (was funded but stuck in draft)")
+                logger.info(
+                    f"Campaign {campaign.id} activated on re-fund (was funded but stuck in draft)"
+                )
                 return {"status": "activated", "campaign_id": campaign.id}
             logger.info(f"Campaign {campaign.id} already funded (idempotent)")
             return {"status": "already_processed", "campaign_id": campaign.id}
@@ -211,8 +250,10 @@ class CampaignService:
         if not campaign:
             return None
         if campaign.status != "draft":
-            raise ValueError(f"Can only activate draft campaigns, current status: {campaign.status}")
-        if getattr(campaign, 'funding_status', 'funded') not in ('funded',):
+            raise ValueError(
+                f"Can only activate draft campaigns, current status: {campaign.status}"
+            )
+        if getattr(campaign, "funding_status", "funded") not in ("funded",):
             raise ValueError(
                 f"Campaign must be funded before activation (current: {campaign.funding_status}). "
                 "Use the checkout endpoint to fund this campaign."
@@ -224,7 +265,9 @@ class CampaignService:
         return campaign
 
     @staticmethod
-    def pause_campaign(db: Session, campaign_id: str, reason: Optional[str] = None) -> Optional[Campaign]:
+    def pause_campaign(
+        db: Session, campaign_id: str, reason: Optional[str] = None
+    ) -> Optional[Campaign]:
         """Pause an active campaign."""
         campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
         if not campaign:
@@ -271,7 +314,8 @@ class CampaignService:
             )
             .filter(
                 # end_date is null (ongoing) OR end_date is in the future
-                (Campaign.end_date.is_(None)) | (Campaign.end_date >= now)
+                (Campaign.end_date.is_(None))
+                | (Campaign.end_date >= now)
             )
             .order_by(Campaign.priority.asc())
             .all()
@@ -306,7 +350,9 @@ class CampaignService:
         if not campaign:
             return {}
         remaining = campaign.budget_cents - campaign.spent_cents
-        pct_used = (campaign.spent_cents / campaign.budget_cents * 100) if campaign.budget_cents > 0 else 0
+        pct_used = (
+            (campaign.spent_cents / campaign.budget_cents * 100) if campaign.budget_cents > 0 else 0
+        )
         return {
             "budget_cents": campaign.budget_cents,
             "spent_cents": campaign.spent_cents,
@@ -389,7 +435,8 @@ class CampaignService:
                     IncentiveGrant.campaign_id == campaign.id,
                     IncentiveGrant.driver_user_id == driver_id,
                 )
-                .scalar() or 0
+                .scalar()
+                or 0
             )
             if total >= campaign.max_grants_per_driver_per_campaign:
                 return False
@@ -404,7 +451,8 @@ class CampaignService:
                     IncentiveGrant.driver_user_id == driver_id,
                     IncentiveGrant.created_at >= today_start,
                 )
-                .scalar() or 0
+                .scalar()
+                or 0
             )
             if daily >= campaign.max_grants_per_driver_per_day:
                 return False
@@ -412,6 +460,7 @@ class CampaignService:
         # Per-charger cap
         if campaign.max_grants_per_driver_per_charger and charger_id:
             from app.models.session_event import SessionEvent
+
             charger_grants = (
                 db.query(func.count(IncentiveGrant.id))
                 .join(SessionEvent, SessionEvent.id == IncentiveGrant.session_event_id)
@@ -420,7 +469,8 @@ class CampaignService:
                     IncentiveGrant.driver_user_id == driver_id,
                     SessionEvent.charger_id == charger_id,
                 )
-                .scalar() or 0
+                .scalar()
+                or 0
             )
             if charger_grants >= campaign.max_grants_per_driver_per_charger:
                 return False

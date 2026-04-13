@@ -45,14 +45,22 @@ def _match_campaign_reward(campaign, charger_id: str, charger_network: str) -> b
     # Check charger ID rule
     rule_ids = campaign.rule_charger_ids
     if rule_ids:
-        ids_list = rule_ids if isinstance(rule_ids, list) else json.loads(rule_ids) if isinstance(rule_ids, str) else []
+        ids_list = (
+            rule_ids
+            if isinstance(rule_ids, list)
+            else json.loads(rule_ids) if isinstance(rule_ids, str) else []
+        )
         if ids_list and charger_id not in ids_list:
             return False
 
     # Check network rule
     rule_networks = campaign.rule_charger_networks
     if rule_networks:
-        nets_list = rule_networks if isinstance(rule_networks, list) else json.loads(rule_networks) if isinstance(rule_networks, str) else []
+        nets_list = (
+            rule_networks
+            if isinstance(rule_networks, list)
+            else json.loads(rule_networks) if isinstance(rule_networks, str) else []
+        )
         if nets_list and not _network_matches(charger_network, nets_list):
             return False
 
@@ -72,6 +80,7 @@ def _get_reward_for_charger(campaigns, charger_id: str, charger_network: str) ->
 
 # ==================== Geo Helpers ====================
 
+
 def _bounding_box(lat: float, lng: float, radius_km: float):
     """Returns (south, north, west, east) using lat/lng degree approximation."""
     lat_delta = radius_km / 111.0
@@ -79,16 +88,21 @@ def _bounding_box(lat: float, lng: float, radius_km: float):
     return (lat - lat_delta, lat + lat_delta, lng - lng_delta, lng + lng_delta)
 
 
-def _query_nearby_chargers(db, lat: float, lng: float, radius_km: float = 50.0, max_results: int = 100):
+def _query_nearby_chargers(
+    db, lat: float, lng: float, radius_km: float = 50.0, max_results: int = 100
+):
     """SQL bounding box pre-filter + Python haversine on small set.
     Uses existing composite index idx_chargers_location on (lat, lng)."""
     south, north, west, east = _bounding_box(lat, lng, radius_km)
-    chargers = db.query(Charger).filter(
-        Charger.lat.between(south, north),
-        Charger.lng.between(west, east),
-    ).all()
-    results = [(c, _haversine_distance(lat, lng, c.lat, c.lng))
-               for c in chargers]
+    chargers = (
+        db.query(Charger)
+        .filter(
+            Charger.lat.between(south, north),
+            Charger.lng.between(west, east),
+        )
+        .all()
+    )
+    results = [(c, _haversine_distance(lat, lng, c.lat, c.lng)) for c in chargers]
     results = [(c, d) for c, d in results if d <= radius_km * 1000]
     results.sort(key=lambda x: x[1])
     return results[:max_results]
@@ -109,6 +123,7 @@ class NearbyMerchantResponse(BaseModel):
     exclusive_title: Optional[str] = None
     is_nerava_merchant: bool = False
     join_request_count: int = 0
+    ordering_url: Optional[str] = None
 
 
 class DiscoveryChargerResponse(BaseModel):
@@ -142,7 +157,7 @@ async def nearby(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
     radius_km: float = Query(2.0, ge=0.1, le=50.0),
-    max_results: int = Query(50, ge=1, le=200)
+    max_results: int = Query(50, ge=1, le=200),
 ):
     try:
         items = await fetch_chargers(lat=lat, lng=lng, radius_km=radius_km, max_results=max_results)
@@ -174,9 +189,9 @@ async def discovery(
             return DiscoveryResponse(
                 within_radius=False,
                 nearest_charger_id=None,
-                nearest_distance_m=float('inf'),
+                nearest_distance_m=float("inf"),
                 radius_m=400,
-                chargers=[]
+                chargers=[],
             )
 
         # Find nearest charger
@@ -194,6 +209,7 @@ async def discovery(
         )
         # Group by charger_id, keep top 2 per charger
         from collections import defaultdict
+
         links_by_charger: dict[str, list] = defaultdict(list)
         for link, merchant in all_links:
             if len(links_by_charger[link.charger_id]) < 2:
@@ -201,11 +217,16 @@ async def discovery(
 
         # Load active campaigns once for reward matching
         now = datetime.utcnow()
-        active_campaigns = db.query(Campaign).filter(
-            Campaign.status == "active",
-            Campaign.start_date <= now,
-            Campaign.spent_cents < Campaign.budget_cents,
-        ).order_by(Campaign.priority.asc()).all()
+        active_campaigns = (
+            db.query(Campaign)
+            .filter(
+                Campaign.status == "active",
+                Campaign.start_date <= now,
+                Campaign.spent_cents < Campaign.budget_cents,
+            )
+            .order_by(Campaign.priority.asc())
+            .all()
+        )
 
         # Build response for each charger
         discovery_chargers = []
@@ -226,7 +247,9 @@ async def discovery(
                     if merchant_name_lower in seen or seen in merchant_name_lower:
                         if link.exclusive_title:
                             seen_names.discard(seen)
-                            nearby_merchants[:] = [m for m in nearby_merchants if m.name and m.name.lower() != seen]
+                            nearby_merchants[:] = [
+                                m for m in nearby_merchants if m.name and m.name.lower() != seen
+                            ]
                         else:
                             is_dup = True
                         break
@@ -239,63 +262,72 @@ async def discovery(
                 walk_time_min = max(1, math.ceil(link.distance_m / 80))
                 if "asadas" in merchant_name_lower and "grill" in merchant_name_lower:
                     photo_url = "/static/merchant_photos_asadas_grill/asadas_grill_01.jpg"
-                elif getattr(merchant, 'primary_photo_url', None):
+                elif getattr(merchant, "primary_photo_url", None):
                     photo_url = merchant.primary_photo_url
                 elif merchant.place_id:
-                    photo_url = f"/static/demo_chargers/{charger.id}/merchants/{merchant.place_id}_0.jpg"
+                    photo_url = (
+                        f"/static/demo_chargers/{charger.id}/merchants/{merchant.place_id}_0.jpg"
+                    )
                 else:
                     photo_url = merchant.photo_url or ""
 
                 has_exclusive = link.exclusive_title is not None and link.exclusive_title != ""
 
-                nearby_merchants.append(NearbyMerchantResponse(
-                    place_id=merchant.place_id or merchant.id,
-                    name=merchant.name,
-                    photo_url=photo_url,
-                    distance_m=link.distance_m,
-                    walk_time_min=walk_time_min,
-                    has_exclusive=has_exclusive,
-                    phone=merchant.phone,
-                    website=merchant.website,
-                    category=merchant.category,
-                    lat=merchant.lat,
-                    lng=merchant.lng,
-                    exclusive_title=link.exclusive_title,
-                    is_nerava_merchant=has_exclusive,
-                ))
+                nearby_merchants.append(
+                    NearbyMerchantResponse(
+                        place_id=merchant.place_id or merchant.id,
+                        name=merchant.name,
+                        photo_url=photo_url,
+                        distance_m=link.distance_m,
+                        walk_time_min=walk_time_min,
+                        has_exclusive=has_exclusive,
+                        phone=merchant.phone,
+                        website=merchant.website,
+                        category=merchant.category,
+                        lat=merchant.lat,
+                        lng=merchant.lng,
+                        exclusive_title=link.exclusive_title,
+                        is_nerava_merchant=has_exclusive,
+                        ordering_url=getattr(merchant, "ordering_url", None),
+                    )
+                )
 
             charger_photo_url = f"/static/demo_chargers/{charger.id}/hero.jpg"
             stalls = len(charger.connector_types) if charger.connector_types else 0
 
-            reward_cents = _get_reward_for_charger(active_campaigns, charger.id, charger.network_name or "")
+            reward_cents = _get_reward_for_charger(
+                active_campaigns, charger.id, charger.network_name or ""
+            )
             has_perk = len(links_by_charger.get(charger.id, [])) > 0 and any(
                 link.exclusive_title for link, _ in links_by_charger.get(charger.id, [])
             )
 
-            discovery_chargers.append(DiscoveryChargerResponse(
-                id=charger.id,
-                name=charger.name,
-                address=charger.address or "",
-                lat=charger.lat,
-                lng=charger.lng,
-                distance_m=distance_m,
-                drive_time_min=drive_time_min,
-                network=charger.network_name or "Unknown",
-                stalls=stalls,
-                kw=charger.power_kw or 0.0,
-                photo_url=charger_photo_url,
-                nearby_merchants=nearby_merchants,
-                campaign_reward_cents=reward_cents,
-                has_merchant_perk=has_perk,
-                pricing_per_kwh=getattr(charger, 'pricing_per_kwh', None),
-            ))
+            discovery_chargers.append(
+                DiscoveryChargerResponse(
+                    id=charger.id,
+                    name=charger.name,
+                    address=charger.address or "",
+                    lat=charger.lat,
+                    lng=charger.lng,
+                    distance_m=distance_m,
+                    drive_time_min=drive_time_min,
+                    network=charger.network_name or "Unknown",
+                    stalls=stalls,
+                    kw=charger.power_kw or 0.0,
+                    photo_url=charger_photo_url,
+                    nearby_merchants=nearby_merchants,
+                    campaign_reward_cents=reward_cents,
+                    has_merchant_perk=has_perk,
+                    pricing_per_kwh=getattr(charger, "pricing_per_kwh", None),
+                )
+            )
 
         return DiscoveryResponse(
             within_radius=within_radius,
             nearest_charger_id=nearest_charger.id,
             nearest_distance_m=nearest_distance_m,
             radius_m=400,
-            chargers=discovery_chargers
+            chargers=discovery_chargers,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"discovery_failed: {e}")
@@ -351,14 +383,18 @@ async def charger_detail(
 
         # Session stats (last 30 days)
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        stats = db.query(
-            func.count(SessionEvent.id),
-            func.count(func.distinct(SessionEvent.driver_user_id)),
-            func.coalesce(func.avg(SessionEvent.duration_minutes), 0),
-        ).filter(
-            SessionEvent.charger_id == charger_id,
-            SessionEvent.session_start >= thirty_days_ago,
-        ).first()
+        stats = (
+            db.query(
+                func.count(SessionEvent.id),
+                func.count(func.distinct(SessionEvent.driver_user_id)),
+                func.coalesce(func.avg(SessionEvent.duration_minutes), 0),
+            )
+            .filter(
+                SessionEvent.charger_id == charger_id,
+                SessionEvent.session_start >= thirty_days_ago,
+            )
+            .first()
+        )
 
         total_sessions_30d = stats[0] if stats else 0
         unique_drivers_30d = stats[1] if stats else 0
@@ -367,18 +403,29 @@ async def charger_detail(
         # Active campaign reward for this charger
         active_reward_cents = None
         now = datetime.utcnow()
-        campaigns = db.query(Campaign).filter(
-            Campaign.status == "active",
-            Campaign.start_date <= now,
-            Campaign.spent_cents < Campaign.budget_cents,
-        ).order_by(Campaign.priority.asc()).all()
+        campaigns = (
+            db.query(Campaign)
+            .filter(
+                Campaign.status == "active",
+                Campaign.start_date <= now,
+                Campaign.spent_cents < Campaign.budget_cents,
+            )
+            .order_by(Campaign.priority.asc())
+            .all()
+        )
 
-        active_reward_cents = _get_reward_for_charger(campaigns, charger_id, charger.network_name or "")
+        active_reward_cents = _get_reward_for_charger(
+            campaigns, charger_id, charger.network_name or ""
+        )
 
         # Nearby merchants (up to 6)
-        merchant_links = db.query(ChargerMerchant).filter(
-            ChargerMerchant.charger_id == charger.id
-        ).order_by(ChargerMerchant.distance_m.asc()).limit(6).all()
+        merchant_links = (
+            db.query(ChargerMerchant)
+            .filter(ChargerMerchant.charger_id == charger.id)
+            .order_by(ChargerMerchant.distance_m.asc())
+            .limit(6)
+            .all()
+        )
 
         nearby_merchants = []
         seen_merchant_names = set()
@@ -400,7 +447,9 @@ async def charger_detail(
                     # Keep the one with the exclusive, or the longer name
                     if link.exclusive_title:
                         seen_merchant_names.discard(seen)
-                        nearby_merchants[:] = [m for m in nearby_merchants if m.name and m.name.lower() != seen]
+                        nearby_merchants[:] = [
+                            m for m in nearby_merchants if m.name and m.name.lower() != seen
+                        ]
                     else:
                         is_dup = True
                     break
@@ -414,10 +463,12 @@ async def charger_detail(
             merchant_name_lower = merchant.name.lower() if merchant.name else ""
             if "asadas" in merchant_name_lower and "grill" in merchant_name_lower:
                 photo_url = "/static/merchant_photos_asadas_grill/asadas_grill_01.jpg"
-            elif getattr(merchant, 'primary_photo_url', None):
+            elif getattr(merchant, "primary_photo_url", None):
                 photo_url = merchant.primary_photo_url
             elif merchant.place_id:
-                photo_url = f"/static/demo_chargers/{charger.id}/merchants/{merchant.place_id}_0.jpg"
+                photo_url = (
+                    f"/static/demo_chargers/{charger.id}/merchants/{merchant.place_id}_0.jpg"
+                )
             else:
                 photo_url = merchant.photo_url or ""
             has_exclusive = link.exclusive_title is not None and link.exclusive_title != ""
@@ -429,38 +480,48 @@ async def charger_detail(
                 merchant_place_id = merchant.place_id or merchant.id
                 try:
                     from app.services.merchant_reward_service import get_join_request_count
+
                     join_count = get_join_request_count(db, merchant_place_id)
                 except Exception:
                     pass
 
-            nearby_merchants.append(NearbyMerchantResponse(
-                place_id=merchant.place_id or merchant.id,
-                name=merchant.name,
-                photo_url=photo_url,
-                distance_m=link.distance_m,
-                walk_time_min=walk_time_min,
-                has_exclusive=has_exclusive,
-                phone=merchant.phone,
-                website=merchant.website,
-                category=merchant.category,
-                lat=merchant.lat,
-                lng=merchant.lng,
-                exclusive_title=link.exclusive_title,
-                is_nerava_merchant=is_nerava,
-                join_request_count=join_count,
-            ))
+            nearby_merchants.append(
+                NearbyMerchantResponse(
+                    place_id=merchant.place_id or merchant.id,
+                    name=merchant.name,
+                    photo_url=photo_url,
+                    distance_m=link.distance_m,
+                    walk_time_min=walk_time_min,
+                    has_exclusive=has_exclusive,
+                    phone=merchant.phone,
+                    website=merchant.website,
+                    category=merchant.category,
+                    lat=merchant.lat,
+                    lng=merchant.lng,
+                    exclusive_title=link.exclusive_title,
+                    is_nerava_merchant=is_nerava,
+                    join_request_count=join_count,
+                    ordering_url=getattr(merchant, "ordering_url", None),
+                )
+            )
 
         # Drivers currently charging at this station
-        drivers_now = db.query(func.count(SessionEvent.id)).filter(
-            SessionEvent.charger_id == charger_id,
-            SessionEvent.session_end.is_(None),
-        ).scalar() or 0
+        drivers_now = (
+            db.query(func.count(SessionEvent.id))
+            .filter(
+                SessionEvent.charger_id == charger_id,
+                SessionEvent.session_end.is_(None),
+            )
+            .scalar()
+            or 0
+        )
 
         # Nerava Score — use cached value or compute fresh
-        nerava_score = getattr(charger, 'nerava_score', None)
+        nerava_score = getattr(charger, "nerava_score", None)
         if nerava_score is None and total_sessions_30d >= 5:
             try:
                 from app.services.charger_score import compute_nerava_score
+
                 nerava_score = compute_nerava_score(charger_id, db)
                 # Cache on the charger row
                 charger.nerava_score = nerava_score
@@ -488,8 +549,8 @@ async def charger_detail(
             avg_duration_min=avg_duration_min,
             active_reward_cents=active_reward_cents,
             nearby_merchants=nearby_merchants,
-            pricing_per_kwh=getattr(charger, 'pricing_per_kwh', None),
-            pricing_source=getattr(charger, 'pricing_source', None),
+            pricing_per_kwh=getattr(charger, "pricing_per_kwh", None),
+            pricing_source=getattr(charger, "pricing_source", None),
             nerava_score=nerava_score,
             drivers_charging_now=drivers_now,
         )
@@ -504,6 +565,7 @@ async def charger_detail(
 
 # ==================== Charger Favorites ====================
 
+
 @router.post("/{charger_id}/favorite")
 def toggle_charger_favorite(
     charger_id: str,
@@ -517,10 +579,14 @@ def toggle_charger_favorite(
         raise HTTPException(status_code=404, detail="Charger not found")
 
     # Check if already favorited
-    existing = db.query(FavoriteCharger).filter(
-        FavoriteCharger.user_id == driver.id,
-        FavoriteCharger.charger_id == charger_id,
-    ).first()
+    existing = (
+        db.query(FavoriteCharger)
+        .filter(
+            FavoriteCharger.user_id == driver.id,
+            FavoriteCharger.charger_id == charger_id,
+        )
+        .first()
+    )
 
     if existing:
         # Toggle off — remove the favorite
@@ -542,10 +608,14 @@ def remove_charger_favorite(
     db: Session = Depends(get_db),
 ):
     """Remove a charger from favorites (idempotent)."""
-    existing = db.query(FavoriteCharger).filter(
-        FavoriteCharger.user_id == driver.id,
-        FavoriteCharger.charger_id == charger_id,
-    ).first()
+    existing = (
+        db.query(FavoriteCharger)
+        .filter(
+            FavoriteCharger.user_id == driver.id,
+            FavoriteCharger.charger_id == charger_id,
+        )
+        .first()
+    )
 
     if existing:
         db.delete(existing)
@@ -560,14 +630,19 @@ def list_charger_favorites(
     db: Session = Depends(get_db),
 ):
     """List user's favorite charger IDs."""
-    favorites = db.query(FavoriteCharger).filter(
-        FavoriteCharger.user_id == driver.id,
-    ).all()
+    favorites = (
+        db.query(FavoriteCharger)
+        .filter(
+            FavoriteCharger.user_id == driver.id,
+        )
+        .all()
+    )
 
     return {"favorites": [f.charger_id for f in favorites]}
 
 
 # ==================== Street View Proxy ====================
+
 
 @router.get("/{charger_id}/streetview")
 async def get_streetview(charger_id: str):
@@ -576,6 +651,7 @@ async def get_streetview(charger_id: str):
     Proxies the Google API key so it's not exposed to the frontend.
     """
     import os
+
     db = SessionLocal()
     try:
         charger = db.query(Charger).filter(Charger.id == charger_id).first()
@@ -593,6 +669,7 @@ async def get_streetview(charger_id: str):
 
 
 # ==================== Charger Search (Geocoded) ====================
+
 
 @router.get("/search")
 async def search_chargers(
@@ -698,20 +775,22 @@ async def search_chargers(
                 pass
 
         for charger, distance_m in results:
-            charger_list.append({
-                "id": charger.id,
-                "name": charger.name,
-                "lat": charger.lat,
-                "lng": charger.lng,
-                "distance_m": distance_m,
-                "network_name": charger.network_name,
-                "power_kw": charger.power_kw,
-                "num_evse": charger.num_evse,
-                "connector_types": charger.connector_types or [],
-                "pricing_per_kwh": getattr(charger, 'pricing_per_kwh', None),
-                "has_merchant_perk": charger.id in perk_by_charger,
-                "merchant_perk_title": perk_by_charger.get(charger.id),
-            })
+            charger_list.append(
+                {
+                    "id": charger.id,
+                    "name": charger.name,
+                    "lat": charger.lat,
+                    "lng": charger.lng,
+                    "distance_m": distance_m,
+                    "network_name": charger.network_name,
+                    "power_kw": charger.power_kw,
+                    "num_evse": charger.num_evse,
+                    "connector_types": charger.connector_types or [],
+                    "pricing_per_kwh": getattr(charger, "pricing_per_kwh", None),
+                    "has_merchant_perk": charger.id in perk_by_charger,
+                    "merchant_perk_title": perk_by_charger.get(charger.id),
+                }
+            )
 
         return {"chargers": charger_list, "location": geocoded_location}
     finally:
@@ -720,24 +799,36 @@ async def search_chargers(
 
 # ==================== Admin: Seeding ====================
 
+
 @router.get("/admin/stats")
 async def charger_stats():
     """Get charger counts by network and state (no auth required, read-only)."""
     db = SessionLocal()
     try:
         total = db.query(func.count(Charger.id)).scalar()
-        by_network = db.query(
-            Charger.network_name, func.count(Charger.id)
-        ).group_by(Charger.network_name).order_by(func.count(Charger.id).desc()).all()
-        by_state = db.query(
-            Charger.state, func.count(Charger.id)
-        ).group_by(Charger.state).order_by(func.count(Charger.id).desc()).limit(10).all()
+        by_network = (
+            db.query(Charger.network_name, func.count(Charger.id))
+            .group_by(Charger.network_name)
+            .order_by(func.count(Charger.id).desc())
+            .all()
+        )
+        by_state = (
+            db.query(Charger.state, func.count(Charger.id))
+            .group_by(Charger.state)
+            .order_by(func.count(Charger.id).desc())
+            .limit(10)
+            .all()
+        )
 
         # Houston-area count
-        houston_count = db.query(func.count(Charger.id)).filter(
-            Charger.lat.between(29.52, 30.11),
-            Charger.lng.between(-95.79, -95.01),
-        ).scalar()
+        houston_count = (
+            db.query(func.count(Charger.id))
+            .filter(
+                Charger.lat.between(29.52, 30.11),
+                Charger.lng.between(-95.79, -95.01),
+            )
+            .scalar()
+        )
 
         # Merchant count
         merchant_total = db.query(func.count(Merchant.id)).scalar()
@@ -799,12 +890,30 @@ async def trigger_seed(
                 state_city_map = {
                     "TX": ["houston", "austin", "dallas", "san_antonio"],
                     "AZ": ["phoenix"],
-                    "CA": ["los_angeles", "san_francisco", "san_jose", "san_diego",
-                           "sacramento", "oakland", "fresno", "bakersfield",
-                           "riverside", "irvine"],
-                    "FL": ["miami", "fort_lauderdale", "west_palm_beach", "orlando",
-                           "tampa", "jacksonville", "st_petersburg", "naples",
-                           "sarasota", "tallahassee"],
+                    "CA": [
+                        "los_angeles",
+                        "san_francisco",
+                        "san_jose",
+                        "san_diego",
+                        "sacramento",
+                        "oakland",
+                        "fresno",
+                        "bakersfield",
+                        "riverside",
+                        "irvine",
+                    ],
+                    "FL": [
+                        "miami",
+                        "fort_lauderdale",
+                        "west_palm_beach",
+                        "orlando",
+                        "tampa",
+                        "jacksonville",
+                        "st_petersburg",
+                        "naples",
+                        "sarasota",
+                        "tallahassee",
+                    ],
                 }
                 for state in target_states:
                     cities = state_city_map.get(state, [])
@@ -825,7 +934,10 @@ async def trigger_seed(
             }
         except Exception as e:
             logger.error(f"Seed failed: {e}", exc_info=True)
-            _seed_status["last_result"] = {"error": str(e), "completed_at": datetime.utcnow().isoformat()}
+            _seed_status["last_result"] = {
+                "error": str(e),
+                "completed_at": datetime.utcnow().isoformat(),
+            }
         finally:
             db.close()
             _seed_status["running"] = False
@@ -874,6 +986,7 @@ async def trigger_grid_seed(
 
         if reset_progress:
             import os
+
             if os.path.exists(PROGRESS_FILE):
                 os.remove(PROGRESS_FILE)
 
@@ -928,25 +1041,36 @@ async def seed_charger_pricing(
     Uses known rates: Tesla $0.42/kWh, ChargePoint $0.35, EVgo $0.39, etc.
     """
     from app.core.config import settings
+
     if seed_key != settings.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Invalid seed key")
 
     NETWORK_PRICING = {
-        "tesla": 0.42, "supercharger": 0.42,
-        "chargepoint": 0.35, "evgo": 0.39,
-        "electrify america": 0.45, "blink": 0.49,
-        "flo": 0.35, "semaconnect": 0.30,
-        "volta": 0.00, "greenlots": 0.32,
-        "shell recharge": 0.42, "bp pulse": 0.40,
+        "tesla": 0.42,
+        "supercharger": 0.42,
+        "chargepoint": 0.35,
+        "evgo": 0.39,
+        "electrify america": 0.45,
+        "blink": 0.49,
+        "flo": 0.35,
+        "semaconnect": 0.30,
+        "volta": 0.00,
+        "greenlots": 0.32,
+        "shell recharge": 0.42,
+        "bp pulse": 0.40,
         "ev connect": 0.30,
     }
 
     db = SessionLocal()
     try:
-        chargers = db.query(Charger).filter(
-            Charger.pricing_per_kwh.is_(None),
-            Charger.network_name.isnot(None),
-        ).all()
+        chargers = (
+            db.query(Charger)
+            .filter(
+                Charger.pricing_per_kwh.is_(None),
+                Charger.network_name.isnot(None),
+            )
+            .all()
+        )
 
         updated = 0
         for charger in chargers:
@@ -977,6 +1101,7 @@ async def seed_merchant_exclusives(
 ):
     """Set exclusive titles on ChargerMerchant rows by merchant name patterns."""
     from app.core.config import settings
+
     if seed_key != settings.JWT_SECRET:
         raise HTTPException(status_code=403, detail="Invalid seed key")
 
@@ -992,18 +1117,18 @@ async def seed_merchant_exclusives(
         updated = 0
         for pattern, title in EXCLUSIVES.items():
             # Find merchants matching this pattern
-            merchants = db.query(Merchant).filter(
-                func.lower(Merchant.name).contains(pattern)
-            ).all()
+            merchants = db.query(Merchant).filter(func.lower(Merchant.name).contains(pattern)).all()
             merchant_ids = [m.id for m in merchants]
             if not merchant_ids:
                 continue
             # Update all ChargerMerchant links for these merchants
-            count = db.query(ChargerMerchant).filter(
-                ChargerMerchant.merchant_id.in_(merchant_ids)
-            ).update(
-                {ChargerMerchant.exclusive_title: title},
-                synchronize_session=False,
+            count = (
+                db.query(ChargerMerchant)
+                .filter(ChargerMerchant.merchant_id.in_(merchant_ids))
+                .update(
+                    {ChargerMerchant.exclusive_title: title},
+                    synchronize_session=False,
+                )
             )
             updated += count
         db.commit()

@@ -5,6 +5,7 @@ Receives telemetry data from the Fleet Telemetry webhook and translates
 vehicle charge-state changes into SessionEvent create/update/end operations.
 Reuses existing SessionEventService methods for session management.
 """
+
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -51,6 +52,7 @@ class TelemetryProcessor:
             .filter(
                 TeslaConnection.vin == vin,
                 TeslaConnection.is_active == True,
+                TeslaConnection.deleted_at.is_(None),
             )
             .first()
         )
@@ -84,7 +86,9 @@ class TelemetryProcessor:
 
         logger.info(
             "Telemetry fields for VIN %s: keys=%s, DetailedChargeState=%s",
-            vin, list(fields.keys()), fields.get("DetailedChargeState"),
+            vin,
+            list(fields.keys()),
+            fields.get("DetailedChargeState"),
         )
 
         # 3. Determine charge state
@@ -110,9 +114,7 @@ class TelemetryProcessor:
         # 5. State transitions
         if is_charging and not active:
             # New charging session detected via telemetry
-            return TelemetryProcessor._start_session(
-                db, driver_id, tesla_conn, fields
-            )
+            return TelemetryProcessor._start_session(db, driver_id, tesla_conn, fields)
 
         elif is_charging and active:
             # Update telemetry on existing session
@@ -150,18 +152,23 @@ class TelemetryProcessor:
         if lat is not None and lng is not None:
             try:
                 from app.services.intent_service import find_nearest_charger
+
                 result = find_nearest_charger(db, float(lat), float(lng), radius_m=500)
                 if result:
                     charger_id = result[0].id
                     logger.info(
                         "Telemetry: matched to charger %s at %.0fm",
-                        charger_id, result[1],
+                        charger_id,
+                        result[1],
                     )
             except Exception as e:
                 logger.warning("Telemetry: charger matching failed: %s", e)
 
         session = SessionEventService.create_from_tesla(
-            db, driver_id, charge_data, vehicle_info,
+            db,
+            driver_id,
+            charge_data,
+            vehicle_info,
             charger_id=charger_id,
         )
         # Mark as telemetry-sourced
@@ -174,6 +181,7 @@ class TelemetryProcessor:
         if charger_id:
             try:
                 from app.models.domain import Charger
+
                 charger = db.query(Charger).filter(Charger.id == charger_id).first()
                 if charger:
                     charger_name = charger.name
@@ -182,13 +190,16 @@ class TelemetryProcessor:
 
         try:
             from app.services.push_service import send_charging_detected_push
+
             send_charging_detected_push(db, driver_id, session.id, charger_name)
         except Exception as e:
             logger.debug("Charging detected push failed (non-fatal): %s", e)
 
         logger.info(
             "Telemetry: created session %s for driver %s (VIN %s)",
-            session.id, driver_id, tesla_conn.vin,
+            session.id,
+            driver_id,
+            tesla_conn.vin,
         )
         return {"action": "created", "session_id": session.id}
 
@@ -206,7 +217,8 @@ class TelemetryProcessor:
         kwh = fields.get("ACChargingEnergyIn") or fields.get("DCChargingEnergyIn")
 
         session = SessionEventService.end_session(
-            db, active.id,
+            db,
+            active.id,
             ended_reason="telemetry_disconnected",
             battery_end_pct=int(battery_end) if battery_end is not None else None,
             kwh_delivered=float(kwh) if kwh is not None else None,
@@ -223,9 +235,10 @@ class TelemetryProcessor:
             if quality > 30:
                 try:
                     from app.models_domain import DriverWallet as DomainWallet
-                    wallet = db.query(DomainWallet).filter(
-                        DomainWallet.user_id == driver_id
-                    ).first()
+
+                    wallet = (
+                        db.query(DomainWallet).filter(DomainWallet.user_id == driver_id).first()
+                    )
                     if wallet:
                         wallet.energy_reputation_score = (wallet.energy_reputation_score or 0) + 5
                 except Exception as e:
@@ -237,13 +250,16 @@ class TelemetryProcessor:
         if grant and grant.amount_cents > 0:
             try:
                 from app.services.push_service import send_incentive_earned_push
+
                 send_incentive_earned_push(db, driver_id, grant.amount_cents)
             except Exception as e:
                 logger.debug("Incentive push failed (non-fatal): %s", e)
 
         logger.info(
             "Telemetry: ended session %s for driver %s (%d min)",
-            active.id, driver_id, session.duration_minutes or 0,
+            active.id,
+            driver_id,
+            session.duration_minutes or 0,
         )
         return {
             "action": "ended",
@@ -306,6 +322,7 @@ class TelemetryProcessor:
                 try:
                     from app.db import SessionLocal
                     from app.services.intent_service import find_nearest_charger
+
                     db = SessionLocal()
                     try:
                         result = find_nearest_charger(db, float(lat), float(lng), radius_m=500)

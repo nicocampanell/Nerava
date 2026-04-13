@@ -76,6 +76,7 @@ async def admin_nearby_charging_sites(
         .filter(
             TeslaConnection.user_id == target_user.id,
             TeslaConnection.is_active == True,  # noqa: E712
+            TeslaConnection.deleted_at.is_(None),
         )
         .first()
     )

@@ -7,6 +7,7 @@ via James's driver account).
 
 Stores snapshots in charger_availability_snapshots for historical pattern analysis.
 """
+
 import asyncio
 import logging
 import os
@@ -35,33 +36,158 @@ TESLA_COLLECTOR_PHONE = "+17133056318"
 # Monitored stations across all regions
 MONITORED_STATIONS: List[Dict[str, str]] = [
     # ── Austin Domain area ──
-    {"charger_id": "tomtom_domain_1", "name": "ChargePoint @ 11505 Domain Dr", "avail_id": "a70292d8-fde5-41eb-b9c0-61829cda02c0", "region": "austin"},
-    {"charger_id": "tomtom_domain_2", "name": "ChargePoint @ 11811 Domain Dr", "avail_id": "3b359414-28af-48c6-9554-29bd34aee61c", "region": "austin"},
-    {"charger_id": "tomtom_domain_3", "name": "ChargePoint @ 11600 Alterra Pkwy", "avail_id": "b0c3386d-89ba-4b46-95a8-58b0f6a44b44", "region": "austin"},
-    {"charger_id": "tomtom_domain_4", "name": "ChargePoint @ 3004 Palm Way (A)", "avail_id": "623d43b7-7768-4739-add0-4f9f859fbff7", "region": "austin"},
-    {"charger_id": "tomtom_domain_5", "name": "ChargePoint @ 3004 Palm Way (B)", "avail_id": "1283fbc0-6385-4b8b-8432-7ba103a7e5cf", "region": "austin"},
-    {"charger_id": "tomtom_domain_6", "name": "ChargePoint @ 3000 Kramer Ln", "avail_id": "b1e3f371-8538-4839-b940-d50673105ba4", "region": "austin"},
-    {"charger_id": "tomtom_domain_7", "name": "ChargePoint @ 11500 N MoPac", "avail_id": "edfce375-5a14-4943-ac46-32c582963b3b", "region": "austin"},
-    {"charger_id": "tomtom_domain_8", "name": "ChargePoint @ 11800 Alterra Pkwy", "avail_id": "3c75c68f-934b-40fa-926b-98d699cd7c47", "region": "austin"},
-    {"charger_id": "tomtom_domain_9", "name": "ChargePoint @ 11920 Domain Dr", "avail_id": "91e497ef-bbb5-476b-885f-2d220ee9e4de", "region": "austin"},
-    {"charger_id": "tomtom_domain_10", "name": "ChargePoint @ Domain Dr", "avail_id": "3f909562-f9b1-4377-890d-92265c55442c", "region": "austin"},
+    {
+        "charger_id": "tomtom_domain_1",
+        "name": "ChargePoint @ 11505 Domain Dr",
+        "avail_id": "a70292d8-fde5-41eb-b9c0-61829cda02c0",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_2",
+        "name": "ChargePoint @ 11811 Domain Dr",
+        "avail_id": "3b359414-28af-48c6-9554-29bd34aee61c",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_3",
+        "name": "ChargePoint @ 11600 Alterra Pkwy",
+        "avail_id": "b0c3386d-89ba-4b46-95a8-58b0f6a44b44",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_4",
+        "name": "ChargePoint @ 3004 Palm Way (A)",
+        "avail_id": "623d43b7-7768-4739-add0-4f9f859fbff7",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_5",
+        "name": "ChargePoint @ 3004 Palm Way (B)",
+        "avail_id": "1283fbc0-6385-4b8b-8432-7ba103a7e5cf",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_6",
+        "name": "ChargePoint @ 3000 Kramer Ln",
+        "avail_id": "b1e3f371-8538-4839-b940-d50673105ba4",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_7",
+        "name": "ChargePoint @ 11500 N MoPac",
+        "avail_id": "edfce375-5a14-4943-ac46-32c582963b3b",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_8",
+        "name": "ChargePoint @ 11800 Alterra Pkwy",
+        "avail_id": "3c75c68f-934b-40fa-926b-98d699cd7c47",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_9",
+        "name": "ChargePoint @ 11920 Domain Dr",
+        "avail_id": "91e497ef-bbb5-476b-885f-2d220ee9e4de",
+        "region": "austin",
+    },
+    {
+        "charger_id": "tomtom_domain_10",
+        "name": "ChargePoint @ Domain Dr",
+        "avail_id": "3f909562-f9b1-4377-890d-92265c55442c",
+        "region": "austin",
+    },
     # ── Katy TX area (field activation target) ──
-    {"charger_id": "tomtom_katy_1", "name": "ChargePoint @ 23005 Katy Fwy", "avail_id": "2995cd98-7c1d-4076-a6ff-2a67408aac4c", "region": "katy"},
-    {"charger_id": "tomtom_katy_2", "name": "ChargePoint @ 23414 W Fernhurst Dr", "avail_id": "2fc1a596-24a1-4150-8aa4-c8ba12ac6fd9", "region": "katy"},
-    {"charger_id": "tomtom_katy_3", "name": "Premier at Katy @ Bella Dolce Ln", "avail_id": "dd0e0b0d-644e-4c7f-a4d1-d68534ef75b0", "region": "katy"},
-    {"charger_id": "tomtom_katy_4", "name": "Memorial Hermann Katy Hospital", "avail_id": "d0c82ee8-8f00-4bc4-af80-591eda5cfa41", "region": "katy"},
-    {"charger_id": "tomtom_katy_5", "name": "ChargePoint @ 107 New Hope Ln", "avail_id": "3d0ab5c6-a827-8878-98f2-a6bddc62d1e8", "region": "katy"},
-    {"charger_id": "tomtom_katy_6", "name": "ChargePoint @ 1330 Park West Green Dr", "avail_id": "40733c29-cf08-4251-8e10-efdd127b74c9", "region": "katy"},
-    {"charger_id": "tomtom_katy_7", "name": "ChargePoint @ 21001 Katy Fwy", "avail_id": "6a500a27-638f-4f91-8e4c-cf1758700f70", "region": "katy"},
-    {"charger_id": "tomtom_katy_8", "name": "Vineyard Apts REVS @ Provincial Blvd", "avail_id": "97e8ad5a-7e2a-41a1-9be9-d959d316383a", "region": "katy"},
-    {"charger_id": "tomtom_katy_9", "name": "ChargePoint @ 24932 Katy Ranch Rd", "avail_id": "1f3eb99d-899c-8d17-aaa8-e15541749770", "region": "katy"},
-    {"charger_id": "tomtom_katy_10", "name": "Seacrest Apts @ Provincial Blvd", "avail_id": "14f75fda-0d64-816d-bb9b-74f24ac036a9", "region": "katy"},
+    {
+        "charger_id": "tomtom_katy_1",
+        "name": "ChargePoint @ 23005 Katy Fwy",
+        "avail_id": "2995cd98-7c1d-4076-a6ff-2a67408aac4c",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_2",
+        "name": "ChargePoint @ 23414 W Fernhurst Dr",
+        "avail_id": "2fc1a596-24a1-4150-8aa4-c8ba12ac6fd9",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_3",
+        "name": "Premier at Katy @ Bella Dolce Ln",
+        "avail_id": "dd0e0b0d-644e-4c7f-a4d1-d68534ef75b0",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_4",
+        "name": "Memorial Hermann Katy Hospital",
+        "avail_id": "d0c82ee8-8f00-4bc4-af80-591eda5cfa41",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_5",
+        "name": "ChargePoint @ 107 New Hope Ln",
+        "avail_id": "3d0ab5c6-a827-8878-98f2-a6bddc62d1e8",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_6",
+        "name": "ChargePoint @ 1330 Park West Green Dr",
+        "avail_id": "40733c29-cf08-4251-8e10-efdd127b74c9",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_7",
+        "name": "ChargePoint @ 21001 Katy Fwy",
+        "avail_id": "6a500a27-638f-4f91-8e4c-cf1758700f70",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_8",
+        "name": "Vineyard Apts REVS @ Provincial Blvd",
+        "avail_id": "97e8ad5a-7e2a-41a1-9be9-d959d316383a",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_9",
+        "name": "ChargePoint @ 24932 Katy Ranch Rd",
+        "avail_id": "1f3eb99d-899c-8d17-aaa8-e15541749770",
+        "region": "katy",
+    },
+    {
+        "charger_id": "tomtom_katy_10",
+        "name": "Seacrest Apts @ Provincial Blvd",
+        "avail_id": "14f75fda-0d64-816d-bb9b-74f24ac036a9",
+        "region": "katy",
+    },
     # ── Austin Downtown (diverse networks) ──
-    {"charger_id": "tomtom_atx_downtown_1", "name": "301 E 8th St (non-CP)", "avail_id": "2fea4e5e-0755-8f50-811b-eb1db2e893fa", "region": "austin_downtown"},
-    {"charger_id": "tomtom_atx_downtown_2", "name": "ChargePoint @ 701 Brazos St", "avail_id": "0d9640e0-9698-47ca-84f3-bb91f4fd1271", "region": "austin_downtown"},
-    {"charger_id": "tomtom_atx_downtown_3", "name": "ChargePoint @ 710 Trinity St", "avail_id": "593c807e-a046-4221-8935-86993c46a4ae", "region": "austin_downtown"},
-    {"charger_id": "tomtom_atx_downtown_4", "name": "ChargePoint @ 205 E 7th St", "avail_id": "8d059a15-9e93-445a-82a4-32bf3fc07cf0", "region": "austin_downtown"},
-    {"charger_id": "tomtom_atx_downtown_5", "name": "ChargePoint @ 515 Congress Ave", "avail_id": "69a49afb-8aa5-4a7b-bb88-7fca6f762dbe", "region": "austin_downtown"},
+    {
+        "charger_id": "tomtom_atx_downtown_1",
+        "name": "301 E 8th St (non-CP)",
+        "avail_id": "2fea4e5e-0755-8f50-811b-eb1db2e893fa",
+        "region": "austin_downtown",
+    },
+    {
+        "charger_id": "tomtom_atx_downtown_2",
+        "name": "ChargePoint @ 701 Brazos St",
+        "avail_id": "0d9640e0-9698-47ca-84f3-bb91f4fd1271",
+        "region": "austin_downtown",
+    },
+    {
+        "charger_id": "tomtom_atx_downtown_3",
+        "name": "ChargePoint @ 710 Trinity St",
+        "avail_id": "593c807e-a046-4221-8935-86993c46a4ae",
+        "region": "austin_downtown",
+    },
+    {
+        "charger_id": "tomtom_atx_downtown_4",
+        "name": "ChargePoint @ 205 E 7th St",
+        "avail_id": "8d059a15-9e93-445a-82a4-32bf3fc07cf0",
+        "region": "austin_downtown",
+    },
+    {
+        "charger_id": "tomtom_atx_downtown_5",
+        "name": "ChargePoint @ 515 Congress Ave",
+        "avail_id": "69a49afb-8aa5-4a7b-bb88-7fca6f762dbe",
+        "region": "austin_downtown",
+    },
 ]
 
 
@@ -104,14 +230,16 @@ def _parse_availability(data: Dict[str, Any]) -> Dict[str, Any]:
         occupied += o
         out_of_service += oos
 
-        details.append({
-            "type": c.get("type"),
-            "total": count,
-            "available": a,
-            "occupied": o,
-            "out_of_service": oos,
-            "power_kw": power_levels[0].get("powerKW") if power_levels else None,
-        })
+        details.append(
+            {
+                "type": c.get("type"),
+                "total": count,
+                "available": a,
+                "occupied": o,
+                "out_of_service": oos,
+                "power_kw": power_levels[0].get("powerKW") if power_levels else None,
+            }
+        )
 
     return {
         "total_ports": total,
@@ -248,14 +376,17 @@ async def _collect_tesla_once():
             logger.debug(f"[TeslaCollector] No user for phone {TESLA_COLLECTOR_PHONE}")
             return
 
-        conn = db.query(TeslaConnection).filter(
-            TeslaConnection.user_id == user.id,
-            TeslaConnection.is_active == True,  # noqa: E712
-        ).first()
-        if not conn or not conn.vehicle_id:
-            logger.debug(
-                f"[TeslaCollector] No active Tesla connection for user {user.id}"
+        conn = (
+            db.query(TeslaConnection)
+            .filter(
+                TeslaConnection.user_id == user.id,
+                TeslaConnection.is_active == True,  # noqa: E712
+                TeslaConnection.deleted_at.is_(None),
             )
+            .first()
+        )
+        if not conn or not conn.vehicle_id:
+            logger.debug(f"[TeslaCollector] No active Tesla connection for user {user.id}")
             return
 
         oauth = get_tesla_oauth_service()
@@ -302,9 +433,7 @@ async def _collect_tesla_once():
                 )
 
             try:
-                response = await oauth.get_nearby_charging_sites(
-                    access_token, conn.vehicle_id
-                )
+                response = await oauth.get_nearby_charging_sites(access_token, conn.vehicle_id)
             except Exception as call_err:
                 logger.warning(
                     f"[TeslaCollector] get_nearby_charging_sites failed "
@@ -396,9 +525,7 @@ async def _collect_tesla_once():
         # On cycles that stored zero after retry, dump the first attempt for
         # diagnosis so we can see exactly what Tesla returned.
         if stored == 0 and raw_first_attempt is not None:
-            logger.warning(
-                f"[TeslaCollector] Cycle stored 0 — first_attempt={raw_first_attempt}"
-            )
+            logger.warning(f"[TeslaCollector] Cycle stored 0 — first_attempt={raw_first_attempt}")
     except Exception as e:
         db.rollback()
         logger.error(f"[TeslaCollector] Collection failed: {e}")

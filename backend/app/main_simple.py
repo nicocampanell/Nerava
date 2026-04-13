@@ -979,6 +979,11 @@ from .routers import (
 
 app.include_router(checkin_router.router)
 app.include_router(driver_wallet.router)
+
+# Driver in-app ordering (Toast, etc.)
+from .routers import driver_orders
+
+app.include_router(driver_orders.router)  # /v1/driver/orders/*
 app.include_router(charge_context.router)
 app.include_router(ev_context.router)
 app.include_router(virtual_key.router)

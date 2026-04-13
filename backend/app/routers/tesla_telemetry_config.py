@@ -6,6 +6,7 @@ POST /v1/tesla/configure-telemetry
 Called after Tesla OAuth vehicle selection to configure real-time telemetry
 streaming from the vehicle to our Fleet Telemetry server.
 """
+
 import logging
 from datetime import datetime
 
@@ -44,6 +45,7 @@ async def configure_telemetry(
         .filter(
             TeslaConnection.user_id == current_user.id,
             TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
         )
         .first()
     )
@@ -62,16 +64,19 @@ async def configure_telemetry(
     # Configure Fleet Telemetry
     try:
         result = await oauth_service.subscribe_vehicle_telemetry(
-            access_token, tesla_conn.vin,
+            access_token,
+            tesla_conn.vin,
         )
     except Exception as e:
         detail_msg = str(e)
         # Extract response body from httpx errors for debugging
-        if hasattr(e, 'response') and e.response is not None:
+        if hasattr(e, "response") and e.response is not None:
             detail_msg = f"{e} — body: {e.response.text}"
         logger.error(
             "Failed to configure telemetry for user %s (VIN %s): %s",
-            current_user.id, tesla_conn.vin, detail_msg,
+            current_user.id,
+            tesla_conn.vin,
+            detail_msg,
         )
         raise HTTPException(
             status_code=502,
@@ -86,7 +91,8 @@ async def configure_telemetry(
 
     logger.info(
         "Telemetry configured for user %s (VIN %s)",
-        current_user.id, tesla_conn.vin,
+        current_user.id,
+        tesla_conn.vin,
     )
     return {
         "status": "configured",

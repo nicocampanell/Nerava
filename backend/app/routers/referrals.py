@@ -1,4 +1,5 @@
 """Referral system router."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -41,7 +42,7 @@ def get_referral_code(
     db: Session = Depends(get_db),
 ):
     """Get or create user's unique referral code."""
-    ref_code = get_or_create_code(db, current_user.id)
+    ref_code = get_or_create_code(db, current_user.id, display_name=current_user.display_name)
     return ReferralCodeResponse(
         code=ref_code.code,
         referral_link=f"https://app.nerava.network/join?ref={ref_code.code}",

@@ -500,9 +500,10 @@ export interface ActiveExclusiveResponse {
 }
 
 // Exclusive Session API Functions
-export async function activateExclusive(request: ActivateExclusiveRequest): Promise<ActivateExclusiveResponse> {
+export async function activateExclusive({ request, idempotencyKey }: { request: ActivateExclusiveRequest; idempotencyKey: string }): Promise<ActivateExclusiveResponse> {
   const data = await fetchAPI<unknown>('/v1/exclusive/activate', {
     method: 'POST',
+    headers: { 'X-Idempotency-Key': idempotencyKey },
     body: JSON.stringify(request),
   })
   return validateResponse(ActivateExclusiveResponseSchema, data, '/v1/exclusive/activate') as unknown as ActivateExclusiveResponse
@@ -742,6 +743,7 @@ export interface ChargerDetailNearbyMerchant {
   exclusive_title?: string | null
   is_nerava_merchant?: boolean
   join_request_count?: number
+  ordering_url?: string | null
 }
 
 export interface ChargerDetail {
@@ -849,6 +851,7 @@ export interface PollSessionResponse {
 
 export interface TeslaConnectionStatus {
   connected: boolean
+  vehicle_id?: string | null
   vehicle_name?: string | null
   vehicle_model?: string | null
   vehicle_year?: number | null
@@ -881,6 +884,12 @@ export async function pollChargingSession(deviceLat?: number, deviceLng?: number
 
 export async function fetchTeslaStatus(): Promise<TeslaConnectionStatus> {
   return fetchAPI<TeslaConnectionStatus>('/v1/auth/tesla/status')
+}
+
+export async function removeVehicle(vehicleId: string): Promise<{ status: string; vehicle_id: string }> {
+  return fetchAPI<{ status: string; vehicle_id: string }>(`/v1/auth/tesla/vehicles/${vehicleId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function useChargingSessions(limit = 50, offset = 0) {
@@ -1057,6 +1066,7 @@ export interface DriverCampaign {
   campaign_type: string
   eligible: boolean
   end_date: string | null
+  offer_url: string | null
 }
 
 export async function fetchDriverCampaigns(lat?: number, lng?: number, chargerId?: string): Promise<{ campaigns: DriverCampaign[] }> {
@@ -1472,6 +1482,37 @@ export async function registerDeviceToken(token: string, platform: 'ios' | 'andr
   return fetchAPI<{ ok: boolean }>('/v1/notifications/register-device', {
     method: 'POST',
     body: JSON.stringify({ fcm_token: token, platform }),
+  })
+}
+
+// ===================== Driver Orders (In-App Ordering) =====================
+
+export interface StartDriverOrderRequest {
+  merchant_id: string
+  ordering_url: string
+  merchant_name?: string
+  session_id?: string
+}
+
+export interface DriverOrderResponse {
+  order_id: string
+  status: string
+}
+
+export async function startDriverOrder(request: StartDriverOrderRequest): Promise<DriverOrderResponse> {
+  return fetchAPI<DriverOrderResponse>('/v1/driver/orders/start', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+export async function completeDriverOrder(request: {
+  order_id: string
+  completion_url?: string
+}): Promise<DriverOrderResponse> {
+  return fetchAPI<DriverOrderResponse>('/v1/driver/orders/complete', {
+    method: 'POST',
+    body: JSON.stringify(request),
   })
 }
 

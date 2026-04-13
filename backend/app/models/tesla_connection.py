@@ -50,6 +50,9 @@ class TeslaConnection(Base):
     telemetry_enabled = Column(Boolean, default=False, nullable=False)
     telemetry_configured_at = Column(DateTime, nullable=True)
 
+    # Soft delete
+    deleted_at = Column(DateTime, nullable=True, default=None)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

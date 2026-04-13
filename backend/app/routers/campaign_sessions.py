@@ -8,6 +8,7 @@ GET /v1/charging-sessions/{id}     — session details + grant info
 POST /v1/charging-sessions/poll    — poll Tesla for current charging state
 POST /v1/charging-sessions/background-ping — geofence-triggered background detection
 """
+
 import logging
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -29,14 +30,17 @@ logger = logging.getLogger(__name__)
 
 class PollSessionRequest(BaseModel):
     """Optional device location sent with each poll."""
+
     lat: Optional[float] = None
     lng: Optional[float] = None
 
 
 class BackgroundPingRequest(BaseModel):
     """Location sent by native app when geofence entry fires (background)."""
+
     lat: float
     lng: float
+
 
 router = APIRouter(prefix="/v1/charging-sessions", tags=["charging-sessions"])
 
@@ -81,9 +85,7 @@ async def get_active_session(
     if session:
         now = datetime.utcnow()
         has_future_poll = (
-            hasattr(session, 'next_poll_at')
-            and session.next_poll_at
-            and session.next_poll_at > now
+            hasattr(session, "next_poll_at") and session.next_poll_at and session.next_poll_at > now
         )
         stale_cutoff = now - timedelta(minutes=15)
         if session.updated_at and session.updated_at < stale_cutoff and not has_future_poll:
@@ -92,7 +94,8 @@ async def get_active_session(
                 f"(last updated {session.updated_at})"
             )
             SessionEventService.end_session(
-                db, session.id,
+                db,
+                session.id,
                 ended_reason="stale_cleanup",
                 battery_end_pct=session.battery_end_pct,
                 kwh_delivered=session.kwh_delivered,
@@ -140,9 +143,7 @@ async def get_reputation(
     from ..services.reputation import compute_reputation
 
     # Get wallet with energy_reputation_score
-    wallet = db.query(DriverWallet).filter(
-        DriverWallet.user_id == current_user.id
-    ).first()
+    wallet = db.query(DriverWallet).filter(DriverWallet.user_id == current_user.id).first()
     score = wallet.energy_reputation_score if wallet else 0
     reputation = compute_reputation(score or 0)
 
@@ -233,11 +234,13 @@ async def background_ping(
         meta["device_lat"] = body.lat
         meta["device_lng"] = body.lng
         trail = list(meta.get("location_trail", []))
-        trail.append({
-            "lat": body.lat,
-            "lng": body.lng,
-            "ts": datetime.utcnow().isoformat(),
-        })
+        trail.append(
+            {
+                "lat": body.lat,
+                "lng": body.lng,
+                "ts": datetime.utcnow().isoformat(),
+            }
+        )
         if len(trail) > 120:
             trail = trail[-120:]
         meta["location_trail"] = trail
@@ -255,6 +258,7 @@ async def background_ping(
     # Step 1: Find nearest charger within 300m
     try:
         from ..services.intent_service import find_nearest_charger
+
         result = find_nearest_charger(db, body.lat, body.lng, radius_m=300)
     except Exception as e:
         logger.warning(f"Background ping charger lookup failed: {e}")
@@ -275,6 +279,7 @@ async def background_ping(
         .filter(
             TeslaConnection.user_id == current_user.id,
             TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
         )
         .first()
     )
@@ -287,7 +292,10 @@ async def background_ping(
     # Step 3: Poll Tesla API once
     oauth_service = get_tesla_oauth_service()
     poll_result = await SessionEventService.poll_driver_session(
-        db, current_user.id, tesla_conn, oauth_service,
+        db,
+        current_user.id,
+        tesla_conn,
+        oauth_service,
         device_lat=body.lat,
         device_lng=body.lng,
     )
@@ -295,7 +303,9 @@ async def background_ping(
     return {
         "matched": True,
         "session_active": poll_result.get("session_active", False),
-        "session_id": str(poll_result.get("session_id", "")) if poll_result.get("session_id") else None,
+        "session_id": (
+            str(poll_result.get("session_id", "")) if poll_result.get("session_id") else None
+        ),
         "charger_id": matched_charger.id,
         "charger_name": matched_charger.name,
     }
@@ -308,10 +318,14 @@ async def get_session_detail(
     current_user: User = Depends(get_current_user),
 ):
     """Get detailed session info including any incentive grant earned."""
-    session = db.query(SessionEvent).filter(
-        SessionEvent.id == session_id,
-        SessionEvent.driver_user_id == current_user.id,
-    ).first()
+    session = (
+        db.query(SessionEvent)
+        .filter(
+            SessionEvent.id == session_id,
+            SessionEvent.driver_user_id == current_user.id,
+        )
+        .first()
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"session": _session_to_dict(session, db)}
@@ -353,6 +367,7 @@ async def poll_session(
         .filter(
             TeslaConnection.user_id == current_user.id,
             TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
         )
         .first()
     )
@@ -363,7 +378,7 @@ async def poll_session(
     # check for active session first (created by webhook). If found, use it.
     # If not, fall back to Tesla API poll so sessions still get created
     # even when telemetry webhooks don't include DetailedChargeState.
-    telemetry_enabled = getattr(tesla_conn, 'telemetry_enabled', False)
+    telemetry_enabled = getattr(tesla_conn, "telemetry_enabled", False)
     if telemetry_enabled:
         active = SessionEventService.get_active_session(db, current_user.id)
         if active:
@@ -375,11 +390,13 @@ async def poll_session(
                 meta["device_lat"] = device_lat
                 meta["device_lng"] = device_lng
                 trail = list(meta.get("location_trail", []))
-                trail.append({
-                    "lat": device_lat,
-                    "lng": device_lng,
-                    "ts": datetime.utcnow().isoformat(),
-                })
+                trail.append(
+                    {
+                        "lat": device_lat,
+                        "lng": device_lng,
+                        "ts": datetime.utcnow().isoformat(),
+                    }
+                )
                 if len(trail) > 120:
                     trail = trail[-120:]
                 meta["location_trail"] = trail
@@ -390,7 +407,9 @@ async def poll_session(
             return {
                 "session_active": True,
                 "session_id": active.id,
-                "duration_minutes": int((datetime.utcnow() - active.session_start).total_seconds() / 60),
+                "duration_minutes": int(
+                    (datetime.utcnow() - active.session_start).total_seconds() / 60
+                ),
                 "kwh_delivered": active.kwh_delivered,
                 "telemetry_mode": True,
             }
@@ -398,7 +417,10 @@ async def poll_session(
 
     oauth_service = get_tesla_oauth_service()
     result = await SessionEventService.poll_driver_session(
-        db, current_user.id, tesla_conn, oauth_service,
+        db,
+        current_user.id,
+        tesla_conn,
+        oauth_service,
         device_lat=body.lat if body else None,
         device_lng=body.lng if body else None,
     )
@@ -412,10 +434,13 @@ def _session_to_dict(session: SessionEvent, db: Session) -> dict:
     grant = None
     try:
         from sqlalchemy import text
+
         result = db.execute(
-            text("SELECT id, campaign_id, amount_cents, status, granted_at "
-                 "FROM incentive_grants WHERE session_event_id = :sid LIMIT 1"),
-            {"sid": str(session.id)}
+            text(
+                "SELECT id, campaign_id, amount_cents, status, granted_at "
+                "FROM incentive_grants WHERE session_event_id = :sid LIMIT 1"
+            ),
+            {"sid": str(session.id)},
         ).first()
         if result:
             grant = result
@@ -444,7 +469,6 @@ def _session_to_dict(session: SessionEvent, db: Session) -> dict:
     # Include location trail from session metadata (v2.7+)
     metadata = session.session_metadata or {}
     result["location_trail"] = metadata.get("location_trail", [])
-
 
     if grant:
         granted_at = grant[4]  # granted_at column

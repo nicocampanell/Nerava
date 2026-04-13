@@ -304,7 +304,12 @@ async def get_overview(admin: User = Depends(require_admin), db: Session = Depen
     from app.models.tesla_connection import TeslaConnection
 
     total_tesla_connections = (
-        db.query(TeslaConnection).filter(TeslaConnection.is_active == True).count()
+        db.query(TeslaConnection)
+        .filter(
+            TeslaConnection.is_active == True,
+            TeslaConnection.deleted_at.is_(None),
+        )
+        .count()
     )
 
     # Count completed Stripe Express onboardings

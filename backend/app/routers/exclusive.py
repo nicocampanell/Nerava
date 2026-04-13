@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, field_validator
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -353,6 +354,48 @@ async def activate_exclusive(
                         activated_at=existing_session.activated_at.isoformat(),
                         remaining_seconds=remaining_seconds,
                     ),
+                    idempotent=True,
+                )
+
+        # Composite duplicate check: same driver + same merchant within 24h window
+        # Catches duplicates even when the frontend omits X-Idempotency-Key
+        merchant_id = request.merchant_id
+        merchant_place_id = request.merchant_place_id
+        if merchant_id or merchant_place_id:
+            twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+            merchant_filters = []
+            if merchant_id:
+                merchant_filters.append(ExclusiveSession.merchant_id == merchant_id)
+            if merchant_place_id:
+                merchant_filters.append(ExclusiveSession.merchant_place_id == merchant_place_id)
+            recent_claim = (
+                db.query(ExclusiveSession)
+                .filter(
+                    ExclusiveSession.driver_id == driver.id,
+                    or_(*merchant_filters),
+                    ExclusiveSession.activated_at >= twenty_four_hours_ago,
+                    ExclusiveSession.status.in_(
+                        [ExclusiveSessionStatus.ACTIVE, ExclusiveSessionStatus.COMPLETED]
+                    ),
+                )
+                .order_by(ExclusiveSession.activated_at.desc())
+                .first()
+            )
+            if recent_claim:
+                logger.warning(
+                    "Duplicate claim detected: driver_id=%s merchant_id=%s merchant_place_id=%s existing_session=%s",
+                    driver.id,
+                    merchant_id,
+                    merchant_place_id,
+                    str(recent_claim.id),
+                )
+                remaining_seconds = max(
+                    0,
+                    int((recent_claim.expires_at - datetime.now(timezone.utc)).total_seconds()),
+                )
+                return ActivateExclusiveResponse(
+                    status=recent_claim.status.value,
+                    exclusive_session=_enrich_session_response(db, recent_claim, remaining_seconds),
                     idempotent=True,
                 )
 
