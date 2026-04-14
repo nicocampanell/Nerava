@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import UIKit
+import SafariServices
 import os
 
 struct WebViewContainer: View {
@@ -249,7 +250,12 @@ struct WebViewRepresentable: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, SFSafariViewControllerDelegate {
+        private static let internalDomains = ["nerava.network", "localhost", "127.0.0.1"]
+        private static let oauthDomains = ["accounts.google.com", "appleid.apple.com",
+                                           "connect.stripe.com", "dashboard.stripe.com",
+                                           "auth.tesla.com"]
+
         let nativeBridge: NativeBridge
         var isLoading: Binding<Bool>
         var loadError: Binding<WebViewError?>
@@ -340,6 +346,79 @@ struct WebViewRepresentable: UIViewRepresentable {
             decisionHandler(.allow)
         }
 
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+
+            // Handle hostless schemes (tel:, mailto:, etc.) — delegate to system
+            guard let host = url.host else {
+                if navigationAction.navigationType == .linkActivated {
+                    UIApplication.shared.open(url)
+                    decisionHandler(.cancel)
+                } else {
+                    decisionHandler(.allow)
+                }
+                return
+            }
+
+            // Allow internal navigation (suffix match to prevent spoofing)
+            if Self.internalDomains.contains(where: { host == $0 || host.hasSuffix(".\($0)") }) {
+                decisionHandler(.allow)
+                return
+            }
+
+            // Allow OAuth domains to proceed (handled by createWebViewWith for popups)
+            if Self.oauthDomains.contains(where: { host == $0 || host.hasSuffix(".\($0)") }) {
+                decisionHandler(.allow)
+                return
+            }
+
+            // Only intercept user-initiated link clicks, not programmatic loads
+            guard navigationAction.navigationType == .linkActivated else {
+                decisionHandler(.allow)
+                return
+            }
+
+            // External link clicked — open in-app browser instead of Safari
+            openInAppBrowser(url: url)
+            decisionHandler(.cancel)
+        }
+
+        private func openInAppBrowser(url: URL) {
+            guard let scheme = url.scheme, ["http", "https"].contains(scheme) else {
+                UIApplication.shared.open(url)
+                return
+            }
+            guard let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+                  let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }),
+                  var topVC = keyWindow.rootViewController else {
+                Log.bridge.warning("Could not find root view controller for in-app browser — falling back to Safari")
+                UIApplication.shared.open(url)
+                return
+            }
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            let config = SFSafariViewController.Configuration()
+            config.entersReaderIfAvailable = false
+            config.barCollapsingEnabled = true
+            let safari = SFSafariViewController(url: url, configuration: config)
+            safari.preferredControlTintColor = UIColor(red: 0.16, green: 0.34, blue: 0.91, alpha: 1.0)
+            safari.dismissButtonStyle = .close
+            safari.delegate = self
+            topVC.present(safari, animated: true)
+        }
+
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+            nativeBridge.sendToWeb(.inAppBrowserClosed)
+        }
+
         /// Popup WKWebView for OAuth flows (Stripe Connect, Google Sign-In, etc.)
         private var popupWebView: WKWebView?
 
@@ -354,16 +433,13 @@ struct WebViewRepresentable: UIViewRepresentable {
             }
 
             // Internal links — load in same WebView
-            if host.contains("nerava.network") || host.contains("localhost") {
+            if Self.internalDomains.contains(where: { host == $0 || host.hasSuffix(".\($0)") }) {
                 webView.load(navigationAction.request)
                 return nil
             }
 
             // OAuth/auth popups — open in a child WKWebView so postMessage works
-            let authDomains = ["accounts.google.com", "appleid.apple.com",
-                               "connect.stripe.com", "dashboard.stripe.com",
-                               "auth.tesla.com"]
-            let isAuthPopup = authDomains.contains(where: { host.contains($0) })
+            let isAuthPopup = Self.oauthDomains.contains(where: { host == $0 || host.hasSuffix(".\($0)") })
 
             if isAuthPopup {
                 let popup = WKWebView(frame: webView.bounds, configuration: configuration)
@@ -375,8 +451,8 @@ struct WebViewRepresentable: UIViewRepresentable {
                 return popup
             }
 
-            // Other external links — open in Safari
-            UIApplication.shared.open(url)
+            // Other external links — open in-app browser (SFSafariViewController)
+            openInAppBrowser(url: url)
             return nil
         }
 
