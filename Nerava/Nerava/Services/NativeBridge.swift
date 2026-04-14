@@ -2,6 +2,7 @@ import WebKit
 import UIKit
 import Foundation
 import CoreLocation
+import SafariServices
 import os
 
 // MARK: - Message Types
@@ -18,6 +19,7 @@ enum NativeBridgeMessage {
     case deviceTokenRegistered(token: String)
     case pushDeepLink(type: String, deepLink: String, data: [String: Any])
     case ready
+    case inAppBrowserClosed
 
     var action: String {
         switch self {
@@ -32,6 +34,7 @@ enum NativeBridgeMessage {
         case .deviceTokenRegistered: return "DEVICE_TOKEN_REGISTERED"
         case .pushDeepLink: return "PUSH_DEEP_LINK"
         case .ready: return "NATIVE_READY"
+        case .inAppBrowserClosed: return "IN_APP_BROWSER_CLOSED"
         }
     }
 
@@ -64,6 +67,8 @@ enum NativeBridgeMessage {
         case .pushDeepLink(let type, let deepLink, _):
             return ["type": type, "deep_link": deepLink]
         case .ready:
+            return [:]
+        case .inAppBrowserClosed:
             return [:]
         }
     }
@@ -190,6 +195,10 @@ final class NativeBridge: NSObject {
 
                 openExternalUrl: function(url) {
                     this.postMessage('OPEN_EXTERNAL_URL', { url: url });
+                },
+
+                openInAppBrowser: function(url) {
+                    this.postMessage('OPEN_IN_APP_BROWSER', { url: url });
                 },
 
                 updateChargerGeofences: function(chargers) {
@@ -410,6 +419,30 @@ extension NativeBridge: WKScriptMessageHandler {
                 UIApplication.shared.open(url, options: [:], completionHandler: nil)
             }
 
+        case "OPEN_IN_APP_BROWSER":
+            guard let urlString = payload["url"] as? String,
+                  let url = URL(string: urlString),
+                  let scheme = url.scheme,
+                  ["http", "https"].contains(scheme) else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let windowScene = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene })
+                    .first(where: { $0.activationState == .foregroundActive }),
+                      let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }),
+                      var topVC = keyWindow.rootViewController else { return }
+                while let presented = topVC.presentedViewController {
+                    topVC = presented
+                }
+                let config = SFSafariViewController.Configuration()
+                config.entersReaderIfAvailable = false
+                config.barCollapsingEnabled = true
+                let safari = SFSafariViewController(url: url, configuration: config)
+                safari.preferredControlTintColor = UIColor(red: 0.16, green: 0.34, blue: 0.91, alpha: 1.0) // #2952E8
+                safari.dismissButtonStyle = .close
+                safari.delegate = self
+                topVC.present(safari, animated: true)
+            }
+
         case "UPDATE_CHARGER_GEOFENCES":
             guard let chargerDicts = payload["chargers"] as? [[String: Any]] else { return }
             let chargers: [(id: String, lat: Double, lng: Double)] = chargerDicts.compactMap { dict in
@@ -424,5 +457,15 @@ extension NativeBridge: WKScriptMessageHandler {
         default:
             Log.bridge.warning("Unknown action: \(actionStr)")
         }
+    }
+}
+
+// MARK: - SFSafariViewControllerDelegate
+
+extension NativeBridge: SFSafariViewControllerDelegate {
+    func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+        // User tapped "Done" / closed the in-app browser
+        // Notify the web app so it can fire completeDriverOrder or track the close
+        sendToWeb(.inAppBrowserClosed)
     }
 }

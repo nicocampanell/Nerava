@@ -87,6 +87,10 @@ sealed class BridgeMessage(val action: String) {
             put("deep_link", deepLink)
         }
     }
+
+    data object InAppBrowserClosed : BridgeMessage("IN_APP_BROWSER_CLOSED") {
+        override fun toPayloadJson() = JSONObject()
+    }
 }
 
 /**

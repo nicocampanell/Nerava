@@ -115,6 +115,10 @@ object BridgeInjector {
                     this.postMessage('OPEN_EXTERNAL_URL', { url: url });
                 },
 
+                openInAppBrowser: function(url) {
+                    this.postMessage('OPEN_IN_APP_BROWSER', { url: url });
+                },
+
                 updateChargerGeofences: function(chargers) {
                     this.postMessage('UPDATE_CHARGER_GEOFENCES', { chargers: chargers });
                 }

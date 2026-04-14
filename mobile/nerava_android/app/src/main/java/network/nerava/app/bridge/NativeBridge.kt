@@ -231,6 +231,27 @@ class NativeBridge(
                 }
             }
 
+            "OPEN_IN_APP_BROWSER" -> {
+                val url = msg.payload.optString("url", "").takeIf { it.isNotEmpty() } ?: return
+                val uri = Uri.parse(url)
+                if (uri.scheme != "http" && uri.scheme != "https") return
+                try {
+                    val context = webView?.context ?: return
+                    val customTabsIntent = androidx.browser.customtabs.CustomTabsIntent.Builder()
+                        .setShowTitle(true)
+                        .build()
+                    customTabsIntent.launchUrl(context, uri)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to open in-app browser, falling back to external: $url", e)
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                        webView?.context?.startActivity(intent)
+                    } catch (e2: Exception) {
+                        Log.e(TAG, "Failed to open URL: $url", e2)
+                    }
+                }
+            }
+
             "UPDATE_CHARGER_GEOFENCES" -> {
                 val chargersJson = msg.payload.optJSONArray("chargers") ?: return
                 val chargers = mutableListOf<Triple<String, Double, Double>>()

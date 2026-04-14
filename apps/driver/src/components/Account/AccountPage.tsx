@@ -562,8 +562,8 @@ export function AccountPage({ onClose, onViewActivity, onViewVehicle, onChargerS
                       onClick={onViewVehicle}
                       className="w-full flex items-center gap-3 text-left active:bg-gray-50 rounded-xl transition-colors"
                     >
-                      <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
-                        <Zap className="w-5 h-5 text-green-600" />
+                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-100">
+                        <img src="/tesla-t-logo.png" alt="Tesla" className="w-6 h-6 object-contain" />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-[#050505]">
